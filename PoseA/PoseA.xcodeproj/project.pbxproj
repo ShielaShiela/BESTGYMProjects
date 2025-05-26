@@ -1,0 +1,651 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		97BAF6792D754600008E34D4 /* VitPoseh.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 97BAF6782D754600008E34D4 /* VitPoseh.mlpackage */; };
+		97BAF67A2D754600008E34D4 /* VitPoseh.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 97BAF6782D754600008E34D4 /* VitPoseh.mlpackage */; };
+		97BAF67B2D754600008E34D4 /* VitPoseh.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 97BAF6782D754600008E34D4 /* VitPoseh.mlpackage */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		97BAF65C2D7543FC008E34D4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97BAF6412D7543FA008E34D4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 97BAF6482D7543FA008E34D4;
+			remoteInfo = PoseA;
+		};
+		97BAF6662D7543FC008E34D4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97BAF6412D7543FA008E34D4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 97BAF6482D7543FA008E34D4;
+			remoteInfo = PoseA;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		97BAF6492D7543FA008E34D4 /* PoseA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PoseA.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		97BAF65B2D7543FC008E34D4 /* PoseATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PoseATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		97BAF6652D7543FC008E34D4 /* PoseAUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PoseAUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		97BAF6782D754600008E34D4 /* VitPoseh.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = VitPoseh.mlpackage; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		97BAF6B82D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseATests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				CameraLiDARManager.swift,
+				CVPixelBufferExtension.swift,
+				Extensions.swift,
+				Metal/DepthOverlay.swift,
+				Metal/MetalContentView.swift,
+				Metal/MetalEnvironment.swift,
+				Metal/MetalPointCloud.swift,
+				Metal/MetalTextureColorZap.swift,
+				Metal/MetalTextureViewColor.swift,
+				Metal/MetalTextureViewDepth.swift,
+				Metal/MetalTextureViewFused.swift,
+				Shaders/PointCloud.metal,
+				Shaders/shaders.metal,
+				Shaders/YCbCrToRGB.metal,
+			);
+			target = 97BAF65A2D7543FC008E34D4 /* PoseATests */;
+		};
+		97BAF6B92D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseAUITests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				CameraLiDARManager.swift,
+				CVPixelBufferExtension.swift,
+				Extensions.swift,
+				Metal/DepthOverlay.swift,
+				Metal/MetalContentView.swift,
+				Metal/MetalEnvironment.swift,
+				Metal/MetalPointCloud.swift,
+				Metal/MetalTextureColorZap.swift,
+				Metal/MetalTextureViewColor.swift,
+				Metal/MetalTextureViewDepth.swift,
+				Metal/MetalTextureViewFused.swift,
+				Shaders/PointCloud.metal,
+				Shaders/shaders.metal,
+				Shaders/YCbCrToRGB.metal,
+			);
+			target = 97BAF6642D7543FC008E34D4 /* PoseAUITests */;
+		};
+		97BAF6ED2D756979008E34D4 /* Exceptions for "PoseA" folder in "PoseA" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 97BAF6482D7543FA008E34D4 /* PoseA */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		97BAF64B2D7543FA008E34D4 /* PoseA */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				97BAF6ED2D756979008E34D4 /* Exceptions for "PoseA" folder in "PoseA" target */,
+				97BAF6B82D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseATests" target */,
+				97BAF6B92D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseAUITests" target */,
+			);
+			path = PoseA;
+			sourceTree = "<group>";
+		};
+		97BAF65E2D7543FC008E34D4 /* PoseATests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PoseATests;
+			sourceTree = "<group>";
+		};
+		97BAF6682D7543FC008E34D4 /* PoseAUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PoseAUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		97BAF6462D7543FA008E34D4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		97BAF6582D7543FC008E34D4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		97BAF6622D7543FC008E34D4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		97BAF6402D7543FA008E34D4 = {
+			isa = PBXGroup;
+			children = (
+				97BAF64B2D7543FA008E34D4 /* PoseA */,
+				97BAF65E2D7543FC008E34D4 /* PoseATests */,
+				97BAF6682D7543FC008E34D4 /* PoseAUITests */,
+				97BAF64A2D7543FA008E34D4 /* Products */,
+				97BAF6782D754600008E34D4 /* VitPoseh.mlpackage */,
+			);
+			sourceTree = "<group>";
+		};
+		97BAF64A2D7543FA008E34D4 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				97BAF6492D7543FA008E34D4 /* PoseA.app */,
+				97BAF65B2D7543FC008E34D4 /* PoseATests.xctest */,
+				97BAF6652D7543FC008E34D4 /* PoseAUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		97BAF6482D7543FA008E34D4 /* PoseA */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 97BAF66F2D7543FC008E34D4 /* Build configuration list for PBXNativeTarget "PoseA" */;
+			buildPhases = (
+				97BAF6452D7543FA008E34D4 /* Sources */,
+				97BAF6462D7543FA008E34D4 /* Frameworks */,
+				97BAF6472D7543FA008E34D4 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				97BAF64B2D7543FA008E34D4 /* PoseA */,
+			);
+			name = PoseA;
+			packageProductDependencies = (
+			);
+			productName = PoseA;
+			productReference = 97BAF6492D7543FA008E34D4 /* PoseA.app */;
+			productType = "com.apple.product-type.application";
+		};
+		97BAF65A2D7543FC008E34D4 /* PoseATests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 97BAF6722D7543FC008E34D4 /* Build configuration list for PBXNativeTarget "PoseATests" */;
+			buildPhases = (
+				97BAF6572D7543FC008E34D4 /* Sources */,
+				97BAF6582D7543FC008E34D4 /* Frameworks */,
+				97BAF6592D7543FC008E34D4 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				97BAF65D2D7543FC008E34D4 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				97BAF65E2D7543FC008E34D4 /* PoseATests */,
+			);
+			name = PoseATests;
+			packageProductDependencies = (
+			);
+			productName = PoseATests;
+			productReference = 97BAF65B2D7543FC008E34D4 /* PoseATests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		97BAF6642D7543FC008E34D4 /* PoseAUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 97BAF6752D7543FC008E34D4 /* Build configuration list for PBXNativeTarget "PoseAUITests" */;
+			buildPhases = (
+				97BAF6612D7543FC008E34D4 /* Sources */,
+				97BAF6622D7543FC008E34D4 /* Frameworks */,
+				97BAF6632D7543FC008E34D4 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				97BAF6672D7543FC008E34D4 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				97BAF6682D7543FC008E34D4 /* PoseAUITests */,
+			);
+			name = PoseAUITests;
+			packageProductDependencies = (
+			);
+			productName = PoseAUITests;
+			productReference = 97BAF6652D7543FC008E34D4 /* PoseAUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		97BAF6412D7543FA008E34D4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1610;
+				LastUpgradeCheck = 1610;
+				TargetAttributes = {
+					97BAF6482D7543FA008E34D4 = {
+						CreatedOnToolsVersion = 16.1;
+					};
+					97BAF65A2D7543FC008E34D4 = {
+						CreatedOnToolsVersion = 16.1;
+						TestTargetID = 97BAF6482D7543FA008E34D4;
+					};
+					97BAF6642D7543FC008E34D4 = {
+						CreatedOnToolsVersion = 16.1;
+						TestTargetID = 97BAF6482D7543FA008E34D4;
+					};
+				};
+			};
+			buildConfigurationList = 97BAF6442D7543FA008E34D4 /* Build configuration list for PBXProject "PoseA" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 97BAF6402D7543FA008E34D4;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 97BAF64A2D7543FA008E34D4 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				97BAF6482D7543FA008E34D4 /* PoseA */,
+				97BAF65A2D7543FC008E34D4 /* PoseATests */,
+				97BAF6642D7543FC008E34D4 /* PoseAUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		97BAF6472D7543FA008E34D4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		97BAF6592D7543FC008E34D4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		97BAF6632D7543FC008E34D4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		97BAF6452D7543FA008E34D4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				97BAF6792D754600008E34D4 /* VitPoseh.mlpackage in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		97BAF6572D7543FC008E34D4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				97BAF67B2D754600008E34D4 /* VitPoseh.mlpackage in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		97BAF6612D7543FC008E34D4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				97BAF67A2D754600008E34D4 /* VitPoseh.mlpackage in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		97BAF65D2D7543FC008E34D4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 97BAF6482D7543FA008E34D4 /* PoseA */;
+			targetProxy = 97BAF65C2D7543FC008E34D4 /* PBXContainerItemProxy */;
+		};
+		97BAF6672D7543FC008E34D4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 97BAF6482D7543FA008E34D4 /* PoseA */;
+			targetProxy = 97BAF6662D7543FC008E34D4 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		97BAF66D2D7543FC008E34D4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		97BAF66E2D7543FC008E34D4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		97BAF6702D7543FC008E34D4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"PoseA/Preview Content\"";
+				DEVELOPMENT_TEAM = Z34SD8Z24C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PoseA/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Use the camera or lidar camera to collect video data";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "We need access to your documents to process frame data for pose detection.";
+				INFOPLIST_KEY_NSFileProviderDomainUsageDescription = "Needs to open files ";
+				INFOPLIST_KEY_NSFileProviderPresenceUsageDescription = 1.0;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Might use microphone during video recording";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Might use microphone during video recording";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "We need access to your photo library to process images for pose detection.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = BESTLab.PoseA;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		97BAF6712D7543FC008E34D4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"PoseA/Preview Content\"";
+				DEVELOPMENT_TEAM = Z34SD8Z24C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PoseA/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Use the camera or lidar camera to collect video data";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "We need access to your documents to process frame data for pose detection.";
+				INFOPLIST_KEY_NSFileProviderDomainUsageDescription = "Needs to open files ";
+				INFOPLIST_KEY_NSFileProviderPresenceUsageDescription = 1.0;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Might use microphone during video recording";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Might use microphone during video recording";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "We need access to your photo library to process images for pose detection.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = BESTLab.PoseA;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		97BAF6732D7543FC008E34D4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Z34SD8Z24C;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = BESTLab.PoseATests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PoseA.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PoseA";
+			};
+			name = Debug;
+		};
+		97BAF6742D7543FC008E34D4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Z34SD8Z24C;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = BESTLab.PoseATests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PoseA.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PoseA";
+			};
+			name = Release;
+		};
+		97BAF6762D7543FC008E34D4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Z34SD8Z24C;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = BESTLab.PoseAUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = PoseA;
+			};
+			name = Debug;
+		};
+		97BAF6772D7543FC008E34D4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Z34SD8Z24C;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = BESTLab.PoseAUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = PoseA;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		97BAF6442D7543FA008E34D4 /* Build configuration list for PBXProject "PoseA" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				97BAF66D2D7543FC008E34D4 /* Debug */,
+				97BAF66E2D7543FC008E34D4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		97BAF66F2D7543FC008E34D4 /* Build configuration list for PBXNativeTarget "PoseA" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				97BAF6702D7543FC008E34D4 /* Debug */,
+				97BAF6712D7543FC008E34D4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		97BAF6722D7543FC008E34D4 /* Build configuration list for PBXNativeTarget "PoseATests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				97BAF6732D7543FC008E34D4 /* Debug */,
+				97BAF6742D7543FC008E34D4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		97BAF6752D7543FC008E34D4 /* Build configuration list for PBXNativeTarget "PoseAUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				97BAF6762D7543FC008E34D4 /* Debug */,
+				97BAF6772D7543FC008E34D4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 97BAF6412D7543FA008E34D4 /* Project object */;
+}

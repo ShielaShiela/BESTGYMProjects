@@ -246,6 +246,152 @@ struct BESTGYMPoseApp: View {
         }
     }
 
+    
+    // MARK: - Enhanced loadVideo function with automatic keypoint detection
+    private func loadVideo(from url: URL) {
+        appState.isProcessing = true
+        appState.processingStatus = "Loading video..."
+        appState.isVideoSource = true
+        
+        // Reset keypoint-related states
+        appState.hasImportedKeypoints = false
+        appState.showKeypoints = false
+        
+        print("Loading video from: \(url.path)")
+        
+        // Check if this is a recording folder rather than a direct video file
+        var isFolder = false
+        do {
+            let resourceValues = try url.resourceValues(forKeys: [.isDirectoryKey])
+            isFolder = resourceValues.isDirectory ?? false
+        } catch {
+            print("Error checking if URL is directory: \(error)")
+        }
+        
+        if isFolder {
+            print("Loading as a recording folder")
+            loadDataFromFolder(url)
+        } else {
+            // Load as a direct video file
+            cameraManager.loadVideoFile(url) { success, totalFrames, error in
+                DispatchQueue.main.async {
+                    self.appState.isProcessing = false
+                    
+                    if success {
+                        self.appState.processingStatus = "Video loaded with \(totalFrames) frames"
+                        self.appState.sourceFileName = url.lastPathComponent
+                        self.appState.sourceURL = url
+                        
+                        // ✅ AUTOMATICALLY CHECK FOR KEYPOINT FILES
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            self.checkForAssociatedKeypointFile(videoURL: url)
+                        }
+                    } else if let error = error {
+                        self.appState.errorMessage = "Failed to load video: \(error)"
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Enhanced checkForAssociatedKeypointFile function
+    private func checkForAssociatedKeypointFile(videoURL: URL) {
+        // Don't search if we already have keypoints
+        if appState.hasImportedKeypoints || appState.showKeypoints {
+            print("📁 Keypoints already loaded, skipping automatic detection")
+            return
+        }
+
+        let fileManager = FileManager.default
+        let videoDirectory = videoURL.deletingLastPathComponent()
+        let videoNameWithoutExtension = videoURL.deletingPathExtension().lastPathComponent
+        
+        print("🔍 Checking for associated keypoint files for '\(videoNameWithoutExtension)' in: \(videoDirectory.path)")
+        
+        do {
+            let directoryContents = try fileManager.contentsOfDirectory(
+                at: videoDirectory,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )
+            
+            // Priority 1: Look for exact match with video name + keypoints
+            let exactMatchFiles = directoryContents.filter { url in
+                let filename = url.lastPathComponent.lowercased()
+                return url.pathExtension.lowercased() == "json" &&
+                       (filename.contains("\(videoNameWithoutExtension.lowercased())_keypoint") ||
+                        filename.contains("keypoint") && filename.contains(videoNameWithoutExtension.lowercased()))
+            }
+            
+            // Priority 2: Look for any keypoint files with similar naming patterns
+            let keypointFiles = directoryContents.filter { url in
+                let filename = url.lastPathComponent.lowercased()
+                return url.pathExtension.lowercased() == "json" &&
+                       (filename.contains("keypoint") || filename.contains("pose") || filename.contains("joint"))
+            }
+            
+            // Priority 3: Look for timestamped keypoint files (most recent)
+            let timestampedKeypointFiles = keypointFiles.filter { url in
+                let filename = url.lastPathComponent.lowercased()
+                return filename.contains("_") &&
+                       (filename.contains("202") || filename.contains("keypoint")) // Contains year or explicit keypoint
+            }.sorted { url1, url2 in
+                // Sort by modification date (most recent first)
+                let date1 = (try? url1.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date.distantPast
+                let date2 = (try? url2.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date.distantPast
+                return date1 > date2
+            }
+            
+            // Choose the best keypoint file
+            let selectedKeypointFile: URL?
+            
+            if !exactMatchFiles.isEmpty {
+                selectedKeypointFile = exactMatchFiles.first
+                print("✅ Found exact match keypoint file: \(exactMatchFiles.first!.lastPathComponent)")
+            } else if !timestampedKeypointFiles.isEmpty {
+                selectedKeypointFile = timestampedKeypointFiles.first
+                print("📅 Found timestamped keypoint file: \(timestampedKeypointFiles.first!.lastPathComponent)")
+            } else if !keypointFiles.isEmpty {
+                selectedKeypointFile = keypointFiles.first
+                print("📄 Found generic keypoint file: \(keypointFiles.first!.lastPathComponent)")
+            } else {
+                selectedKeypointFile = nil
+                print("❌ No keypoint files found in directory")
+            }
+            
+            if let keypointURL = selectedKeypointFile {
+                print("🎯 Loading keypoint file: \(keypointURL.lastPathComponent)")
+                
+                // Show loading message
+                appState.processingStatus = "Found keypoint file: \(keypointURL.lastPathComponent)"
+                
+                // Load keypoints after a small delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.loadKeypointFile(keypointURL)
+                }
+            } else {
+                // No keypoint files found - check if auto-detect is enabled
+                print("🔍 No keypoint files found")
+                
+                if appState.autoDetectKeypoints {
+                    appState.processingStatus = "No keypoints found. Auto-detecting poses..."
+                    print("🤖 Auto-detecting keypoints...")
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        self.processData()
+                    }
+                } else {
+                    appState.processingStatus = "Video loaded. Select 'Detect Pose' to analyze or import keypoint file."
+                    print("💡 Tip: Enable auto-detect in settings or manually select 'Detect Pose'")
+                }
+            }
+        } catch {
+            print("❌ Error searching for keypoint files: \(error)")
+            appState.processingStatus = "Video loaded. Select 'Detect Pose' to analyze."
+        }
+    }
+
+    // MARK: - Enhanced loadDataFromFolder to also check for keypoints
     private func loadDataFromFolder(_ url: URL) {
         appState.isVideoSource = false
         appState.processingStatus = "Loading data from folder..."
@@ -271,14 +417,19 @@ struct BESTGYMPoseApp: View {
                 
                 print("Found \(contents.count) items in folder \(url.lastPathComponent)")
                 
-                // Check folder structure to determine type
-                
-                // 1. Check for video file (standard recording or video+metadata)
+                // Check for video files
                 let videoFiles = contents.filter {
                     ["mp4", "mov", "m4v"].contains($0.pathExtension.lowercased())
                 }
                 
-                // 2. Check for frame directories (LiDAR recording)
+                // Check for keypoint files IN THE SAME FOLDER
+                let keypointFiles = contents.filter {
+                    let filename = $0.lastPathComponent.lowercased()
+                    return $0.pathExtension.lowercased() == "json" &&
+                           (filename.contains("keypoint") || filename.contains("pose"))
+                }
+                
+                // Check for frame directories (LiDAR recording)
                 let frameDirectories = contents.filter {
                     var isDir: ObjCBool = false
                     return fileManager.fileExists(atPath: $0.path, isDirectory: &isDir) &&
@@ -286,50 +437,77 @@ struct BESTGYMPoseApp: View {
                            $0.lastPathComponent.hasPrefix("frame_")
                 }
                 
-                // 3. Check for direct depth data files
-                let hasDepthData = contents.contains {
-                    $0.lastPathComponent == "depthData.dat"
-                }
+                // Check for direct depth data files
+                let hasDepthData = contents.contains { $0.lastPathComponent == "depthData.dat" }
+                let hasMetadata = contents.contains { $0.lastPathComponent == "recording_metadata.json" }
                 
-                // 4. Check for metadata file
-                let hasMetadata = contents.contains {
-                    $0.lastPathComponent == "recording_metadata.json"
-                }
-                
-                // Now determine what type of folder this is
-                
+                // Process based on folder content
                 if !videoFiles.isEmpty {
-                    // Found video file(s)
-                    print("Found video file(s) in folder")
-                    
-                    // If we have multiple video files, choose the first one
-                    // You could add more logic here to select the appropriate one
+                    // Found video file(s) - load video and check for keypoints
                     let videoURL = videoFiles.first!
-                    
                     print("Loading video from folder: \(videoURL.path)")
                     
-                    // Load on main thread
                     DispatchQueue.main.async {
-                        self.loadVideo(from: videoURL)
+                        // Set video info
+                        self.appState.sourceFileName = videoURL.lastPathComponent
+                        self.appState.sourceURL = url // Keep folder as source URL
                         
-                        // If we have metadata, update the app state to indicate this
-                        if hasMetadata {
-                            self.appState.processingStatus = "Loaded video with metadata"
+                        // Load video
+                        self.cameraManager.loadVideoFile(videoURL) { success, totalFrames, error in
+                            DispatchQueue.main.async {
+                                self.appState.isProcessing = false
+                                
+                                if success {
+                                    self.appState.processingStatus = "Video loaded with \(totalFrames) frames"
+                                    self.appState.isVideoSource = true
+                                    
+                                    // ✅ CHECK FOR KEYPOINTS IN THE SAME FOLDER
+                                    if !keypointFiles.isEmpty {
+                                        let keypointURL = keypointFiles.first!
+                                        print("📁 Found keypoint file in folder: \(keypointURL.lastPathComponent)")
+                                        
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                            self.appState.processingStatus = "Loading keypoints from folder..."
+                                            self.loadKeypointFile(keypointURL)
+                                        }
+                                    } else {
+                                        // No keypoints in folder, check if auto-detect is enabled
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                            if self.appState.autoDetectKeypoints {
+                                                self.appState.processingStatus = "Auto-detecting poses..."
+                                                self.processData()
+                                            } else {
+                                                self.appState.processingStatus = "Video loaded. Select 'Detect Pose' to analyze."
+                                            }
+                                        }
+                                    }
+                                } else if let error = error {
+                                    self.appState.errorMessage = "Failed to load video: \(error)"
+                                }
+                            }
                         }
                     }
                 } else if !frameDirectories.isEmpty {
                     // LiDAR recording with frame folders
                     print("Loading as LiDAR frame folder with \(frameDirectories.count) frames")
                     
-                    // Use the proper CameraLiDARManager method
                     self.cameraManager.loadVideoFolder(from: url)
                     
-                    // Update AppState
                     DispatchQueue.main.async {
                         self.appState.processingStatus = "Loaded \(self.cameraManager.totalFrames) frames from \(url.lastPathComponent)"
                         self.appState.sourceFileName = url.lastPathComponent
                         self.appState.sourceURL = url
                         self.appState.isProcessing = false
+                        
+                        // ✅ CHECK FOR KEYPOINTS IN LIDAR FOLDER TOO
+                        if !keypointFiles.isEmpty {
+                            let keypointURL = keypointFiles.first!
+                            print("📁 Found keypoint file in LiDAR folder: \(keypointURL.lastPathComponent)")
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                self.loadKeypointFile(keypointURL)
+                            }
+                        }
                     }
                 } else if hasDepthData {
                     // Direct LiDAR data files
@@ -367,61 +545,34 @@ struct BESTGYMPoseApp: View {
             }
         }
     }
-    
-    private func loadVideo(from url: URL) {
-        appState.isProcessing = true
-        appState.processingStatus = "Loading video..."
-        appState.isVideoSource = true
-        
-        // Reset keypoint-related states
-        appState.hasImportedKeypoints = false
-        appState.showKeypoints = false
-        
-        print("Loading video from: \(url.path)")
-        
-        // Check if this is a recording folder rather than a direct video file
-        var isFolder = false
+
+    // MARK: - Helper function to validate keypoint file before loading
+    private func validateKeypointFile(_ url: URL) -> Bool {
         do {
-            let resourceValues = try url.resourceValues(forKeys: [.isDirectoryKey])
-            isFolder = resourceValues.isDirectory ?? false
-        } catch {
-            print("Error checking if URL is directory: \(error)")
-        }
-        
-        if isFolder {
-            print("Loading as a recording folder")
-            loadDataFromFolder(url)
-        } else {
-            // Check if there's metadata in the same folder
-            let folderURL = url.deletingLastPathComponent()
-            let metadataURL = folderURL.appendingPathComponent("recording_metadata.json")
+            let data = try Data(contentsOf: url)
+            let json = try JSONSerialization.jsonObject(with: data, options: [])
             
-            var hasMetadata = false
-            if FileManager.default.fileExists(atPath: metadataURL.path) {
-                print("Found metadata file alongside video")
-                hasMetadata = true
-                // Optionally load metadata here if needed for video processing
-            }
-            
-            // Load as a direct video file
-            cameraManager.loadVideoFile(url) { success, totalFrames, error in
-                DispatchQueue.main.async {
-                    self.appState.isProcessing = false
-                    
-                    if success {
-                        self.appState.processingStatus = "Video loaded with \(totalFrames) frames" + (hasMetadata ? " and metadata" : "")
-                        self.appState.sourceFileName = url.lastPathComponent
-                        self.appState.sourceURL = url
-                        
-                        // Show guidance message about next steps
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            self.appState.processingStatus = "Video loaded. Select 'Detect Pose' to analyze."
-                        }
-                    } else if let error = error {
-                        self.appState.errorMessage = "Failed to load video: \(error)"
-                    }
+            // Basic validation - check if it looks like a keypoint file
+            if let dict = json as? [String: Any] {
+                // Check for common keypoint file structures
+                return dict.keys.contains { key in
+                    key.lowercased().contains("keypoint") ||
+                    key.lowercased().contains("frame") ||
+                    key.lowercased().contains("pose")
                 }
+            } else if let array = json as? [[String: Any]] {
+                // Array of frames format
+                return !array.isEmpty && array.first?.keys.contains { key in
+                    key.lowercased().contains("keypoint") ||
+                    key.lowercased().contains("x") ||
+                    key.lowercased().contains("joint")
+                } == true
             }
+            
+            return false
+        } catch {
+            print("❌ Error validating keypoint file: \(error)")
+            return false
         }
     }
     
@@ -469,116 +620,6 @@ struct BESTGYMPoseApp: View {
         // This would depend on your specific requirements
     }
     
- 
-    // In BESTGYMPoseApp.swift - fully thread-safe updateDisplayWithKeypoints method
-    // In BESTGYMPoseApp.swift - replace the existing updateDisplayWithKeypoints method
-    // Also update the updateDisplayWithKeypoints in BESTGYMPoseApp
-//    private func updateDisplayWithKeypoints(for frameIndex: Int) {
-//        // Ensure we're on the main thread
-//        if !Thread.isMainThread {
-//            DispatchQueue.main.async {
-//                self.updateDisplayWithKeypoints(for: frameIndex)
-//            }
-//            return
-//        }
-//        
-//        print("CRITICAL: Updating display with keypoints for frame \(frameIndex)")
-//        
-//        // Defensive bounds check
-//        guard frameIndex >= 0 && frameIndex < cameraManager.totalFrames else {
-//            print("⚠️ Frame index \(frameIndex) out of bounds (0..\(cameraManager.totalFrames-1))")
-//            return
-//        }
-//        
-//        // EXPLICITLY force showKeypoints to true
-//        appState.showKeypoints = true
-//        
-//        // Get the original frame
-//        if let originalFrame = cameraManager.getFrame(at: frameIndex) {
-//            // First update the frame image - do this BEFORE sending notifications
-//            cameraManager.currentFrameImage = originalFrame
-//            cameraManager.currentFrameIndex = frameIndex
-//            
-//            // Check if we have keypoints for this frame
-//            if let keypoints = appState.poseProcessor.getKeypoints(for: frameIndex), !keypoints.isEmpty {
-//                print("CRITICAL: Have \(keypoints.count) keypoints for frame \(frameIndex)")
-//                
-//                // Set flags
-//                appState.hasImportedKeypoints = true
-//                appState.showKeypoints = true
-//                
-//                // Add a small delay before sending notification
-//                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-//                    // Signal that keypoints need updating
-//                    NotificationCenter.default.post(
-//                        name: NSNotification.Name("KeypointDisplayUpdated"),
-//                        object: nil,
-//                        userInfo: ["frameIndex": frameIndex]
-//                    )
-//                    
-//                    print("✅ Sent keypoint update notification for frame \(frameIndex)")
-//                }
-//            } else {
-//                print("CRITICAL: No keypoints found for frame \(frameIndex)")
-//                appState.showKeypoints = false
-//            }
-//        } else {
-//            print("⚠️ No image found for frame \(frameIndex)")
-//        }
-//    }
-    // In BESTGYMPoseApp.swift - replace the existing processData method with this improved version
-    // In BESTGYMPoseApp.swift - replace the existing processData method
-    // In BESTGYMPoseApp.swift - completely revised processData method
-//    private func processData() {
-//        // Always execute on main thread
-//        DispatchQueue.main.async {
-//            // Verify we have frames and not already processing
-//            guard self.cameraManager.totalFrames > 0 else {
-//                print("Error: No frames available for processing")
-//                self.appState.errorMessage = "No frames available for processing"
-//                return
-//            }
-//            
-//            guard !self.appState.isProcessing else {
-//                print("Already processing frames")
-//                return
-//            }
-//            
-//            // Show processing indicator - done directly on main thread
-//            self.appState.isProcessing = true
-//            self.appState.processingStatus = "Preparing for pose detection..."
-//            
-//            print("Beginning pose detection on \(self.cameraManager.totalFrames) frames")
-//            
-//            // Short delay to ensure UI updates before starting
-//            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-//                // Update status text
-//                self.appState.processingStatus = "Detecting poses in \(self.cameraManager.totalFrames) frames..."
-//                
-//                // Start processing
-//                self.appState.poseProcessor.processFrames(from: self.cameraManager) { progressValue in
-//                    // Update progress (guaranteed on main thread)
-//                    let percentage = Int(progressValue * 100)
-//                    self.appState.processingStatus = "Processing: \(percentage)%"
-//                } completion: { success, error in
-//                    // All updates here are guaranteed to be on main thread
-//                    
-//                    // First, mark processing as complete
-//                    self.appState.isProcessing = false
-//                    
-//                    if success {
-//                        // Call our dedicated method to handle completion
-//                        self.finishPoseDetection()
-//                    } else if let processingError = error {
-//                        // Show error message
-//                        self.appState.isProcessing = false
-//                        self.appState.errorMessage = "Processing failed: \(processingError.localizedDescription)"
-//                        print("Pose detection error: \(processingError)")
-//                    }
-//                }
-//            }
-//        }
-//    }
     private func processData() {
         DispatchQueue.main.async {
             guard self.cameraManager.totalFrames > 0 else {
@@ -998,67 +1039,6 @@ struct BESTGYMPoseApp: View {
         appState.loadUserPreferences()
     }
     
-    // Add to BESTGYMPoseApp
-    private func checkForAssociatedKeypointFile(videoURL: URL) {
-        // Don't search if we already have keypoints
-        if appState.hasImportedKeypoints || appState.showKeypoints {
-            return
-        }
-
-        let fileManager = FileManager.default
-        let videoDirectory = videoURL.deletingLastPathComponent()
-        let videoNameWithoutExtension = videoURL.deletingPathExtension().lastPathComponent
-        
-        print("Checking for associated keypoint files for \(videoNameWithoutExtension)")
-        
-        // Try to find matching keypoint files
-        do {
-            let directoryContents = try fileManager.contentsOfDirectory(
-                at: videoDirectory,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-            
-            // Look for keypoint files with the video name
-            let keypointFiles = directoryContents.filter { url in
-                return url.pathExtension.lowercased() == "json" &&
-                       url.lastPathComponent.lowercased().contains("keypoint") &&
-                       url.lastPathComponent.lowercased().contains(videoNameWithoutExtension.lowercased())
-            }
-            
-            // If none found, try any keypoint file in the same directory
-            let anyKeypointFiles = directoryContents.filter { url in
-                return url.pathExtension.lowercased() == "json" &&
-                       url.lastPathComponent.lowercased().contains("keypoint")
-            }
-            
-            if let keypointURL = keypointFiles.first ?? anyKeypointFiles.first {
-                print("Found associated keypoint file: \(keypointURL.lastPathComponent)")
-                
-                // Show message
-                appState.processingStatus = "Found keypoint file, loading..."
-                
-                // Load after a small delay to allow UI to update
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.loadKeypointFile(keypointURL)
-                }
-            } else {
-                print("No associated keypoint files found")
-                
-                // If auto-detect is enabled, run detection
-                if appState.autoDetectKeypoints {
-                    appState.processingStatus = "Auto-detecting poses..."
-                    
-                    // Start detection after a short delay
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.processData()
-                    }
-                }
-            }
-        } catch {
-            print("Error searching for keypoint files: \(error)")
-        }
-    }
     private func updateDisplayWithKeypoints(for frameIndex: Int) {
         // Ensure we're on the main thread
         DispatchQueue.main.async {

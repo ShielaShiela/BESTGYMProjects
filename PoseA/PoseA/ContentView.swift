@@ -620,6 +620,69 @@ struct BESTGYMPoseApp: View {
         // This would depend on your specific requirements
     }
     
+//    private func processData() {
+//        DispatchQueue.main.async {
+//            guard self.cameraManager.totalFrames > 0 else {
+//                print("Error: No frames available for processing")
+//                self.appState.errorMessage = "No frames available for processing"
+//                return
+//            }
+//            
+//            guard !self.appState.isProcessing else {
+//                print("Already processing frames")
+//                return
+//            }
+//            
+//            self.appState.isProcessing = true
+//            
+//            // Update status based on ROI
+//            if self.appState.hasROI {
+//                self.appState.processingStatus = "Preparing ROI-based pose detection for all frames..."
+//            } else {
+//                self.appState.processingStatus = "Preparing pose detection for all frames..."
+//            }
+//            
+//            print("Beginning pose detection on \(self.cameraManager.totalFrames) frames")
+//            if self.appState.hasROI {
+//                print("Using ROI: \(self.appState.roiImageCoordinates!)")
+//            }
+//            
+//            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+//                let statusText = self.appState.hasROI ?
+//                    "Detecting poses in ROI across \(self.cameraManager.totalFrames) frames..." :
+//                    "Detecting poses across \(self.cameraManager.totalFrames) frames..."
+//                
+//                self.appState.processingStatus = statusText
+//                
+//                // Pass ROI information to the pose processor
+//                if let roiImageCoordinates = self.appState.roiImageCoordinates {
+//                    self.appState.poseProcessor.setROI(roiImageCoordinates)
+//                } else {
+//                    self.appState.poseProcessor.clearROI()
+//                }
+//                
+//                self.appState.poseProcessor.processFrames(from: self.cameraManager) { progressValue in
+//                    let percentage = Int(progressValue * 100)
+//                    let statusText = self.appState.hasROI ?
+//                        "Processing ROI frames: \(percentage)%" :
+//                        "Processing frames: \(percentage)%"
+//                    self.appState.processingStatus = statusText
+//                } completion: { success, error in
+//                    self.appState.isProcessing = false
+//                    
+//                    if success {
+//                        self.finishPoseDetection()
+//                    } else if let processingError = error {
+//                        self.appState.errorMessage = "Processing failed: \(processingError.localizedDescription)"
+//                        print("Pose detection error: \(processingError)")
+//                    }
+//                }
+//            }
+//        }
+//    }
+
+    
+    // MARK: - Updated processData() function with optimized processing
     private func processData() {
         DispatchQueue.main.async {
             guard self.cameraManager.totalFrames > 0 else {
@@ -642,7 +705,7 @@ struct BESTGYMPoseApp: View {
                 self.appState.processingStatus = "Preparing pose detection for all frames..."
             }
             
-            print("Beginning pose detection on \(self.cameraManager.totalFrames) frames")
+            print("Beginning optimized pose detection on \(self.cameraManager.totalFrames) frames")
             if self.appState.hasROI {
                 print("Using ROI: \(self.appState.roiImageCoordinates!)")
             }
@@ -661,20 +724,39 @@ struct BESTGYMPoseApp: View {
                     self.appState.poseProcessor.clearROI()
                 }
                 
-                self.appState.poseProcessor.processFrames(from: self.cameraManager) { progressValue in
-                    let percentage = Int(progressValue * 100)
-                    let statusText = self.appState.hasROI ?
-                        "Processing ROI frames: \(percentage)%" :
-                        "Processing frames: \(percentage)%"
-                    self.appState.processingStatus = statusText
+                // Use optimized processing with retry mechanism
+                self.appState.poseProcessor.processFramesWithRetry(
+                    from: self.cameraManager,
+                    maxRetries: 2
+                ) { progressValue in
+                    // Update progress on main thread
+                    DispatchQueue.main.async {
+                        let percentage = Int(progressValue * 100)
+                        let statusText = self.appState.hasROI ?
+                            "Processing ROI frames: \(percentage)%" :
+                            "Processing frames: \(percentage)%"
+                        self.appState.processingStatus = statusText
+                    }
                 } completion: { success, error in
-                    self.appState.isProcessing = false
-                    
-                    if success {
-                        self.finishPoseDetection()
-                    } else if let processingError = error {
-                        self.appState.errorMessage = "Processing failed: \(processingError.localizedDescription)"
-                        print("Pose detection error: \(processingError)")
+                    DispatchQueue.main.async {
+                        self.appState.isProcessing = false
+                        
+                        if success {
+                            // Get final statistics
+                            let processedFrames = self.appState.poseProcessor.getFrameIndicesWithKeypoints().count
+                            let totalFrames = self.cameraManager.totalFrames
+                            
+                            print("✅ Processing complete: \(processedFrames)/\(totalFrames) frames processed")
+                            
+                            if processedFrames < totalFrames {
+                                self.appState.processingStatus = "Completed with \(processedFrames)/\(totalFrames) frames processed"
+                            }
+                            
+                            self.finishPoseDetection()
+                        } else if let processingError = error {
+                            self.appState.errorMessage = "Processing failed: \(processingError.localizedDescription)"
+                            print("Pose detection error: \(processingError)")
+                        }
                     }
                 }
             }

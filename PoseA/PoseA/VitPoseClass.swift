@@ -2270,19 +2270,19 @@ extension VitPoseProcessor {
     }
     
     // Ensure image has the correct orientation
-    private func ensureCorrectOrientation(image: UIImage) -> UIImage {
-        // Only modify if not already in up orientation
-        if image.imageOrientation != .up {
-            print("Correcting image orientation from \(image.imageOrientation.rawValue) to .up")
-            
-            // Create a new image with the correct orientation
-            if let cgImage = image.cgImage {
-                return UIImage(cgImage: cgImage, scale: image.scale, orientation: .up)
-            }
-        }
-        
-        return image
-    }
+//    private func ensureCorrectOrientation(image: UIImage) -> UIImage {
+//        // Only modify if not already in up orientation
+//        if image.imageOrientation != .up {
+//            print("Correcting image orientation from \(image.imageOrientation.rawValue) to .up")
+//            
+//            // Create a new image with the correct orientation
+//            if let cgImage = image.cgImage {
+//                return UIImage(cgImage: cgImage, scale: image.scale, orientation: .up)
+//            }
+//        }
+//        
+//        return image
+//    }
     
     // Improved frame processing with orientation handling
     func processFrames(from cameraManager: CameraLiDARManager, progress: @escaping (Double) -> Void, completion: @escaping (Bool, Error?) -> Void) {
@@ -2726,3 +2726,488 @@ extension VitPoseProcessor {
         }
 }
 
+
+// MARK: - Enhanced Error Handling and Recovery
+
+class ProcessingConfiguration {
+    static let shared = ProcessingConfiguration()
+    
+    // Configurable parameters for optimization
+    var batchSize: Int = 10 {
+        didSet {
+            print("Batch size updated to: \(batchSize)")
+        }
+    }
+    
+    var maxCacheSize: Int = 50 {
+        didSet {
+            print("Max cache size updated to: \(maxCacheSize)")
+        }
+    }
+    
+    var delayBetweenBatches: TimeInterval = 0.1 {
+        didSet {
+            print("Delay between batches updated to: \(delayBetweenBatches)s")
+        }
+    }
+    
+    var enableMemoryLogging: Bool = false
+    
+    private init() {}
+    
+    // Adjust parameters based on device capabilities
+    func optimizeForDevice() {
+        let processInfo = ProcessInfo.processInfo
+        let physicalMemory = processInfo.physicalMemory
+        let gigabytes = Double(physicalMemory) / (1024 * 1024 * 1024)
+        
+        if gigabytes >= 8 {
+            // High-end device
+            batchSize = 15
+            maxCacheSize = 75
+            delayBetweenBatches = 0.05
+        } else if gigabytes >= 4 {
+            // Mid-range device
+            batchSize = 10
+            maxCacheSize = 50
+            delayBetweenBatches = 0.1
+        } else {
+            // Lower-end device
+            batchSize = 5
+            maxCacheSize = 25
+            delayBetweenBatches = 0.2
+        }
+        
+        print("Optimized for device with \(String(format: "%.1f", gigabytes))GB RAM")
+        print("Batch size: \(batchSize), Cache size: \(maxCacheSize), Delay: \(delayBetweenBatches)s")
+    }
+}
+
+extension VitPoseProcessor {
+    
+    /// Monitor memory usage during processing
+    private func logMemoryUsage(context: String) {
+        guard ProcessingConfiguration.shared.enableMemoryLogging else { return }
+        
+        let task = mach_task_self_
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
+        
+        let kerr: kern_return_t = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                task_info(task, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+        
+        if kerr == KERN_SUCCESS {
+            let usedMemoryMB = Double(info.resident_size) / (1024 * 1024)
+            print("💾 Memory usage at \(context): \(String(format: "%.1f", usedMemoryMB))MB")
+        }
+    }
+    
+    /// Check if we should reduce batch size due to memory pressure
+    private func shouldReduceBatchSize() -> Bool {
+        // Check available memory
+        let task = mach_task_self_
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
+        
+        let kerr: kern_return_t = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                task_info(task, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+        
+        if kerr == KERN_SUCCESS {
+            let usedMemoryGB = Double(info.resident_size) / (1024 * 1024 * 1024)
+            let physicalMemoryGB = Double(ProcessInfo.processInfo.physicalMemory) / (1024 * 1024 * 1024)
+            let memoryUsageRatio = usedMemoryGB / physicalMemoryGB
+            
+            return memoryUsageRatio > 0.75 // Reduce batch size if using >75% memory
+        }
+        
+        return false
+    }
+}
+
+// MARK: - Optimized Frame Processing with Batch Management
+extension VitPoseProcessor {
+    
+    /// Optimized frame processing with batch management and memory optimization
+    func processFramesOptimized(
+        from cameraManager: CameraLiDARManager,
+        progress: @escaping (Double) -> Void,
+        completion: @escaping (Bool, Error?) -> Void
+    ) {
+        let totalFrames = cameraManager.totalFrames
+        guard totalFrames > 0 else {
+            DispatchQueue.main.async {
+                completion(false, ProcessingError.noKeypointData("No frames available for processing"))
+            }
+            return
+        }
+        
+        print("🚀 Starting optimized pose detection on \(totalFrames) frames")
+        
+        // Configuration for batch processing
+        let batchSize = 10 // Process 10 frames at a time
+        let delayBetweenBatches: TimeInterval = 0.1 // Small delay to prevent memory issues
+        
+        // Clear existing data safely
+        if Thread.isMainThread {
+            self.clearAllData()
+        } else {
+            DispatchQueue.main.sync {
+                self.clearAllData()
+            }
+        }
+        
+        // Process frames in batches
+        self.processBatches(
+            cameraManager: cameraManager,
+            totalFrames: totalFrames,
+            batchSize: batchSize,
+            delayBetweenBatches: delayBetweenBatches,
+            currentBatch: 0,
+            processedFrames: 0,
+            failedFrames: [],
+            progress: progress,
+            completion: completion
+        )
+    }
+    
+    /// Process frames in batches with memory management
+    private func processBatches(
+        cameraManager: CameraLiDARManager,
+        totalFrames: Int,
+        batchSize: Int,
+        delayBetweenBatches: TimeInterval,
+        currentBatch: Int,
+        processedFrames: Int,
+        failedFrames: [Int],
+        progress: @escaping (Double) -> Void,
+        completion: @escaping (Bool, Error?) -> Void
+    ) {
+        let startFrame = currentBatch * batchSize
+        let endFrame = min(startFrame + batchSize, totalFrames)
+        
+        // Check if we're done
+        if startFrame >= totalFrames {
+            print("✅ Completed processing all batches. Processed: \(processedFrames), Failed: \(failedFrames.count)")
+            
+            // Handle failed frames if any
+            if !failedFrames.isEmpty {
+                print("⚠️ Failed to process frames: \(failedFrames)")
+            }
+            
+            DispatchQueue.main.async {
+                completion(true, nil)
+            }
+            return
+        }
+        
+        print("📦 Processing batch \(currentBatch + 1), frames \(startFrame) to \(endFrame - 1)")
+        
+        // Process current batch in background
+        DispatchQueue.global(qos: .userInitiated).async {
+            autoreleasepool {
+                var batchProcessedFrames = processedFrames
+                var batchFailedFrames = failedFrames
+                
+                // Process frames in this batch
+                for frameIndex in startFrame..<endFrame {
+                    do {
+                        // Get frame with memory management
+                        let frameImage = try self.getFrameWithMemoryManagement(
+                            from: cameraManager,
+                            at: frameIndex
+                        )
+                        
+                        // Process the frame
+                        let result = try self.processFrameWithMemoryManagement(
+                            image: frameImage,
+                            frameIndex: frameIndex
+                        )
+                        
+                        // Store results safely
+                        if !result.keypoints.isEmpty {
+                            self.storeKeypointsWithMemoryManagement(
+                                result.keypoints,
+                                visualizedImage: result.visualizedImage,
+                                for: frameIndex
+                            )
+                            batchProcessedFrames += 1
+                        } else {
+                            print("⚠️ No keypoints detected for frame \(frameIndex)")
+                            batchFailedFrames.append(frameIndex)
+                        }
+                        
+                        // Update progress
+                        let progressValue = Double(batchProcessedFrames) / Double(totalFrames)
+                        DispatchQueue.main.async {
+                            progress(progressValue)
+                        }
+                        
+                    } catch {
+                        print("❌ Error processing frame \(frameIndex): \(error)")
+                        batchFailedFrames.append(frameIndex)
+                    }
+                }
+                
+                // Memory cleanup between batches
+                self.performMemoryCleanup()
+                
+                // Log batch completion
+                print("✅ Batch \(currentBatch + 1) completed. Processed: \(batchProcessedFrames - processedFrames)/\(endFrame - startFrame)")
+                
+                // Schedule next batch with delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + delayBetweenBatches) {
+                    self.processBatches(
+                        cameraManager: cameraManager,
+                        totalFrames: totalFrames,
+                        batchSize: batchSize,
+                        delayBetweenBatches: delayBetweenBatches,
+                        currentBatch: currentBatch + 1,
+                        processedFrames: batchProcessedFrames,
+                        failedFrames: batchFailedFrames,
+                        progress: progress,
+                        completion: completion
+                    )
+                }
+            }
+        }
+    }
+    
+    /// Get frame with proper memory management
+    private func getFrameWithMemoryManagement(
+        from cameraManager: CameraLiDARManager,
+        at frameIndex: Int
+    ) throws -> UIImage {
+        var frameImage: UIImage?
+        
+        // Get frame safely - check if already on main thread
+        if Thread.isMainThread {
+            frameImage = cameraManager.getFrame(at: frameIndex)
+        } else {
+            DispatchQueue.main.sync {
+                frameImage = cameraManager.getFrame(at: frameIndex)
+            }
+        }
+        
+        guard let image = frameImage else {
+            throw ProcessingError.imageConversionFailed("Could not access frame \(frameIndex)")
+        }
+        
+        return image
+    }
+    
+    /// Process frame with memory-optimized approach
+    private func processFrameWithMemoryManagement(
+        image: UIImage,
+        frameIndex: Int
+    ) throws -> (keypoints: [KeypointData], visualizedImage: UIImage?) {
+        // Ensure proper image orientation
+        let correctedImage = ensureCorrectOrientation(image: image)
+        
+        // Apply ROI if set
+        let (imageToProcess, roiOffset) = cropImageToROI(correctedImage) ?? (correctedImage, .zero)
+        
+        // Detect keypoints
+        let detectedKeypoints = try detectKeypoints(from: imageToProcess, frameIndex: frameIndex)
+        
+        // Adjust keypoints for ROI if needed
+        let adjustedKeypoints: [KeypointData]
+        if VitPoseProcessor.roiRect != nil {
+            adjustedKeypoints = detectedKeypoints.map { keypoint in
+                KeypointData(
+                    name: keypoint.name,
+                    x: keypoint.x + roiOffset.x,
+                    y: keypoint.y + roiOffset.y,
+                    confidence: keypoint.confidence,
+                    depth: keypoint.depth,
+                    frameIndex: keypoint.frameIndex
+                )
+            }
+        } else {
+            adjustedKeypoints = detectedKeypoints
+        }
+        
+        // Create visualization if keypoints exist
+        var visualizedImage: UIImage?
+        if !adjustedKeypoints.isEmpty {
+            let mappedKeypoints = adjustedKeypoints.map { keypoint -> (String, CGPoint, Float, Float) in
+                return (keypoint.name, CGPoint(x: keypoint.x, y: keypoint.y), keypoint.confidence, 0.0)
+            }
+            visualizedImage = visualizePose(
+                colorImage: correctedImage,
+                keypoints: mappedKeypoints,
+                connections: skeletonConnections
+            )
+        }
+        
+        return (adjustedKeypoints, visualizedImage)
+    }
+    
+    /// Store keypoints with memory management (thread-safe)
+    private func storeKeypointsWithMemoryManagement(
+        _ keypoints: [KeypointData],
+        visualizedImage: UIImage?,
+        for frameIndex: Int
+    ) {
+        // Use a thread-safe approach to store keypoints
+        DispatchQueue.main.async {
+            // Store keypoints
+            self.keypointsByFrame[frameIndex] = keypoints
+            
+            // Store visualized image in cache with size limit check
+            if let image = visualizedImage {
+                // Check cache size and clear if needed
+                if self.visualizedFrameCache.countLimit == 0 {
+                    self.visualizedFrameCache.countLimit = 50 // Limit cache to 50 frames
+                }
+                self.visualizedFrameCache.setObject(image, forKey: NSNumber(value: frameIndex))
+            }
+        }
+    }
+    
+    /// Perform memory cleanup between batches
+    private func performMemoryCleanup() {
+        // Force garbage collection
+        autoreleasepool {
+            // Clear temporary caches if they get too large
+            if visualizedFrameCache.countLimit > 0 {
+                // Keep only recent frames in cache
+                let maxCacheSize = 30
+                if visualizedFrameCache.countLimit > maxCacheSize {
+                    // This will trigger automatic eviction of older items
+                    visualizedFrameCache.countLimit = maxCacheSize
+                }
+            }
+        }
+    }
+    
+    /// Ensure image has correct orientation
+    private func ensureCorrectOrientation(image: UIImage) -> UIImage {
+        if image.imageOrientation != .up {
+            UIGraphicsBeginImageContextWithOptions(image.size, false, image.scale)
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+            let correctedImage = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+            return correctedImage ?? image
+        }
+        return image
+    }
+}
+
+// MARK: - Enhanced Error Handling and Recovery
+extension VitPoseProcessor {
+    
+    /// Process frames with retry mechanism for failed frames
+    func processFramesWithRetry(
+        from cameraManager: CameraLiDARManager,
+        maxRetries: Int = 2,
+        progress: @escaping (Double) -> Void,
+        completion: @escaping (Bool, Error?) -> Void
+    ) {
+        // First pass - normal processing
+        processFramesOptimized(from: cameraManager, progress: { progressValue in
+            // Report 80% progress for first pass
+            progress(progressValue * 0.8)
+        }) { [weak self] success, error in
+            guard let self = self else {
+                completion(false, NSError(domain: "VitPoseProcessor", code: -1, userInfo: [NSLocalizedDescriptionKey: "Processor deallocated"]))
+                return
+            }
+            
+            if success {
+                // Check for gaps in processed frames
+                let totalFrames = cameraManager.totalFrames
+                let processedFrameIndices = Set(self.getFrameIndicesWithKeypoints())
+                let expectedFrameIndices = Set(0..<totalFrames)
+                let missingFrames = Array(expectedFrameIndices.subtracting(processedFrameIndices)).sorted()
+                
+                if missingFrames.isEmpty {
+                    // All frames processed successfully
+                    progress(1.0)
+                    completion(true, nil)
+                } else {
+                    print("🔄 Retrying \(missingFrames.count) failed frames: \(missingFrames.prefix(10))...")
+                    
+                    // Retry failed frames
+                    self.retryFailedFrames(
+                        missingFrames,
+                        cameraManager: cameraManager,
+                        maxRetries: maxRetries,
+                        totalFrames: totalFrames,
+                        progress: { retryProgress in
+                            // Report remaining 20% progress for retry
+                            progress(0.8 + (retryProgress * 0.2))
+                        },
+                        completion: completion
+                    )
+                }
+            } else {
+                completion(false, error)
+            }
+        }
+    }
+    
+    /// Retry processing failed frames
+    private func retryFailedFrames(
+        _ failedFrames: [Int],
+        cameraManager: CameraLiDARManager,
+        maxRetries: Int,
+        totalFrames: Int,
+        progress: @escaping (Double) -> Void,
+        completion: @escaping (Bool, Error?) -> Void
+    ) {
+        guard !failedFrames.isEmpty else {
+            progress(1.0)
+            completion(true, nil)
+            return
+        }
+        
+        var processedRetries = 0
+        let totalRetries = failedFrames.count
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            for frameIndex in failedFrames {
+                autoreleasepool {
+                    do {
+                        let frameImage = try self.getFrameWithMemoryManagement(
+                            from: cameraManager,
+                            at: frameIndex
+                        )
+                        
+                        let result = try self.processFrameWithMemoryManagement(
+                            image: frameImage,
+                            frameIndex: frameIndex
+                        )
+                        
+                        if !result.keypoints.isEmpty {
+                            self.storeKeypointsWithMemoryManagement(
+                                result.keypoints,
+                                visualizedImage: result.visualizedImage,
+                                for: frameIndex
+                            )
+                            print("✅ Retry successful for frame \(frameIndex)")
+                        }
+                        
+                    } catch {
+                        print("❌ Retry failed for frame \(frameIndex): \(error)")
+                    }
+                    
+                    processedRetries += 1
+                    let retryProgress = Double(processedRetries) / Double(totalRetries)
+                    DispatchQueue.main.async {
+                        progress(retryProgress)
+                    }
+                }
+            }
+            
+            DispatchQueue.main.async {
+                completion(true, nil)
+            }
+        }
+    }
+}

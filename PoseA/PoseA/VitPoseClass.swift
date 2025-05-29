@@ -1146,6 +1146,12 @@ class VitPoseProcessor {
         keypointsByFrame.removeAll()
         processedImages.removeAll()
     }
+    func clearAllKeypoints() {
+        keypointsByFrame.removeAll()
+        visualizedFrameCache.removeAllObjects()
+        processedImages.removeAll()
+        VitPoseProcessor.roiRect = nil
+    }
     
     /// Update a keypoint at a specific index for a frame
 //    func updateKeypoint(_ keypoint: KeypointData, at index: Int, forFrame frameIndex: Int) {
@@ -3210,4 +3216,17 @@ extension VitPoseProcessor {
             }
         }
     }
+    
+    func debugPrintState() {
+            print("=== VitPoseProcessor State ===")
+            print("Total frames with keypoints: \(keypointsByFrame.count)")
+            print("Frame indices: \(Array(keypointsByFrame.keys).sorted().prefix(10))...")
+            print("Visualization cache size: \(visualizedFrameCache.name ?? "unknown")")
+            print("Processed images count: \(processedImages.count)")
+            print("ROI set: \(VitPoseProcessor.roiRect != nil)")
+            if let roi = VitPoseProcessor.roiRect {
+                print("ROI rect: \(roi)")
+            }
+            print("=============================")
+        }
 }

@@ -126,12 +126,14 @@ struct BESTGYMPoseApp: View {
             .sheet(isPresented: $appState.isFilePickerPresented) {
                 DocumentPicker { urls in
                     if let url = urls.first {
+                      
                         loadData(from: url)
                     }
                 }
             }
             .sheet(isPresented: $appState.isVideoPickerPresented) {
                 VideoFilePicker { url in
+                    
                     loadVideo(from: url)
                 }
             }
@@ -919,25 +921,99 @@ struct BESTGYMPoseApp: View {
     
     // MARK: - Picker Functions
     
+//    private func selectFileOrFolder() {
+//        switchToAnalysisMode()
+//        appState.isFilePickerPresented = true
+//    }
+//    
+//    private func selectVideoFile() {
+//        switchToAnalysisMode()
+//        appState.isVideoPickerPresented = true
+//    }
+//    
+//    private func selectVideoFromLibrary() {
+//        switchToAnalysisMode()
+//        appState.isPhotoLibraryPresented = true
+//    }
+//    
+//    private func selectKeypointFile() {
+//        switchToAnalysisMode()
+//        appState.isKeypointImportPresented = true
+//    }
+    
     private func selectFileOrFolder() {
-        switchToAnalysisMode()
-        appState.isFilePickerPresented = true
+        // Do cleanup BEFORE switching modes
+        if appState.hasImportedKeypoints || appState.poseProcessor.getTotalFrames() > 0 {
+            print("🧹 Cleaning up before folder selection...")
+            cleanupPreviousData()
+        }
+        // Then switch to analysis mode if needed
+        if appState.isRecordMode {
+            appState.isRecordMode = false
+            cameraManager.pauseStream()
+        }
+        
+        // Small delay to ensure cleanup completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.appState.isFilePickerPresented = true
+        }
     }
-    
+
     private func selectVideoFile() {
-        switchToAnalysisMode()
-        appState.isVideoPickerPresented = true
+        // Do cleanup BEFORE switching modes
+        if appState.hasImportedKeypoints || appState.poseProcessor.getTotalFrames() > 0 {
+                print("🧹 Cleaning up before folder selection...")
+                cleanupPreviousData()
+            }
+        // Then switch to analysis mode if needed
+        if appState.isRecordMode {
+            appState.isRecordMode = false
+            cameraManager.pauseStream()
+        }
+        
+        // Small delay to ensure cleanup completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.appState.isVideoPickerPresented = true
+        }
     }
-    
+
     private func selectVideoFromLibrary() {
-        switchToAnalysisMode()
-        appState.isPhotoLibraryPresented = true
+        // Do cleanup BEFORE switching modes
+        if appState.hasImportedKeypoints || appState.poseProcessor.getTotalFrames() > 0 {
+                print("🧹 Cleaning up before folder selection...")
+                cleanupPreviousData()
+            }
+        // Then switch to analysis mode if needed
+        if appState.isRecordMode {
+            appState.isRecordMode = false
+            cameraManager.pauseStream()
+        }
+        
+        // Small delay to ensure cleanup completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.appState.isPhotoLibraryPresented = true
+        }
     }
     
-    private func selectKeypointFile() {
-        switchToAnalysisMode()
-        appState.isKeypointImportPresented = true
-    }
+        private func selectKeypointFile() {
+            if appState.hasImportedKeypoints || appState.poseProcessor.getTotalFrames() > 0 {
+                    print("🧹 Cleaning up before folder selection...")
+                    cleanupPreviousData()
+                }
+                        
+            // Then switch to analysis mode if needed
+            if appState.isRecordMode {
+                appState.isRecordMode = false
+                cameraManager.pauseStream()
+            }
+            
+            // Small delay to ensure cleanup completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.appState.isKeypointImportPresented = true
+            }
+//            switchToAnalysisMode()
+       
+        }
     
     // Helper to ensure we exit record mode when loading files
 //    private func switchToAnalysisMode() {
@@ -970,8 +1046,8 @@ struct BESTGYMPoseApp: View {
 //        // Mark that we now have keypoints to show
 //        appState.showKeypoints = true
 //        
-//        print("Detection complete - showing keypoints")
-//        
+//        print("Detection complete - showing keyPlpoints")
+//
 //        // Reset to the first frame
 //        cameraManager.currentFrameIndex = 0
 //        
@@ -1255,7 +1331,11 @@ struct BESTGYMPoseApp: View {
     
     private func loadData(from url: URL) {
         // Clean up any previous folder access
-        cleanupPreviousFolderAccess()
+//        if appState.hasImportedKeypoints || appState.poseProcessor.getTotalFrames() > 0 {
+//                print("⚠️ Found existing data, forcing cleanup...")
+//            cleanupPreviousData()
+//        }
+            
         
         appState.isProcessing = true
         appState.processingStatus = "Loading data..."
@@ -1300,13 +1380,43 @@ struct BESTGYMPoseApp: View {
             }
         }
     }
-
-    // Helper method to clean up previous folder access when switching
-    private func cleanupPreviousFolderAccess() {
+    
+    private func cleanupPreviousData() {
+        print("🧹 Cleaning up previous data...")
+        
+        // 1. Stop accessing previous folder/file
         if let previousURL = appState.sourceURL {
             SecurityScopedResourceManager.shared.stopAccessing(previousURL)
+            print("  - Stopped accessing: \(previousURL.lastPathComponent)")
         }
+        // 2. Clear camera manager data - using the enhanced method
+        cameraManager.clearAllFrames()
+        print("  - Cleared camera frames")
+        
+        // 3. Clear app state (this calls poseProcessor.clearAllKeypoints())
+        appState.resetFileAndKeypointState()
+        appState.resetStatusState()
+        print("  - Reset app state")
+        
+        // 4. Force UI update
+        DispatchQueue.main.async {
+            // Ensure UI reflects the cleared state
+            self.cameraManager.currentFrameImage = nil
+            
+            // Debug print to verify cleanup
+            self.cameraManager.debugPrintState()
+            self.appState.poseProcessor.debugPrintState()
+        }
+        
+        print("✅ Cleanup complete")
     }
+
+    // Helper method to clean up previous folder access when switching
+//    private func cleanupPreviousFolderAccess() {
+//        if let previousURL = appState.sourceURL {
+//            SecurityScopedResourceManager.shared.stopAccessing(previousURL)
+//        }
+//    }
 
     // Enhanced loadVideo method
     private func loadVideo(from url: URL) {
@@ -1357,6 +1467,7 @@ struct BESTGYMPoseApp: View {
 
     // Enhanced loadKeypointFile method
     private func loadKeypointFile(_ url: URL) {
+        
         appState.isProcessing = true
         appState.processingStatus = "Loading keypoints..."
         
@@ -1569,7 +1680,8 @@ struct BESTGYMPoseApp: View {
             }
             
             // Clean up previous folder access when switching modes
-            cleanupPreviousFolderAccess()
+//            cleanupPreviousFolderAccess()
+            cleanupPreviousData()
             
             // Reset states before loading new file
             appState.resetFileAndKeypointState()
@@ -1634,6 +1746,13 @@ class AppState: ObservableObject {
     
     
     func resetFileAndKeypointState() {
+        
+        print("🔄 Resetting file and keypoint state...")
+        print("  - Before: hasImportedKeypoints = \(hasImportedKeypoints), keypoint frames = \(poseProcessor.getTotalFrames())")
+           
+          
+        // ✅ ADD THIS LINE - explicitly clear pose processor keypoints
+        poseProcessor.clearAllKeypoints()
         sourceFileName = ""
         sourceURL = nil
         originalKeypointFileURL = nil

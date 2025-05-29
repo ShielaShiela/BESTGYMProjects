@@ -1395,32 +1395,32 @@ extension CameraLiDARManager {
     // In CameraLiDARManager class
 
     // Add this method to your CameraLiDARManager class
-    func clearAllFrames() {
-        // Clear all stored frames
-        videoFrames = []
-        frameURLs = []
-        totalFrames = 0
-        currentFrameIndex = 0
-        sliderPosition = 0
-        
-        // Reset current capture data
-        capturedData = CameraCapturedData()
-        
-        // Stop any ongoing playback
-        if isPlaying {
-            stopPlayback()
-        }
-        
-        // Reset other state as needed
-        dataAvailable = false
-        isDataLoaded = false
-        
-        // Clear cached data
-        preloadedFrames.removeAll()
-        keypointData.removeAll()
-        keypointDataByFrame.removeAll()
-        processedImages.removeAll()
-    }
+//    func clearAllFrames() {
+//        // Clear all stored frames
+//        videoFrames = []
+//        frameURLs = []
+//        totalFrames = 0
+//        currentFrameIndex = 0
+//        sliderPosition = 0
+//        
+//        // Reset current capture data
+//        capturedData = CameraCapturedData()
+//        
+//        // Stop any ongoing playback
+//        if isPlaying {
+//            stopPlayback()
+//        }
+//        
+//        // Reset other state as needed
+//        dataAvailable = false
+//        isDataLoaded = false
+//        
+//        // Clear cached data
+//        preloadedFrames.removeAll()
+//        keypointData.removeAll()
+//        keypointDataByFrame.removeAll()
+//        processedImages.removeAll()
+//    }
     
 
     func loadVideoFolder(from url: URL) {
@@ -3567,3 +3567,102 @@ struct RecordingMetadata: Codable {
     }
 }
 
+extension CameraLiDARManager {
+    
+    /// Comprehensive method to clear all frames and reset state
+    func clearAllFrames() {
+        print("🧹 CameraLiDARManager: Starting comprehensive cleanup...")
+        
+        // Stop any ongoing playback first
+        if isPlaying {
+            stopPlayback()
+        }
+        
+        // Clear frame storage
+        videoFrames.removeAll()
+        frameURLs.removeAll()
+        lidarFrameURLs.removeAll()
+        lidarFrameImageURLs.removeAll()
+        
+        // Reset frame counters
+        totalFrames = 0
+        currentFrameIndex = 0
+        sliderPosition = 0
+        
+        // Clear current display
+        currentFrameImage = nil
+        
+        // Reset capture data
+        capturedData = CameraCapturedData()
+        
+        // Clear all caches
+        preloadedFrames.removeAll()
+        preloadedFrameIndices.removeAll()
+        keypointData.removeAll()
+        keypointDataByFrame.removeAll()
+        processedImages.removeAll()
+        
+        // Clear depth-related data
+        selectedImagePoints.removeAll()
+        selectedWorldPoints.removeAll()
+        selectedPoints.removeAll()
+        distanceMeasured = nil
+        measuredDistance = nil
+        depthValue = nil
+        depthAtTappedPoint = nil
+        firstWorldPoint = nil
+        secondWorldPoint = nil
+        
+        // Reset metadata and URL references
+        loadedRecordingMetadata = nil
+        loadedDataURL = nil
+        
+        // Reset state flags
+        isDataLoaded = false
+        dataAvailable = false
+        isLoadedDataLiDAR = false
+        waitingForCapture = false
+        processingCapturedResult = false
+        
+        // Clear any frame change handlers
+        onFrameChange = nil
+        
+        print("✅ CameraLiDARManager: Cleanup complete")
+    }
+    
+    /// Pause playback without clearing data
+    func pausePlayback() {
+        if let timer = playbackTimer {
+            timer.invalidate()
+            playbackTimer = nil
+        }
+        isPlaying = false
+    }
+    
+    /// Reset just the playback state without clearing frames
+    func resetPlaybackPosition() {
+        currentFrameIndex = 0
+        sliderPosition = 0
+        if totalFrames > 0 {
+            setFrame(to: 0)
+        }
+    }
+    
+    /// Debug method to print current state
+    func debugPrintState() {
+        print("=== CameraLiDARManager State ===")
+        print("Total frames: \(totalFrames)")
+        print("Current frame index: \(currentFrameIndex)")
+        print("Video frames count: \(videoFrames.count)")
+        print("LiDAR frame URLs count: \(lidarFrameURLs.count)")
+        print("Has current image: \(currentFrameImage != nil)")
+        print("Is playing: \(isPlaying)")
+        print("Is live capture: \(isLiveCapture)")
+        print("Is recording: \(isRecording)")
+        print("Is data loaded: \(isDataLoaded)")
+        print("Data available: \(dataAvailable)")
+        print("Loaded data is LiDAR: \(isLoadedDataLiDAR)")
+        print("Has metadata: \(loadedRecordingMetadata != nil)")
+        print("================================")
+    }
+}

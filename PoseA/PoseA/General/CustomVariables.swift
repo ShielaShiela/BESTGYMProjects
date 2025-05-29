@@ -30,7 +30,6 @@ struct ErrorWrapper: Identifiable {
     let error: String
 }
 
-
 struct VideoFormat {
     let width: Int
     let height: Int

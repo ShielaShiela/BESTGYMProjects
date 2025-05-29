@@ -143,6 +143,107 @@ struct MainContentView: View {
         }
     }
     
+//    private var analysisModeContent: some View {
+//        ZStack {
+//            if appState.showKeypoints,
+//               let keypoints = appState.poseProcessor.getKeypoints(for: cameraManager.currentFrameIndex),
+//               !keypoints.isEmpty {
+//
+//                GeometryReader { geometry in
+//                    ZStack {
+//                        ForEach(keypoints) { keypoint in
+//                            Circle()
+//                                .fill(Color.red)
+//                                .frame(width: 20, height: 20)
+//                                .position(
+//                                    x: keypoint.x * (geometry.size.width / 1920),
+//                                    y: keypoint.y * (geometry.size.height / 1440)
+//                                )
+//                        }
+//                    }
+//                }
+//            }
+//
+//            if cameraManager.totalFrames > 0 {
+//                // Display loaded frame with optional keypoint overlay
+//                FrameView(
+//                    image: cameraManager.currentFrameImage,
+//                    keypoints: appState.showKeypoints ? appState.poseProcessor.getKeypoints(for: cameraManager.currentFrameIndex) : nil,
+//                    isAnnotationMode: appState.isAnnotationMode,
+//                    rotation: appState.imageRotation,
+//                    selectedKeypointIndex: $appState.selectedKeypointIndex
+//                )
+//                .overlay(
+//                    // Add rotation controls overlay
+//                    VStack {
+//                        Spacer()
+//                        HStack {
+//                            // Counter-clockwise rotation
+//                            Button(action: {
+//                                appState.rotateImageCounterClockwise()
+//                            }) {
+//                                Image(systemName: "rotate.left")
+//                                    .font(.title)
+//                                    .foregroundColor(.white)
+//                                    .padding(12)
+//                                    .background(Color.black.opacity(0.6))
+//                                    .clipShape(Circle())
+//                            }
+//                            .padding()
+//
+//                            Spacer()
+//
+//                            // Clockwise rotation
+//                            Button(action: {
+//                                appState.rotateImageClockwise()
+//                            }) {
+//                                Image(systemName: "rotate.right")
+//                                    .font(.title)
+//                                    .foregroundColor(.white)
+//                                    .padding(12)
+//                                    .background(Color.black.opacity(0.6))
+//                                    .clipShape(Circle())
+//                            }
+//                            .padding()
+//                        }
+//                        .padding(.bottom, 20)
+//                    }
+//                )
+//            } else {
+//                // No content placeholder
+//                VStack(spacing: 20) {
+//                    Text("No File Selected")
+//                        .font(.title2)
+//                        .multilineTextAlignment(.center)
+//                        .foregroundColor(.secondary)
+//
+//                    Image(systemName: "folder.fill")
+//                        .font(.system(size: 50))
+//                        .foregroundColor(.secondary)
+//
+//                    Text("Open a file or video to analyze")
+//                        .font(.body)
+//                        .foregroundColor(.secondary)
+//                        .padding(.top, 10)
+//
+//                    Button(action: {
+//                        // Show file picker
+//                        appState.isFilePickerPresented = true
+//                    }) {
+//                        Text("Select File")
+//                            .font(.headline)
+//                            .padding()
+//                            .background(Color.blue)
+//                            .foregroundColor(.white)
+//                            .cornerRadius(8)
+//                    }
+//                    .padding(.top, 20)
+//                }
+//                .frame(maxWidth: .infinity, maxHeight: .infinity)
+//                .background(Color(.systemGray6))
+//            }
+//        }
+//    }
     private var analysisModeContent: some View {
         ZStack {
             if cameraManager.totalFrames > 0 {

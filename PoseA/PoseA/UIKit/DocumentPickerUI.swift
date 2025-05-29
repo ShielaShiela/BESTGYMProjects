@@ -8,7 +8,6 @@
 import SwiftUI
 import UIKit
 
-// File Picker for opening regular files
 struct DocumentPickerUI: UIViewControllerRepresentable {
     let onPick: ([URL]) -> Void
     
@@ -16,6 +15,11 @@ struct DocumentPickerUI: UIViewControllerRepresentable {
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder, .json, .item])
         picker.allowsMultipleSelection = false
         picker.delegate = context.coordinator
+        
+        // Enable iCloud Drive access
+        picker.shouldShowFileExtensions = true
+        picker.allowsMultipleSelection = false
+        
         return picker
     }
     
@@ -33,7 +37,15 @@ struct DocumentPickerUI: UIViewControllerRepresentable {
         }
         
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            // Immediately start accessing security-scoped resources
+            for url in urls {
+                _ = SecurityScopedResourceManager.shared.startAccessing(url)
+            }
             onPick(urls)
+        }
+        
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            // Handle cancellation if needed
         }
     }
 }

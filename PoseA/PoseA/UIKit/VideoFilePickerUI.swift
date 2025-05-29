@@ -8,8 +8,8 @@
 import SwiftUI
 import UIKit
 
-// Video File Picker
-struct videoFilePickerUI: UIViewControllerRepresentable {
+// Video file picker
+struct VideoFilePickerUI: UIViewControllerRepresentable {
     let onPick: (URL) -> Void
     
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {

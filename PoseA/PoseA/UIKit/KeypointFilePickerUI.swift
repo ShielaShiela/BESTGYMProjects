@@ -8,7 +8,6 @@
 import SwiftUI
 import UIKit
 
-// Specialized picker for keypoint files
 struct KeypointFilePickerUI: UIViewControllerRepresentable {
     let onPick: (URL) -> Void
     

@@ -32,160 +32,96 @@ import Charts
 //    @State private var zoomScale: CGFloat = 1.0
 //    @State private var offset: CGSize = .zero
 //    
+//    private func createLine(dataPoints: [(Int, Double)]) {
+//        ForEach(dataPoints, id: \.time) { point in
+//            LineMark(
+//                x: .value("Time", point.time),
+//                y: .value("Angle", point.angle)
+//            )
+//            .foregroundStyle(Color("lightCyan"))
+//        }
+//    }
+//    
 //    var body: some View {
 //        VStack {
-//            if selectedJoints.isEmpty {
-//                noJointsSelectedView()
-//            } else {
-//                jointAngleChart()
-//                zoomAndDragGestures()
-//                jointLegend()
+//            Chart {
+//                // Loop over selected joints and plot each joint's data
+//                ForEach(selectedJoints, id: \.self) { joint in
+//                    let dataPoints = getJointData(joint)
+//
+//                }
 //            }
-//        }
-//    }
-//    
-//    private func noJointsSelectedView() -> some View {
-//        Text("No joints selected")
-//            .foregroundColor(.gray)
+//            .chartYAxis {
+//                AxisMarks(position: .leading) { value in
+//                    AxisGridLine()
+//                        .foregroundStyle(.white)
+//                    AxisTick()
+//                        .foregroundStyle(.white)
+//                    AxisValueLabel()
+//                        .foregroundStyle(.white)
+//                }
+//            }
+//            .chartXAxis {
+//                AxisMarks(position: .bottom) { value in
+//                    AxisGridLine()
+//                        .foregroundStyle(.white)
+//                    AxisTick()
+//                        .foregroundStyle(.white)
+//                    AxisValueLabel()
+//                        .foregroundStyle(.white)
+//                }
+//            }
 //            .padding()
-//    }
-//    
-//    private func jointAngleChart() -> some View {
-//        Chart {
-//            ForEach(selectedJoints, id: \.self) { joint in
-//                let data = getJointData(joint)
-//                let visibleData = getVisibleData(data)
-//                let points = createDataPoints(from: visibleData)
-//                
-//                if !points.isEmpty {
-//                    createLineMark(for: joint, with: points)
-//                }
-//            }
-//        }
-//        .chartXAxis { createXAxis() }
-//        .chartYAxis { createYAxis() }
-//        .padding()
-//    }
-//    
-//    private func createDataPoints(from visibleData: [Double]) -> [(x: Double, y: Double)] {
-//        return visibleData.enumerated().map { index, angle in
-//            (x: timeRange.lowerBound + (timeRange.upperBound - timeRange.lowerBound) * Double(index) / Double(visibleData.count - 1), y: angle)
 //        }
 //    }
 //    
-//    private func createLineMark(for joint: String, with points: [(x: Double, y: Double)]) -> some View {
-//        LineMark(
-//            x: .value("Time", points.map { $0.x }),
-//            y: .value("Angle", points.map { $0.y })
-//        )
-//        .foregroundStyle(jointColors[joint] ?? .gray)
-//    }
-//    
-//    private func createXAxis() -> some View {
-//        AxisMarks(values: .stride(by: 1)) { value in
-//            AxisValueLabel {
-//                Text(String(format: "%.1f", value.as(Double.self) ?? 0.0))
-//            }
-//        }
-//    }
-//    
-//    private func createYAxis() -> some View {
-//        AxisMarks(values: .stride(by: 36)) { value in
-//            AxisValueLabel {
-//                Text("\(Int(value.as(Double.self) ?? 0.0))°")
-//            }
-//        }
-//    }
-//    
-//    private func zoomAndDragGestures() -> some View {
-//        Group {
-//            .scaleEffect(zoomScale)
-//            .offset(offset)
-//            .gesture(
-//                MagnificationGesture()
-//                    .onChanged { value in
-//                        zoomScale = value.magnitude
-//                    }
-//                    .onEnded { _ in
-//                        // Optionally, you can limit the zoom scale here
-//                    }
-//            )
-//            .gesture(
-//                DragGesture()
-//                    .onChanged { value in
-//                        offset = value.translation
-//                    }
-//                    .onEnded { _ in
-//                        // Optionally, you can reset the offset here
-//                    }
-//            )
-//        }
-//    }
-//    
-//    private func jointLegend() -> some View {
-//        HStack {
-//            ForEach(selectedJoints, id: \.self) { joint in
-//                HStack {
-//                    Circle()
-//                        .fill(jointColors[joint] ?? .gray)
-//                        .frame(width: 10, height: 10)
-//                    Text(joint)
-//                        .font(.caption)
-//                }
-//                .padding(.horizontal, 5)
-//            }
-//        }
-//        .padding(.top, 5)
-//    }
-//    
-//    private func getVisibleData(_ data: [Double]) -> [Double] {
-//        let startFrame = Int(timeRange.lowerBound * Double(data.count))
-//        let endFrame = Int(timeRange.upperBound * Double(data.count - 1))
-//        return Array(data[startFrame...endFrame])
-//    }
-//    
-//    private func getJointData(_ joint: String) -> [Double] {
-//        var result: [Double] = []
+//    private func getJointData(_ joint: String) -> [(Int, Double)] {
+//        // Simple Double Array Data -> Create and Destroy Methods -> Save Memory
+//        // Define Array Container
+//        var dataPoints: [(time: Int, result: Double)] = []
+//        
+//        // Get Total Frame
 //        let totalFrame = poseProcessor.getTotalFrames()
 //
+//        // Get Keypoints
 //        for i in 0..<totalFrame {
 //            var angle: Double = 0
 //            guard let keypoints = poseProcessor.getKeypoints(for: i) else { return [] }
+//            
+//            // Check Availability of Keypoint
 //            if keypoints.count != 17 { continue }
 //            
+//            // Get Joint Data
 //            switch joint {
-//            case "L Elbow":
+//            case "L Elbow": // Points: Shoulder → Elbow → Wrist
 //                angle = angleBetween(keypoints[5], keypoints[7], keypoints[9])
 //            case "R Elbow":
 //                angle = angleBetween(keypoints[6], keypoints[8], keypoints[10])
-//            case "L Shoulder":
+//            case "L Shoulder": // Points: Hip → Shoulder → Elbow
 //                angle = angleBetween(keypoints[11], keypoints[5], keypoints[7])
 //            case "R Shoulder":
 //                angle = angleBetween(keypoints[12], keypoints[6], keypoints[8])
-//            case "L Hip":
+//            case "L Hip": // Points: Shoulder → Hip → Knee
 //                angle = angleBetween(keypoints[5], keypoints[11], keypoints[13])
 //            case "R Hip":
 //                angle = angleBetween(keypoints[6], keypoints[12], keypoints[14])
-//            case "L Knee":
+//            case "L Knee": // Points: Hip → Knee → Ankle
 //                angle = angleBetween(keypoints[11], keypoints[13], keypoints[15])
 //            case "R Knee":
 //                angle = angleBetween(keypoints[12], keypoints[14], keypoints[16])
-//            case "L Ankle":
+//            case "L Ankle": // Points: Knee → Ankle → Ground?
 //                angle = angleBetween(keypoints[11], keypoints[13], keypoints[15])
 //            case "R Ankle":
 //                angle = angleBetween(keypoints[12], keypoints[14], keypoints[16])
 //            default:
 //                angle = 0
 //            }
-//            result.append(angle)
+//            // Append to Array
+//            dataPoints.append((i,angle))
 //        }
-//        return result
+//        return dataPoints
 //    }
 //}
-
-
-
-
 
 // Joint Angle Graph
 struct JointAngleGraphView: View {
@@ -381,7 +317,8 @@ struct JointAngleGraphView: View {
     private func getJointData(_ joint: String) -> [Double] {
         // Simple Double Array Data -> Create and Destroy Methods -> Save Memory
         // Define Array Container
-        var result: [Double] = []
+        var dataPoints: [Double] = []
+//        var dataPoints: [(time: Int, result: Double)] = []
         
         // Get Total Frame
         let totalFrame = poseProcessor.getTotalFrames()
@@ -420,9 +357,10 @@ struct JointAngleGraphView: View {
                 angle = 0
             }
             // Append to Array
-            result.append(angle)
+//            dataPoints.append((i,angle))
+            dataPoints.append(angle)
         }
-        return result
+        return dataPoints
     }
     
     // MARK: ONLY USED FOR DEBUGGING. DO NOT USE FOR PRODUCTION APPS

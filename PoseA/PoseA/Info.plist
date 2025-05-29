@@ -6,5 +6,33 @@
 	<string></string>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
+    <key>UISupportsDocumentBrowser</key>
+    <true/>
+    <!-- Enable access to user-selected files -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!-- Enable access to downloads folder -->
+    <key>com.apple.security.files.downloads.read-write</key>
+    <true/>
+
+    <!-- Enable access to movies folder (for video files) -->
+    <key>com.apple.security.assets.movies.read-write</key>
+    <true/>
+
+    <!-- If you need network access for cloud files -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>This app needs access to documents to load video files and keypoint data for pose analysis.</string>
+
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>This app needs access to desktop files for loading pose analysis data.</string>
+
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>This app needs access to downloads folder to load video files and data.</string>
 </dict>
 </plist>

@@ -5,8 +5,10 @@
 //  Created by Ardhika Maulidani on 5/27/25.
 //  Refactor from Shiela Cabahug's codebase
 
+
 import SwiftUI
 
+// MARK: - Error Overlay
 struct ErrorOverlayView: View {
     let message: String
     let onDismiss: () -> Void

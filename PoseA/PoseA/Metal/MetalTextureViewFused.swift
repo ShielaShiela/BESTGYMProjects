@@ -141,8 +141,8 @@ final class MTKCannyEdgeCoordinator: MTKCoordinator<MetalTextureViewFused> {
             return
         }
 
-        var texelSize = float2(1.0 / Float(depthTexture.width), 1.0 / Float(depthTexture.height))
-        encoder.setFragmentBytes(&texelSize, length: MemoryLayout<float2>.stride, index: 2)
+        var texelSize = SIMD2<Float>(1.0 / Float(depthTexture.width), 1.0 / Float(depthTexture.height))
+        encoder.setFragmentBytes(&texelSize, length: MemoryLayout<SIMD2<Float>>.stride, index: 2)
         encoder.setFragmentTexture(parent.capturedData.depth!, index: 0)
         encoder.setDepthStencilState(depthState)
         encoder.setRenderPipelineState(pipelineState)

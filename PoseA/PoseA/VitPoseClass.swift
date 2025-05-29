@@ -1056,7 +1056,7 @@ class VitPoseProcessor {
     
     /// Process an image to detect pose keypoints and integrate depth data
     func processImage(colorImage: UIImage, depthTexture: MTLTexture, frameIndex: Int) throws -> (keypointData: [KeypointData], visualizedImage: UIImage) {
-        guard let vitposeModel = self.vitposeModel else {
+        guard self.vitposeModel != nil else {
             throw ProcessingError.modelNotLoaded("VitPose model is not loaded")
         }
         
@@ -2052,7 +2052,7 @@ class VitPoseProcessor {
                 // Check if the frameIndex is valid for our images array
                 if frameIndex < originalImages.count {
                     // Get the keypoints for this frame
-                    if let keypoints = self.getKeypoints(for: frameIndex) {
+                    if self.getKeypoints(for: frameIndex) != nil {
                         // Get the image without conditional binding since it's not optional
                         let originalImage = originalImages[frameIndex]
                         

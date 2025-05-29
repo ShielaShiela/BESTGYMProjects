@@ -156,11 +156,26 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
     init() {
         // Create an object to store the captured data for the views to present.
         capturedData = CameraCapturedData()
+        
+        // Check if LiDAR is available
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInLiDARDepthCamera],
+            mediaType: .video,
+            position: .back
+        )
+        useLiDAR = !discoverySession.devices.isEmpty
+        
+        // Initialize controller with appropriate configuration
         controller = CameraLiDARDepthController()
         controller.isFilteringEnabled = true
         
+        if useLiDAR {
+            controller.startStream()
+        } else {
+            // Initialize with basic camera functionality
+            controller.setupBasicCamera()
+        }
         
-        controller.startStream()
         isFilteringDepth = controller.isFilteringEnabled
         
         NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification).sink { _ in
@@ -201,175 +216,23 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
             return
         }
         
-        if !self.processingCapturedResult {
-            // Update captured data references
+        // Update basic camera data
+        self.capturedData.colorY = capturedData.colorY
+        self.capturedData.colorCbCr = capturedData.colorCbCr
+        self.capturedData.cameraIntrinsics = capturedData.cameraIntrinsics
+        self.capturedData.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
+        self.capturedData.colorImage = capturedData.colorImage
+        
+        // Only update LiDAR-specific data if LiDAR is available
+        if useLiDAR {
             self.capturedData.depth = capturedData.depth
-            self.capturedData.colorY = capturedData.colorY
-            self.capturedData.colorCbCr = capturedData.colorCbCr
-            self.capturedData.cameraIntrinsics = capturedData.cameraIntrinsics
-            self.capturedData.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
             self.capturedData.depthCenter = capturedData.depthCenter
             self.capturedData.originalDepth = capturedData.originalDepth
-            self.capturedData.colorImage = capturedData.colorImage
-            
-            if self.dataAvailable == false {
-                self.dataAvailable = true
-            }
-            
-            // Check if we're recording
-            if self.isRecording, let folder = self.recordingFolder {
-                let currentFrameNumber = self.frameCount + 1
-                self.frameCount = currentFrameNumber // Update on main thread
-                
-                // In CameraLiDARManager, for your LiDAR recording part
-                if self.useLiDAR {
-                    // LIDAR RECORDING PATH
-                    // Make a copy of necessary values to use on background thread
-                    let frameFolder = folder.appendingPathComponent("frame_\(currentFrameNumber)")
-                    let frameCopy = capturedData // Assuming CameraCapturedData is a reference type
-                    
-                    // Use a dispatch group to ensure frame is saved before proceeding
-                    let saveGroup = DispatchGroup()
-                    saveGroup.enter()
-                    
-                    // Create directory on a background thread
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        do {
-                            try FileManager.default.createDirectory(at: frameFolder, withIntermediateDirectories: true, attributes: nil)
-                            print("Saving LiDAR frame \(currentFrameNumber) to \(frameFolder.path)")
-                            
-                            // Use your existing saveCaptureData method with a completion handler
-                            frameCopy.saveCaptureData(to: frameFolder, isVideoFrame: true) { error in
-                                if let error = error {
-                                    print("❌ Failed to save LiDAR frame \(currentFrameNumber): \(error)")
-                                } else {
-                                    print("✅ LiDAR frame \(currentFrameNumber) saved successfully")
-                                }
-                                saveGroup.leave()
-                            }
-                        } catch {
-                            print("❌ Error creating directory for frame \(currentFrameNumber): \(error.localizedDescription)")
-                            saveGroup.leave()
-                        }
-                    }
-                    
-                    // Wait for a short time for the save to complete
-                    DispatchQueue.global(qos: .background).async {
-                        // Wait with a timeout to prevent blocking indefinitely
-                        let result = saveGroup.wait(timeout: .now() + 0.1)
-                        if result == .timedOut {
-                            print("⚠️ Save operation timed out for frame \(currentFrameNumber)")
-                        }
-                    }
-                } else if let colorImage = capturedData.colorImage {
-                    // STANDARD VIDEO RECORDING PATH (NO LIDAR)
-                    
-                    // Check if videoWriter is set up - avoid deadlock
-                    if self.videoWriter == nil {
-                        // Create and configure video writer on a background queue
-                        let setupQueue = DispatchQueue(label: "com.bestgym.videoSetupQueue")
-                        setupQueue.async { [weak self] in
-                            guard let self = self else { return }
-                            
-                            let fileURL = folder.appendingPathComponent("recording.mp4")
-                            
-                            do {
-                                // Create the asset writer
-                                let videoWriter = try AVAssetWriter(outputURL: fileURL, fileType: .mp4)
-                                
-                                // Get dimensions from capturedData
-                                let width = Int(self.capturedData.cameraReferenceDimensions.width)
-                                let height = Int(self.capturedData.cameraReferenceDimensions.height)
-                                
-                                print("Setting up video writer with dimensions: \(width)x\(height)")
-                                
-                                // Create video settings
-                                let videoSettings: [String: Any] = [
-                                    AVVideoCodecKey: AVVideoCodecType.h264,
-                                    AVVideoWidthKey: width,
-                                    AVVideoHeightKey: height,
-                                    AVVideoCompressionPropertiesKey: [
-                                        AVVideoAverageBitRateKey: 8000000,
-                                        AVVideoMaxKeyFrameIntervalKey: 30,
-                                        AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
-                                    ]
-                                ]
-                                
-                                // Create writer input
-                                let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
-                                writerInput.expectsMediaDataInRealTime = true
-                                
-                                // Create pixel buffer adaptor
-                                let sourcePixelBufferAttributes: [String: Any] = [
-                                    kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32ARGB),
-                                    kCVPixelBufferWidthKey as String: width,
-                                    kCVPixelBufferHeightKey as String: height,
-                                    kCVPixelBufferCGImageCompatibilityKey as String: true,
-                                    kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
-                                ]
-                                
-                                let pixelBufferAdaptor = AVAssetWriterInputPixelBufferAdaptor(
-                                    assetWriterInput: writerInput,
-                                    sourcePixelBufferAttributes: sourcePixelBufferAttributes
-                                )
-                                
-                                if videoWriter.canAdd(writerInput) {
-                                    videoWriter.add(writerInput)
-                                    videoWriter.startWriting()
-                                    videoWriter.startSession(atSourceTime: CMTime.zero)
-                                    
-                                    // Update properties on main thread
-                                    DispatchQueue.main.async {
-                                        self.videoWriter = videoWriter
-                                        self.videoWriterInput = writerInput
-                                        self.pixelBufferAdaptor = pixelBufferAdaptor
-                                        print("✅ Video writer set up successfully")
-                                    }
-                                } else {
-                                    print("❌ Failed to add writer input")
-                                }
-                            } catch {
-                                print("❌ Failed to setup video writer: \(error)")
-                            }
-                        }
-                        
-                        // Skip this frame since writer is being set up
-                        return
-                    }
-                    
-                    // Rest of your code for appending frames
-                    if let writer = self.videoWriter,
-                       let writerInput = self.videoWriterInput,
-                       let adaptor = self.pixelBufferAdaptor,
-                       writerInput.isReadyForMoreMediaData {
-                        
-                        // Process video frame on background thread
-                        let orientedImage = self.correctImageOrientation(colorImage, orientation: self.recordingOrientation)
-                        let startTime = self.recordingStartTime?.timeIntervalSinceReferenceDate ?? Date().timeIntervalSinceReferenceDate
-                        
-                        DispatchQueue.global(qos: .userInteractive).async {
-                            if let pixelBuffer = self.pixelBufferFromImage(orientedImage) {
-                                let currentTime = Date().timeIntervalSinceReferenceDate
-                                let elapsedTime = currentTime - startTime
-                                let frameTime = CMTime(seconds: elapsedTime, preferredTimescale: 600)
-                                
-                                if adaptor.append(pixelBuffer, withPresentationTime: frameTime) {
-                                    print("✅ Video frame \(currentFrameNumber) appended at time \(frameTime.seconds)")
-                                } else {
-                                    print("❌ Failed to append video frame: \(writer.error?.localizedDescription ?? "Unknown error")")
-                                }
-                            } else {
-                                print("❌ Failed to create pixel buffer from image")
-                            }
-                        }
-                    }
-                }
-            }
-            
         }
+        
+        dataAvailable = true
     }
-   
-
+    
     // MARK: - Improved setupVideoWriter method
     private func setupVideoWriter(at folder: URL) {
         print("🎬 Setting up video writer...")
@@ -390,15 +253,15 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
             let width = Int(self.capturedData.cameraReferenceDimensions.width)
             let height = Int(self.capturedData.cameraReferenceDimensions.height)
             
-            print("   Dimensions: \(width)x\(height)")
+            print("Setting up video writer with dimensions: \(width)x\(height)")
             
-            // Create video settings with better quality
+            // Create video settings
             let videoSettings: [String: Any] = [
                 AVVideoCodecKey: AVVideoCodecType.h264,
                 AVVideoWidthKey: width,
                 AVVideoHeightKey: height,
                 AVVideoCompressionPropertiesKey: [
-                    AVVideoAverageBitRateKey: 8000000,  // 8 Mbps
+                    AVVideoAverageBitRateKey: 8000000,
                     AVVideoMaxKeyFrameIntervalKey: 30,
                     AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
                 ]
@@ -408,7 +271,7 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
             let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
             writerInput.expectsMediaDataInRealTime = true
             
-            // Create pixel buffer adaptor with correct attributes
+            // Create pixel buffer adaptor
             let sourcePixelBufferAttributes: [String: Any] = [
                 kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32ARGB),
                 kCVPixelBufferWidthKey as String: width,
@@ -424,17 +287,16 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
             
             if videoWriter.canAdd(writerInput) {
                 videoWriter.add(writerInput)
-                
-                // Start the session
                 videoWriter.startWriting()
                 videoWriter.startSession(atSourceTime: CMTime.zero)
                 
-                // Store references
-                self.videoWriter = videoWriter
-                self.videoWriterInput = writerInput
-                self.pixelBufferAdaptor = pixelBufferAdaptor
-                
-                print("✅ Video writer setup complete")
+                // Update properties on main thread
+                DispatchQueue.main.async {
+                    self.videoWriter = videoWriter
+                    self.videoWriterInput = writerInput
+                    self.pixelBufferAdaptor = pixelBufferAdaptor
+                    print("✅ Video writer set up successfully")
+                }
             } else {
                 print("❌ Failed to add writer input")
             }
@@ -2906,53 +2768,23 @@ extension CameraLiDARManager {
 // Add this method to your CameraLiDARManager class
 extension CameraLiDARManager {
     // Method to safely access frames by index
-//    func getFrame(at index: Int) -> UIImage? {
-//        // Check if index is valid and return the frame if so
-//        if index >= 0 && index < totalFrames {
-//            // If the current frame is loaded and matches the requested index
-//            if index == currentFrameIndex && currentFrameImage != nil {
-//                return currentFrameImage
-//            }
-//            
-//            // Otherwise, load the frame from storage
-//            // This implementation will depend on how your frames are stored
-//            // You might need to adapt this based on your implementation
-//            loadFrameIfNeeded(at: index)
-//            return currentFrameImage
-//        }
-//        return nil
-//    }
     func getFrame(at index: Int) -> UIImage? {
-        // Check if index is valid
-        guard index >= 0 && index < totalFrames else {
-            print("❌ getFrame: Index \(index) out of bounds (0..\(totalFrames-1))")
-            return nil
-        }
-        
-        // If the current frame is loaded and matches the requested index
-        if index == currentFrameIndex && currentFrameImage != nil {
+        // Check if index is valid and return the frame if so
+        if index >= 0 && index < totalFrames {
+            // If the current frame is loaded and matches the requested index
+            if index == currentFrameIndex && currentFrameImage != nil {
+                return currentFrameImage
+            }
+            
+            // Otherwise, load the frame from storage
+            // This implementation will depend on how your frames are stored
+            // You might need to adapt this based on your implementation
+            loadFrameIfNeeded(at: index)
             return currentFrameImage
         }
-        
-        // If we have video frames in memory
-        if !videoFrames.isEmpty && index < videoFrames.count {
-            return applyCorrectOrientation(to: videoFrames[index])
-        }
-        
-        // For LiDAR frames or any other source
-        if isLoadedDataLiDAR && index < lidarFrameURLs.count {
-            // This loads synchronously - might cause UI lag but ensures we get the frame
-            return loadLiDARFrameWithOrientation(from: lidarFrameURLs[index])
-        }
-        
-        // If we couldn't get the frame immediately, try to set it asynchronously
-        // and return currentFrameImage as a fallback (which might be nil or the wrong frame)
-        DispatchQueue.main.async {
-            self.setFrame(to: index)
-        }
-        
-        return currentFrameImage
+        return nil
     }
+    
     // Helper method to load a specific frame
     private func loadFrameIfNeeded(at index: Int) {
         // Only load if the requested index is different from the current one

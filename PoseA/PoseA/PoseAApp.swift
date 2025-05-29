@@ -25,22 +25,8 @@ struct PoseAApp: App {
 
     var body: some Scene {
         WindowGroup {
-//            let manager = CameraLiDARManager()
-                    
-            // Pass the manager to the view
-            BESTGYMPoseApp()        }
+            BESTGYMPoseApp()
+        }
         .modelContainer(sharedModelContainer)
     }
 }
-//@main
-//struct PoseAApp: App {
-//    // Create the manager as a StateObject at the app level
-//    @StateObject private var manager = CameraLiDARManager()
-//    
-//    var body: some Scene {
-//        WindowGroup {
-//            // Pass the manager to the view
-//            PoseDepthProcessorView(manager: manager)
-//        }
-//    }
-//}

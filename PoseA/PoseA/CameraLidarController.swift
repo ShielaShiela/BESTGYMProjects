@@ -28,7 +28,7 @@ protocol CaptureDataReceiver: AnyObject {
     func onNewPhotoData(capturedData: CameraCapturedData)
 }
 
-class CameraLiDARDepthController: NSObject, ObservableObject {
+class CameraLiDARDepthController: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     enum ConfigurationError: Error {
         case lidarDeviceUnavailable
@@ -46,12 +46,13 @@ class CameraLiDARDepthController: NSObject, ObservableObject {
     private(set) var captureSession: AVCaptureSession!
     
     private var photoOutput: AVCapturePhotoOutput!
-    private var depthDataOutput: AVCaptureDepthDataOutput!
+    private var depthDataOutput: AVCaptureDepthDataOutput?
     private var videoDataOutput: AVCaptureVideoDataOutput!
-    private var outputVideoSync: AVCaptureDataOutputSynchronizer!
+    private var outputVideoSync: AVCaptureDataOutputSynchronizer?
     
     private var textureCache: CVMetalTextureCache!
     private var filterMode = false
+    private var hasLiDARSupport = false
 
 
 
@@ -59,7 +60,7 @@ class CameraLiDARDepthController: NSObject, ObservableObject {
     
     var isFilteringEnabled = true {
         didSet {
-            depthDataOutput.isFilteringEnabled = isFilteringEnabled
+            depthDataOutput?.isFilteringEnabled = isFilteringEnabled
             filterMode = isFilteringEnabled
         }
     }
@@ -69,6 +70,7 @@ class CameraLiDARDepthController: NSObject, ObservableObject {
     private var recordingStartTime: Date?
     private var recordingFolder: URL?
     private var frameCount: Int = 0
+    private let sessionQueue = DispatchQueue(label: "com.example.apple-samplecode.SessionQueue", qos: .userInteractive)
     
     override init() {
         // Create a texture cache to hold sample buffer textures.
@@ -83,7 +85,8 @@ class CameraLiDARDepthController: NSObject, ObservableObject {
         do {
             try setupSession()
         } catch {
-            fatalError("Unable to configure the capture session.")
+            print("Unable to configure the capture session: \(error)")
+            setupBasicCamera()
         }
     }
     
@@ -94,52 +97,62 @@ class CameraLiDARDepthController: NSObject, ObservableObject {
         // Configure the capture session.
         captureSession.beginConfiguration()
         
-        try setupCaptureInput()
-        setupCaptureOutputs()
+        do {
+            try setupCaptureInput()
+            setupCaptureOutputs()
+            hasLiDARSupport = true
+        } catch ConfigurationError.lidarDeviceUnavailable {
+            print("LiDAR not available, falling back to basic camera")
+            setupBasicCamera()
+            hasLiDARSupport = false
+        } catch {
+            throw error
+        }
         
         // Finalize capture session configuration.
         captureSession.commitConfiguration()
     }
     
     private func setupCaptureInput() throws {
-        // Look up the LiDAR camera.
-        guard let device = AVCaptureDevice.default(.builtInLiDARDepthCamera, for: .video, position: .back) else {
+        // First try to look up the LiDAR camera
+        if let device = AVCaptureDevice.default(.builtInLiDARDepthCamera, for: .video, position: .back) {
+            // Find a match that outputs video data in the format the app's custom Metal views require.
+            guard let format = (device.formats.last { format in
+                format.formatDescription.dimensions.width == preferredWidthResolution &&
+                format.formatDescription.mediaSubType.rawValue == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange &&
+                !format.isVideoBinned &&
+                !format.supportedDepthDataFormats.isEmpty
+            }) else {
+                throw ConfigurationError.requiredFormatUnavailable
+            }
+            
+            // Find a match that outputs depth data in the format the app's custom Metal views require.
+            guard let depthFormat = (format.supportedDepthDataFormats.last { depthFormat in
+                depthFormat.formatDescription.mediaSubType.rawValue == kCVPixelFormatType_DepthFloat16
+            }) else {
+                throw ConfigurationError.requiredFormatUnavailable
+            }
+            
+            // Begin the device configuration.
+            try device.lockForConfiguration()
+
+            // Configure the device and depth formats.
+            device.activeFormat = format
+            device.activeDepthDataFormat = depthFormat
+
+            // Finish the device configuration.
+            device.unlockForConfiguration()
+            
+            print("Selected video format: \(device.activeFormat)")
+            print("Selected depth format: \(String(describing: device.activeDepthDataFormat))")
+            
+            // Add a device input to the capture session.
+            let deviceInput = try AVCaptureDeviceInput(device: device)
+            captureSession.addInput(deviceInput)
+        } else {
+            // If LiDAR is not available, throw the appropriate error
             throw ConfigurationError.lidarDeviceUnavailable
         }
-        
-        // Find a match that outputs video data in the format the app's custom Metal views require.
-        guard let format = (device.formats.last { format in
-            format.formatDescription.dimensions.width == preferredWidthResolution &&
-            format.formatDescription.mediaSubType.rawValue == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange &&
-            !format.isVideoBinned &&
-            !format.supportedDepthDataFormats.isEmpty
-        }) else {
-            throw ConfigurationError.requiredFormatUnavailable
-        }
-        
-        // Find a match that outputs depth data in the format the app's custom Metal views require.
-        guard let depthFormat = (format.supportedDepthDataFormats.last { depthFormat in
-            depthFormat.formatDescription.mediaSubType.rawValue == kCVPixelFormatType_DepthFloat16
-        }) else {
-            throw ConfigurationError.requiredFormatUnavailable
-        }
-        
-        // Begin the device configuration.
-        try device.lockForConfiguration()
-
-        // Configure the device and depth formats.
-        device.activeFormat = format
-        device.activeDepthDataFormat = depthFormat
-
-        // Finish the device configuration.
-        device.unlockForConfiguration()
-        
-        print("Selected video format: \(device.activeFormat)")
-        print("Selected depth format: \(String(describing: device.activeDepthDataFormat))")
-        
-        // Add a device input to the capture session.
-        let deviceInput = try AVCaptureDeviceInput(device: device)
-        captureSession.addInput(deviceInput)
     }
     
     private func setupCaptureOutputs() {
@@ -156,38 +169,41 @@ class CameraLiDARDepthController: NSObject, ObservableObject {
             print("Could not add video data output")
         }
         
-        // Create an object to output depth data.
-        depthDataOutput = AVCaptureDepthDataOutput()
-        depthDataOutput.isFilteringEnabled = isFilteringEnabled
-//        captureSession.addOutput(depthDataOutput)
-        if captureSession.canAddOutput(depthDataOutput) {
-                captureSession.addOutput(depthDataOutput)
-                print("Added depth data output")
-            } else {
-                print("Could not add depth data output")
-            }
-        
-        
-        // Create an object to synchronize the delivery of depth and video data.
-        outputVideoSync = AVCaptureDataOutputSynchronizer(dataOutputs: [depthDataOutput, videoDataOutput])
-        outputVideoSync.setDelegate(self, queue: videoQueue)
-        print("Set up data output synchronizer")
-        
+        // Only set up depth output if LiDAR is available
+        if hasLiDARSupport {
+            // Create an object to output depth data.
+            depthDataOutput = AVCaptureDepthDataOutput()
+            depthDataOutput?.isFilteringEnabled = isFilteringEnabled
+//            captureSession.addOutput(depthDataOutput)
+            if captureSession.canAddOutput(depthDataOutput!) {
+                    captureSession.addOutput(depthDataOutput!)
+                    print("Added depth data output")
+                } else {
+                    print("Could not add depth data output")
+                }
+            
+            
+            // Create an object to synchronize the delivery of depth and video data.
+            outputVideoSync = AVCaptureDataOutputSynchronizer(dataOutputs: [depthDataOutput!, videoDataOutput])
+            outputVideoSync?.setDelegate(self, queue: videoQueue)
+            print("Set up data output synchronizer")
+            
 
-        // Enable camera intrinsics matrix delivery.
-        guard let outputConnection = videoDataOutput.connection(with: .video) else { return }
-        if outputConnection.isCameraIntrinsicMatrixDeliverySupported {
-            outputConnection.isCameraIntrinsicMatrixDeliveryEnabled = true
-        }
-        
-        if let connection = depthDataOutput.connection(with: .depthData) {
-        if connection.isEnabled {
-            print("Depth data connection is enabled")
-        } else {
-            print("Depth data connection is not enabled")
-        }
-        } else {
-            print("No depth data connection available")
+            // Enable camera intrinsics matrix delivery.
+            guard let outputConnection = videoDataOutput.connection(with: .video) else { return }
+            if outputConnection.isCameraIntrinsicMatrixDeliverySupported {
+                outputConnection.isCameraIntrinsicMatrixDeliveryEnabled = true
+            }
+            
+            if let connection = depthDataOutput!.connection(with: .depthData) {
+            if connection.isEnabled {
+                print("Depth data connection is enabled")
+            } else {
+                print("Depth data connection is not enabled")
+            }
+            } else {
+                print("No depth data connection available")
+            }
         }
         
         // Create an object to output photos.
@@ -195,8 +211,10 @@ class CameraLiDARDepthController: NSObject, ObservableObject {
         photoOutput.maxPhotoQualityPrioritization = .quality
         captureSession.addOutput(photoOutput)
 
-        // Enable delivery of depth data after adding the output to the capture session.
-        photoOutput.isDepthDataDeliveryEnabled = true
+        // Only enable depth data delivery if LiDAR is available
+        if hasLiDARSupport {
+            photoOutput.isDepthDataDeliveryEnabled = true
+        }
     }
     
     func startStream() {
@@ -347,6 +365,124 @@ class CameraLiDARDepthController: NSObject, ObservableObject {
 //
  
     
+    func setupBasicCamera() {
+        // Remove any existing inputs
+        for input in captureSession.inputs {
+            captureSession.removeInput(input)
+        }
+        
+        // Add basic camera input
+        guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+              let videoDeviceInput = try? AVCaptureDeviceInput(device: videoDevice) else {
+            print("Could not create video device input!")
+            return
+        }
+        
+        if captureSession.canAddInput(videoDeviceInput) {
+            captureSession.addInput(videoDeviceInput)
+        }
+        
+        // Add basic video output
+        let videoOutput = AVCaptureVideoDataOutput()
+        videoOutput.setSampleBufferDelegate(self, queue: sessionQueue)
+        
+        if captureSession.canAddOutput(videoOutput) {
+            captureSession.addOutput(videoOutput)
+        }
+    }
+
+    
+//    func startVideoRecording() {
+//        guard !isRecording else { return }
+//
+//        let dateFormatter = DateFormatter()
+//        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+//        let timestamp = dateFormatter.string(from: Date())
+//
+//        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+//        recordingFolder = documentsPath.appendingPathComponent("VideoRecording_\(timestamp)")
+//
+//        do {
+//            try FileManager.default.createDirectory(at: recordingFolder!, withIntermediateDirectories: true, attributes: nil)
+//            isRecording = true
+//            recordingStartTime = Date()
+//            frameCount = 0
+//            print("Started video recording to folder: \(recordingFolder!.path)")
+//        } catch {
+//            print("Error creating recording folder: \(error.localizedDescription)")
+//        }
+//    }
+//
+//    func stopVideoRecording(completion: @escaping (URL?) -> Void) {
+//        guard isRecording, let folder = recordingFolder else {
+//            completion(nil)
+//            return
+//        }
+//
+//        isRecording = false
+//
+//        // Create a metadata file with recording information
+//        let metadataURL = folder.appendingPathComponent("recording_metadata.json")
+//        let metadata: [String: Any] = [
+//            "frameCount": frameCount,
+//            "duration": Date().timeIntervalSince(recordingStartTime!),
+//            "resolution": [
+//                "width": preferredWidthResolution,
+//                "height": preferredWidthResolution * 9 / 16
+//            ]
+//        ]
+//
+//        do {
+//            let jsonData = try JSONSerialization.data(withJSONObject: metadata, options: .prettyPrinted)
+//            try jsonData.write(to: metadataURL)
+//            print("Recording metadata saved")
+//            completion(folder)
+//        } catch {
+//            print("Error saving recording metadata: \(error.localizedDescription)")
+//            completion(nil)
+//        }
+//
+//        recordingFolder = nil
+//        frameCount = 0
+//        recordingStartTime = nil
+//    }
+//
+//    func stopVideoRecording(completion: @escaping (URL?) -> Void) {
+//        guard isRecording, let folder = recordingFolder else {
+//            completion(nil)
+//            return
+//        }
+//
+//        isRecording = false
+//
+//        // Create a metadata file with recording information
+//        let metadataURL = folder.appendingPathComponent("recording_metadata.json")
+//        let metadata: [String: Any] = [
+//            "frameCount": frameCount,
+//            "duration": Date().timeIntervalSince(recordingStartTime!),
+//            "resolution": [
+//                "width": preferredWidthResolution,
+//                "height": preferredWidthResolution * 9 / 16
+//            ]
+//        ]
+//
+//        do {
+//            let jsonData = try JSONSerialization.data(withJSONObject: metadata, options: .prettyPrinted)
+//            try jsonData.write(to: metadataURL)
+//            print("Recording metadata saved")
+//            completion(folder)
+//        } catch {
+//            print("Error saving recording metadata: \(error.localizedDescription)")
+//            completion(nil)
+//        }
+//
+//        recordingFolder = nil
+//        frameCount = 0
+//        recordingStartTime = nil
+//    }
+//
+ 
+    
 }
 
 // MARK: Output Synchronizer Delegate
@@ -354,8 +490,9 @@ extension CameraLiDARDepthController: AVCaptureDataOutputSynchronizerDelegate {
     
     func dataOutputSynchronizer(_ synchronizer: AVCaptureDataOutputSynchronizer,
                                 didOutput synchronizedDataCollection: AVCaptureSynchronizedDataCollection) {
-        // Retrieve the synchronized depth and sample buffer container objects.
-        guard let syncedDepthData = synchronizedDataCollection.synchronizedData(for: depthDataOutput) as? AVCaptureSynchronizedDepthData,
+        // Only process depth data if LiDAR is available
+        guard hasLiDARSupport,
+              let syncedDepthData = synchronizedDataCollection.synchronizedData(for: depthDataOutput!) as? AVCaptureSynchronizedDepthData,
               let syncedVideoData = synchronizedDataCollection.synchronizedData(for: videoDataOutput) as? AVCaptureSynchronizedSampleBufferData else { return }
 //        print("Received data from synchronizer")
         

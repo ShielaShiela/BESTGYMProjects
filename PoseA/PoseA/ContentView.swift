@@ -20,6 +20,22 @@ enum FileAccessError: LocalizedError {
         }
     }
 }
+enum FileAccessError: LocalizedError {
+    case fileNotFound
+    case accessDenied
+    case unsupportedFormat(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .fileNotFound:
+            return "The selected file or folder could not be found."
+        case .accessDenied:
+            return "Access to the selected file or folder was denied."
+        case .unsupportedFormat(let format):
+            return "Unsupported file format: \(format)"
+        }
+    }
+}
 
 struct BESTGYMPoseApp: View {
     // MARK: - Properties
@@ -126,6 +142,7 @@ struct BESTGYMPoseApp: View {
             .sheet(isPresented: $appState.isFilePickerPresented) {
                 DocumentPickerUI { urls in
                     if let url = urls.first {
+                      
                         loadData(from: url)
                     }
                 }
@@ -239,11 +256,11 @@ struct BESTGYMPoseApp: View {
 //    private func loadData(from url: URL) {
 //        appState.isProcessing = true
 //        appState.processingStatus = "Loading data..."
-//
+//        
 //        // First check if it's a directory or file
 //        let fileManager = FileManager.default
 //        var isDirectory: ObjCBool = false
-//
+//        
 //        if fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) {
 //            if isDirectory.boolValue {
 //                // It's a folder - could be LiDAR data or folder with video
@@ -251,7 +268,7 @@ struct BESTGYMPoseApp: View {
 //            } else {
 //                // It's a file - check extension
 //                let fileExtension = url.pathExtension.lowercased()
-//
+//                
 //                if fileExtension == "json" {
 //                    // It's a keypoint file
 //                    loadKeypointFile(url)
@@ -281,13 +298,13 @@ struct BESTGYMPoseApp: View {
 //        appState.isProcessing = true
 //        appState.processingStatus = "Loading video..."
 //        appState.isVideoSource = true
-//
+//        
 //        // Reset keypoint-related states
 //        appState.hasImportedKeypoints = false
 //        appState.showKeypoints = false
-//
+//        
 //        print("Loading video from: \(url.path)")
-//
+//        
 //        // Check if this is a recording folder rather than a direct video file
 //        var isFolder = false
 //        do {
@@ -296,7 +313,7 @@ struct BESTGYMPoseApp: View {
 //        } catch {
 //            print("Error checking if URL is directory: \(error)")
 //        }
-//
+//        
 //        if isFolder {
 //            print("Loading as a recording folder")
 //            loadDataFromFolder(url)
@@ -305,12 +322,12 @@ struct BESTGYMPoseApp: View {
 //            cameraManager.loadVideoFile(url) { success, totalFrames, error in
 //                DispatchQueue.main.async {
 //                    self.appState.isProcessing = false
-//
+//                    
 //                    if success {
 //                        self.appState.processingStatus = "Video loaded with \(totalFrames) frames"
 //                        self.appState.sourceFileName = url.lastPathComponent
 //                        self.appState.sourceURL = url
-//
+//                        
 //                        // ✅ AUTOMATICALLY CHECK FOR KEYPOINT FILES
 //                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
 //                            self.checkForAssociatedKeypointFile(videoURL: url)
@@ -424,11 +441,11 @@ struct BESTGYMPoseApp: View {
 //    private func loadDataFromFolder(_ url: URL) {
 //        appState.isVideoSource = false
 //        appState.processingStatus = "Loading data from folder..."
-//
+//        
 //        DispatchQueue.global(qos: .userInitiated).async {
 //            do {
 //                let fileManager = FileManager.default
-//
+//                
 //                // Start accessing the security-scoped resource if needed
 //                let shouldStopAccessing = url.startAccessingSecurityScopedResource()
 //                defer {
@@ -436,28 +453,28 @@ struct BESTGYMPoseApp: View {
 //                        url.stopAccessingSecurityScopedResource()
 //                    }
 //                }
-//
+//                
 //                // Get all items in the folder
 //                let contents = try fileManager.contentsOfDirectory(
 //                    at: url,
 //                    includingPropertiesForKeys: [.isDirectoryKey],
 //                    options: [.skipsHiddenFiles]
 //                )
-//
+//                
 //                print("Found \(contents.count) items in folder \(url.lastPathComponent)")
-//
+//                
 //                // Check for video files
 //                let videoFiles = contents.filter {
 //                    ["mp4", "mov", "m4v"].contains($0.pathExtension.lowercased())
 //                }
-//
+//                
 //                // Check for keypoint files IN THE SAME FOLDER
 //                let keypointFiles = contents.filter {
 //                    let filename = $0.lastPathComponent.lowercased()
 //                    return $0.pathExtension.lowercased() == "json" &&
 //                           (filename.contains("keypoint") || filename.contains("pose"))
 //                }
-//
+//                
 //                // Check for frame directories (LiDAR recording)
 //                let frameDirectories = contents.filter {
 //                    var isDir: ObjCBool = false
@@ -465,36 +482,36 @@ struct BESTGYMPoseApp: View {
 //                           isDir.boolValue &&
 //                           $0.lastPathComponent.hasPrefix("frame_")
 //                }
-//
+//                
 //                // Check for direct depth data files
 //                let hasDepthData = contents.contains { $0.lastPathComponent == "depthData.dat" }
 //                let hasMetadata = contents.contains { $0.lastPathComponent == "recording_metadata.json" }
-//
+//                
 //                // Process based on folder content
 //                if !videoFiles.isEmpty {
 //                    // Found video file(s) - load video and check for keypoints
 //                    let videoURL = videoFiles.first!
 //                    print("Loading video from folder: \(videoURL.path)")
-//
+//                    
 //                    DispatchQueue.main.async {
 //                        // Set video info
 //                        self.appState.sourceFileName = videoURL.lastPathComponent
 //                        self.appState.sourceURL = url // Keep folder as source URL
-//
+//                        
 //                        // Load video
 //                        self.cameraManager.loadVideoFile(videoURL) { success, totalFrames, error in
 //                            DispatchQueue.main.async {
 //                                self.appState.isProcessing = false
-//
+//                                
 //                                if success {
 //                                    self.appState.processingStatus = "Video loaded with \(totalFrames) frames"
 //                                    self.appState.isVideoSource = true
-//
+//                                    
 //                                    // ✅ CHECK FOR KEYPOINTS IN THE SAME FOLDER
 //                                    if !keypointFiles.isEmpty {
 //                                        let keypointURL = keypointFiles.first!
 //                                        print("📁 Found keypoint file in folder: \(keypointURL.lastPathComponent)")
-//
+//                                        
 //                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
 //                                            self.appState.processingStatus = "Loading keypoints from folder..."
 //                                            self.loadKeypointFile(keypointURL)
@@ -519,20 +536,20 @@ struct BESTGYMPoseApp: View {
 //                } else if !frameDirectories.isEmpty {
 //                    // LiDAR recording with frame folders
 //                    print("Loading as LiDAR frame folder with \(frameDirectories.count) frames")
-//
+//                    
 //                    self.cameraManager.loadVideoFolder(from: url)
-//
+//                    
 //                    DispatchQueue.main.async {
 //                        self.appState.processingStatus = "Loaded \(self.cameraManager.totalFrames) frames from \(url.lastPathComponent)"
 //                        self.appState.sourceFileName = url.lastPathComponent
 //                        self.appState.sourceURL = url
 //                        self.appState.isProcessing = false
-//
+//                        
 //                        // ✅ CHECK FOR KEYPOINTS IN LIDAR FOLDER TOO
 //                        if !keypointFiles.isEmpty {
 //                            let keypointURL = keypointFiles.first!
 //                            print("📁 Found keypoint file in LiDAR folder: \(keypointURL.lastPathComponent)")
-//
+//                            
 //                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
 //                                self.loadKeypointFile(keypointURL)
 //                            }
@@ -541,10 +558,10 @@ struct BESTGYMPoseApp: View {
 //                } else if hasDepthData {
 //                    // Direct LiDAR data files
 //                    print("Loading as LiDAR depth data")
-//
+//                    
 //                    if let device = MTLCreateSystemDefaultDevice() {
 //                        self.cameraManager.loadCapturedData(from: url, device: device)
-//
+//                        
 //                        DispatchQueue.main.async {
 //                            self.appState.processingStatus = "Loaded depth data from \(url.lastPathComponent)"
 //                            self.appState.sourceFileName = url.lastPathComponent
@@ -608,27 +625,27 @@ struct BESTGYMPoseApp: View {
 //    private func loadKeypointFile(_ url: URL) {
 //        appState.isProcessing = true
 //        appState.processingStatus = "Loading keypoints..."
-//
+//        
 //        // Load keypoints into pose processor
 //        appState.poseProcessor.loadKeypoints(from: url) { success, frameCount, error in
 //            DispatchQueue.main.async {
 //                appState.isProcessing = false
-//
+//                
 //                if success {
 //                    // Set flags to indicate we have keypoints
 //                    appState.hasImportedKeypoints = true
 //                    appState.showKeypoints = true  // Automatically show keypoints
 //                    appState.processingStatus = "Loaded keypoints for \(frameCount) frames"
 //                    appState.originalKeypointFileURL = url
-//
+//                    
 //                    // Update sourceFileName for proper display in UI
 //                    appState.sourceFileName = url.lastPathComponent
-//
+//                    
 //                    // Validate the loaded keypoints
 //                    if !appState.poseProcessor.validateLoadedKeypoints() {
 //                        appState.processingStatus = "Warning: Keypoint data may be invalid"
 //                    }
-//
+//                    
 //                    // Update UI to show first frame with keypoints
 //                    if frameCount > 0 {
 //                        cameraManager.currentFrameIndex = 0
@@ -642,8 +659,8 @@ struct BESTGYMPoseApp: View {
 //            }
 //        }
 //    }
-//
-//
+//    
+//    
     private func autoLoadDefaultData() {
         // Implementation for auto-loading default data
         // This would depend on your specific requirements
@@ -661,35 +678,35 @@ struct BESTGYMPoseApp: View {
 //                print("Already processing frames")
 //                return
 //            }
-//
+//            
 //            self.appState.isProcessing = true
-//
+//            
 //            // Update status based on ROI
 //            if self.appState.hasROI {
 //                self.appState.processingStatus = "Preparing ROI-based pose detection for all frames..."
 //            } else {
 //                self.appState.processingStatus = "Preparing pose detection for all frames..."
 //            }
-//
+//            
 //            print("Beginning pose detection on \(self.cameraManager.totalFrames) frames")
 //            if self.appState.hasROI {
 //                print("Using ROI: \(self.appState.roiImageCoordinates!)")
 //            }
-//
+//            
 //            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
 //                let statusText = self.appState.hasROI ?
 //                    "Detecting poses in ROI across \(self.cameraManager.totalFrames) frames..." :
 //                    "Detecting poses across \(self.cameraManager.totalFrames) frames..."
-//
+//                
 //                self.appState.processingStatus = statusText
-//
+//                
 //                // Pass ROI information to the pose processor
 //                if let roiImageCoordinates = self.appState.roiImageCoordinates {
 //                    self.appState.poseProcessor.setROI(roiImageCoordinates)
 //                } else {
 //                    self.appState.poseProcessor.clearROI()
 //                }
-//
+//                
 //                self.appState.poseProcessor.processFrames(from: self.cameraManager) { progressValue in
 //                    let percentage = Int(progressValue * 100)
 //                    let statusText = self.appState.hasROI ?
@@ -919,25 +936,99 @@ struct BESTGYMPoseApp: View {
     
     // MARK: - Picker Functions
     
+//    private func selectFileOrFolder() {
+//        switchToAnalysisMode()
+//        appState.isFilePickerPresented = true
+//    }
+//    
+//    private func selectVideoFile() {
+//        switchToAnalysisMode()
+//        appState.isVideoPickerPresented = true
+//    }
+//    
+//    private func selectVideoFromLibrary() {
+//        switchToAnalysisMode()
+//        appState.isPhotoLibraryPresented = true
+//    }
+//    
+//    private func selectKeypointFile() {
+//        switchToAnalysisMode()
+//        appState.isKeypointImportPresented = true
+//    }
+    
     private func selectFileOrFolder() {
-        switchToAnalysisMode()
-        appState.isFilePickerPresented = true
+        // Do cleanup BEFORE switching modes
+        if appState.hasImportedKeypoints || appState.poseProcessor.getTotalFrames() > 0 {
+            print("🧹 Cleaning up before folder selection...")
+            cleanupPreviousData()
+        }
+        // Then switch to analysis mode if needed
+        if appState.isRecordMode {
+            appState.isRecordMode = false
+            cameraManager.pauseStream()
+        }
+        
+        // Small delay to ensure cleanup completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.appState.isFilePickerPresented = true
+        }
     }
-    
+
     private func selectVideoFile() {
-        switchToAnalysisMode()
-        appState.isVideoPickerPresented = true
+        // Do cleanup BEFORE switching modes
+        if appState.hasImportedKeypoints || appState.poseProcessor.getTotalFrames() > 0 {
+                print("🧹 Cleaning up before folder selection...")
+                cleanupPreviousData()
+            }
+        // Then switch to analysis mode if needed
+        if appState.isRecordMode {
+            appState.isRecordMode = false
+            cameraManager.pauseStream()
+        }
+        
+        // Small delay to ensure cleanup completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.appState.isVideoPickerPresented = true
+        }
     }
-    
+
     private func selectVideoFromLibrary() {
-        switchToAnalysisMode()
-        appState.isPhotoLibraryPresented = true
+        // Do cleanup BEFORE switching modes
+        if appState.hasImportedKeypoints || appState.poseProcessor.getTotalFrames() > 0 {
+                print("🧹 Cleaning up before folder selection...")
+                cleanupPreviousData()
+            }
+        // Then switch to analysis mode if needed
+        if appState.isRecordMode {
+            appState.isRecordMode = false
+            cameraManager.pauseStream()
+        }
+        
+        // Small delay to ensure cleanup completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.appState.isPhotoLibraryPresented = true
+        }
     }
     
-    private func selectKeypointFile() {
-        switchToAnalysisMode()
-        appState.isKeypointImportPresented = true
-    }
+        private func selectKeypointFile() {
+            if appState.hasImportedKeypoints || appState.poseProcessor.getTotalFrames() > 0 {
+                    print("🧹 Cleaning up before folder selection...")
+                    cleanupPreviousData()
+                }
+                        
+            // Then switch to analysis mode if needed
+            if appState.isRecordMode {
+                appState.isRecordMode = false
+                cameraManager.pauseStream()
+            }
+            
+            // Small delay to ensure cleanup completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.appState.isKeypointImportPresented = true
+            }
+//            switchToAnalysisMode()
+       
+        }
     
     // Helper to ensure we exit record mode when loading files
 //    private func switchToAnalysisMode() {
@@ -946,12 +1037,12 @@ struct BESTGYMPoseApp: View {
 //            if cameraManager.isRecording {
 //                cameraManager.stopRecording { _ in }
 //            }
-//
+//            
 //            // Stop camera stream on background thread
 //            DispatchQueue.global(qos: .userInitiated).async {
 //                self.cameraManager.pauseStream()
 //            }
-//
+//            
 //            // Reset states before loading new file
 //            appState.resetFileAndKeypointState()
 //            appState.resetStatusState()
@@ -969,8 +1060,8 @@ struct BESTGYMPoseApp: View {
 //
 //        // Mark that we now have keypoints to show
 //        appState.showKeypoints = true
-//
-//        print("Detection complete - showing keypoints")
+//        
+//        print("Detection complete - showing keyPlpoints")
 //
 //        // Reset to the first frame
 //        cameraManager.currentFrameIndex = 0
@@ -1255,7 +1346,11 @@ struct BESTGYMPoseApp: View {
     
     private func loadData(from url: URL) {
         // Clean up any previous folder access
-        cleanupPreviousFolderAccess()
+//        if appState.hasImportedKeypoints || appState.poseProcessor.getTotalFrames() > 0 {
+//                print("⚠️ Found existing data, forcing cleanup...")
+//            cleanupPreviousData()
+//        }
+            
         
         appState.isProcessing = true
         appState.processingStatus = "Loading data..."
@@ -1300,13 +1395,43 @@ struct BESTGYMPoseApp: View {
             }
         }
     }
-
-    // Helper method to clean up previous folder access when switching
-    private func cleanupPreviousFolderAccess() {
+    
+    private func cleanupPreviousData() {
+        print("🧹 Cleaning up previous data...")
+        
+        // 1. Stop accessing previous folder/file
         if let previousURL = appState.sourceURL {
             SecurityScopedResourceManager.shared.stopAccessing(previousURL)
+            print("  - Stopped accessing: \(previousURL.lastPathComponent)")
         }
+        // 2. Clear camera manager data - using the enhanced method
+        cameraManager.clearAllFrames()
+        print("  - Cleared camera frames")
+        
+        // 3. Clear app state (this calls poseProcessor.clearAllKeypoints())
+        appState.resetFileAndKeypointState()
+        appState.resetStatusState()
+        print("  - Reset app state")
+        
+        // 4. Force UI update
+        DispatchQueue.main.async {
+            // Ensure UI reflects the cleared state
+            self.cameraManager.currentFrameImage = nil
+            
+            // Debug print to verify cleanup
+            self.cameraManager.debugPrintState()
+            self.appState.poseProcessor.debugPrintState()
+        }
+        
+        print("✅ Cleanup complete")
     }
+
+    // Helper method to clean up previous folder access when switching
+//    private func cleanupPreviousFolderAccess() {
+//        if let previousURL = appState.sourceURL {
+//            SecurityScopedResourceManager.shared.stopAccessing(previousURL)
+//        }
+//    }
 
     // Enhanced loadVideo method
     private func loadVideo(from url: URL) {
@@ -1357,6 +1482,7 @@ struct BESTGYMPoseApp: View {
 
     // Enhanced loadKeypointFile method
     private func loadKeypointFile(_ url: URL) {
+        
         appState.isProcessing = true
         appState.processingStatus = "Loading keypoints..."
         
@@ -1569,7 +1695,8 @@ struct BESTGYMPoseApp: View {
             }
             
             // Clean up previous folder access when switching modes
-            cleanupPreviousFolderAccess()
+//            cleanupPreviousFolderAccess()
+            cleanupPreviousData()
             
             // Reset states before loading new file
             appState.resetFileAndKeypointState()
@@ -1634,6 +1761,13 @@ class AppState: ObservableObject {
     
     
     func resetFileAndKeypointState() {
+        
+        print("🔄 Resetting file and keypoint state...")
+        print("  - Before: hasImportedKeypoints = \(hasImportedKeypoints), keypoint frames = \(poseProcessor.getTotalFrames())")
+           
+          
+        // ✅ ADD THIS LINE - explicitly clear pose processor keypoints
+        poseProcessor.clearAllKeypoints()
         sourceFileName = ""
         sourceURL = nil
         originalKeypointFileURL = nil

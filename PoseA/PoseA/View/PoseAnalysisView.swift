@@ -8,6 +8,8 @@
 import SwiftUI
 
 // MARK: - Pose Analysis View
+// TODO: Move the calculation here, take one time parse from keypoint data then split into multiple calculation
+
 struct PoseAnalysisView: View {
     // Define Variable
     let poseProcessor: VitPoseProcessor
@@ -66,26 +68,6 @@ struct PoseAnalysisView: View {
                 // Scrollable content below
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        // Frame Range Slider
-                        VStack(alignment: .leading) {
-                            Text("Frame Range")
-                                .font(.headline)
-                                .padding(.horizontal)
-                            
-                            HStack {
-                                Text("Frame \(Int(timeRange.lowerBound * Double(totalFrames) + 1))")
-                                    .font(.caption)
-                                Spacer()
-                                Text("Frame \(Int(timeRange.upperBound * Double(totalFrames) + 1))")
-                                    .font(.caption)
-                            }
-                            .padding(.horizontal)
-                            
-                            RangeSlider(value: $timeRange, in: 0...1)
-                                .padding(.horizontal)
-                        }
-                        .padding(.top)
-                        
                         // Analysis Graph
                         AnalysisGraphView(
                             analysisType: selectedAnalysisType,

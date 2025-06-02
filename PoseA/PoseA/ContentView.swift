@@ -20,22 +20,6 @@ enum FileAccessError: LocalizedError {
         }
     }
 }
-enum FileAccessError: LocalizedError {
-    case fileNotFound
-    case accessDenied
-    case unsupportedFormat(String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .fileNotFound:
-            return "The selected file or folder could not be found."
-        case .accessDenied:
-            return "Access to the selected file or folder was denied."
-        case .unsupportedFormat(let format):
-            return "Unsupported file format: \(format)"
-        }
-    }
-}
 
 struct BESTGYMPoseApp: View {
     // MARK: - Properties
@@ -1350,7 +1334,6 @@ struct BESTGYMPoseApp: View {
 //                print("⚠️ Found existing data, forcing cleanup...")
 //            cleanupPreviousData()
 //        }
-            
         
         appState.isProcessing = true
         appState.processingStatus = "Loading data..."
@@ -1425,13 +1408,6 @@ struct BESTGYMPoseApp: View {
         
         print("✅ Cleanup complete")
     }
-
-    // Helper method to clean up previous folder access when switching
-//    private func cleanupPreviousFolderAccess() {
-//        if let previousURL = appState.sourceURL {
-//            SecurityScopedResourceManager.shared.stopAccessing(previousURL)
-//        }
-//    }
 
     // Enhanced loadVideo method
     private func loadVideo(from url: URL) {
@@ -1718,45 +1694,45 @@ class AppState: ObservableObject {
     @Published var isVideoSource = false
     @Published var hasImportedKeypoints = false
     @Published var isRecordMode = false
-    
+
     // Pickers
     @Published var isFilePickerPresented = false
     @Published var isVideoPickerPresented = false
     @Published var isPhotoLibraryPresented = false
     @Published var isKeypointImportPresented = false
-    
+
     // Analysis view
     @Published var showAnalysisView = false
-    
+
     // File metadata
     @Published var sourceFileName = ""
     @Published var sourceURL: URL? = nil
     @Published var originalKeypointFileURL: URL? = nil
     @Published var recordingDate: Date? = nil
-    
+
     // Pose processing
     let poseProcessor = VitPoseProcessor()
-    
+
     // Editing state
     @Published var didEditKeypoints = false
     @Published var selectedKeypointIndex: Int? = nil
-    
+
     @Published var athleteName: String = "Test"
     @Published var actionType: String = "Test"
     @Published var distanceValue: String? = "Test"
     @Published var videoSettings = VideoSettings.defaultSettings
-    
+
     // LiDAR toggle state
     @Published var useLiDAR: Bool = false
     @Published var imageRotation: Int = 0
-    
+
     @Published var autoDetectKeypoints: Bool = false
-    
+
     @Published var isROIMode = false
-   @Published var roiRect: CGRect? = nil
-   @Published var isSelectingROI = false
-   @Published var hasROI = false
-   @Published var roiImageCoordinates: CGRect? = nil // ROI in actual image coordinates
+    @Published var roiRect: CGRect? = nil
+    @Published var isSelectingROI = false
+    @Published var hasROI = false
+    @Published var roiImageCoordinates: CGRect? = nil // ROI in actual image coordinates
    
     
     
@@ -2494,92 +2470,6 @@ func transformPoint(x: CGFloat, y: CGFloat, containerSize: CGSize, imageSize: CG
     
     return CGPoint(x: displayX, y: displayY)
 }
-
-// MARK: - Simplified updateDisplayWithKeypoints method for BESTGYMPoseApp
-
-// MARK: - Fixed Coordinate Transformation
-//private func transformPoint(x: CGFloat, y: CGFloat, containerSize: CGSize, imageSize: CGSize, rotation: Int) -> CGPoint {
-//    // Calculate the actual display size of the image within the container
-//    let imageAspectRatio = imageSize.width / imageSize.height
-//    let containerAspectRatio = containerSize.width / containerSize.height
-//
-//    var displaySize: CGSize
-//
-//    if imageAspectRatio > containerAspectRatio {
-//        // Image is wider than container - fit to width
-//        displaySize = CGSize(
-//            width: containerSize.width,
-//            height: containerSize.width / imageAspectRatio
-//        )
-//    } else {
-//        // Image is taller than container - fit to height
-//        displaySize = CGSize(
-//            width: containerSize.height * imageAspectRatio,
-//            height: containerSize.height
-//        )
-//    }
-//
-//    // Calculate offset to center the image
-//    let offsetX = (containerSize.width - displaySize.width) / 2
-//    let offsetY = (containerSize.height - displaySize.height) / 2
-//
-//    // Convert keypoint coordinates to display coordinates
-//    var displayX = (x / imageSize.width) * displaySize.width + offsetX
-//    var displayY = (y / imageSize.height) * displaySize.height + offsetY
-//
-//    // Apply rotation if needed
-//    if rotation != 0 {
-//        let centerX = containerSize.width / 2
-//        let centerY = containerSize.height / 2
-//
-//        // Translate to origin
-//        displayX -= centerX
-//        displayY -= centerY
-//
-//        // Apply rotation
-//        let angle = Double(rotation) * .pi / 2
-//        let rotatedX = displayX * cos(angle) - displayY * sin(angle)
-//        let rotatedY = displayX * sin(angle) + displayY * cos(angle)
-//
-//        // Translate back
-//        displayX = rotatedX + centerX
-//        displayY = rotatedY + centerY
-//    }
-//
-//    return CGPoint(x: displayX, y: displayY)
-//}
-
-// MARK: - Document Pickers
-
-// File Picker for opening regular files
-//struct DocumentPicker: UIViewControllerRepresentable {
-//    let onPick: ([URL]) -> Void
-//
-//    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-//        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder, .json, .item])
-//        picker.allowsMultipleSelection = false
-//        picker.delegate = context.coordinator
-//        return picker
-//    }
-//
-//    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
-//
-//    func makeCoordinator() -> Coordinator {
-//        Coordinator(onPick: onPick)
-//    }
-//
-//    class Coordinator: NSObject, UIDocumentPickerDelegate {
-//        let onPick: ([URL]) -> Void
-//
-//        init(onPick: @escaping ([URL]) -> Void) {
-//            self.onPick = onPick
-//        }
-//
-//        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-//            onPick(urls)
-//        }
-//    }
-//}
 
 class SecurityScopedResourceManager {
     static let shared = SecurityScopedResourceManager()

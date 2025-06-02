@@ -17,42 +17,98 @@ struct AnalysisGraphView: View {
     
     // Body View
     var body: some View {
+        // Data Provider
+        let jointDataProvider = DefaultJointDataProvider(poseProcessor: poseProcessor)
+
         VStack {
             if selectedJoints.isEmpty {
                 Text("Select Joints to Analyze")
                     .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: 300)
+                    .frame(maxWidth: .infinity, maxHeight: 500)
             } else {
                 // Different visualizations based on analysis type
                 switch analysisType {
                 case .jointAngles:
-                    JointAngleGraphView(
-                        selectedJoints: selectedJoints,
+                    let chartData = selectedJoints.map { joint in
+                        JointData(joint: joint, dataPoints: jointDataProvider.getAngleData(for: joint))
+                    }
+                    ChartsView(
+                        chartData: chartData,
                         timeRange: timeRange,
-                        poseProcessor: poseProcessor,
-                        currentFrameIndex: currentFrameIndex
+                        currentFrameIndex: currentFrameIndex,
+                        yAxisUnit: "°"
                     )
+                    Spacer()
+                    ChartsLegendView(chartData: chartData)
+                    Spacer()
                     
                 case .trajectories:
-                    TrajectoryGraphView(
-                        selectedJoints: selectedJoints,
+                    let chartData = selectedJoints.map { joint in
+                        JointData(joint: joint, dataPoints: jointDataProvider.getPositionData(for: joint))
+                    }
+                    ChartsView(
+                        chartData: chartData,
                         timeRange: timeRange,
-                        poseProcessor: poseProcessor
+                        currentFrameIndex: currentFrameIndex,
+                        yAxisUnit: "px"
                     )
+                    Spacer()
+                    ChartsLegendView(chartData: chartData)
+                    Spacer()
                     
                 case .velocities:
-                    VelocityGraphView(
-                        selectedJoints: selectedJoints,
+                    let chartDataX = selectedJoints.map { joint -> JointData in
+                        let (xData, _) = jointDataProvider.getVelocitiesData(for: joint)
+                        return JointData(joint: joint, dataPoints: xData)
+                    }
+
+                    let chartDataY = selectedJoints.map { joint -> JointData in
+                        let (_, yData) = jointDataProvider.getVelocitiesData(for: joint)
+                        return JointData(joint: joint, dataPoints: yData)
+                    }
+                    
+                    ChartsView(
+                        chartData: chartDataX,
                         timeRange: timeRange,
-                        poseProcessor: poseProcessor
+                        currentFrameIndex: currentFrameIndex,
+                        yAxisUnit: "px/s"
                     )
+                    ChartsView(
+                        chartData: chartDataY,
+                        timeRange: timeRange,
+                        currentFrameIndex: currentFrameIndex,
+                        yAxisUnit: "px/s"
+                    )
+                    Spacer()
+                    ChartsLegendView(chartData: chartDataX)
+                    Spacer()
                     
                 case .accelerations:
-                    AccelerationGraphView(
-                        selectedJoints: selectedJoints,
+                    let chartDataX = selectedJoints.map { joint -> JointData in
+                        let (xData, _) = jointDataProvider.getAccelerationData(for: joint)
+                        return JointData(joint: joint, dataPoints: xData)
+                    }
+
+                    let chartDataY = selectedJoints.map { joint -> JointData in
+                        let (_, yData) = jointDataProvider.getAccelerationData(for: joint)
+                        return JointData(joint: joint, dataPoints: yData)
+                    }
+                    
+                    ChartsView(
+                        chartData: chartDataX,
                         timeRange: timeRange,
-                        poseProcessor: poseProcessor
+                        currentFrameIndex: currentFrameIndex,
+                        yAxisUnit: "px/s²"
                     )
+                    ChartsView(
+                        chartData: chartDataY,
+                        timeRange: timeRange,
+                        currentFrameIndex: currentFrameIndex,
+                        yAxisUnit: "px/s²"
+                    )
+                    Spacer()
+                    ChartsLegendView(chartData: chartDataX)
+                    Spacer()
                     
                 case .comparison:
                     ComparisonGraphView(
@@ -63,7 +119,7 @@ struct AnalysisGraphView: View {
                 }
             }
         }
-        .frame(height: 300)
+        .frame(height: 400)
     }
 }
 

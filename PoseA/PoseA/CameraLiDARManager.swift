@@ -2769,22 +2769,36 @@ extension CameraLiDARManager {
 extension CameraLiDARManager {
     // Method to safely access frames by index
     func getFrame(at index: Int) -> UIImage? {
-        // Check if index is valid and return the frame if so
-        if index >= 0 && index < totalFrames {
-            // If the current frame is loaded and matches the requested index
-            if index == currentFrameIndex && currentFrameImage != nil {
-                return currentFrameImage
-            }
-            
-            // Otherwise, load the frame from storage
-            // This implementation will depend on how your frames are stored
-            // You might need to adapt this based on your implementation
-            loadFrameIfNeeded(at: index)
+        // Check if index is valid
+        guard index >= 0 && index < totalFrames else {
+            print("❌ getFrame: Index \(index) out of bounds (0..\(totalFrames-1))")
+            return nil
+        }
+        
+        // If the current frame is loaded and matches the requested index
+        if index == currentFrameIndex && currentFrameImage != nil {
             return currentFrameImage
         }
-        return nil
+        
+        // If we have video frames in memory
+        if !videoFrames.isEmpty && index < videoFrames.count {
+            return applyCorrectOrientation(to: videoFrames[index])
+        }
+        
+        // For LiDAR frames or any other source
+        if isLoadedDataLiDAR && index < lidarFrameURLs.count {
+            // This loads synchronously - might cause UI lag but ensures we get the frame
+            return loadLiDARFrameWithOrientation(from: lidarFrameURLs[index])
+        }
+        
+        // If we couldn't get the frame immediately, try to set it asynchronously
+        // and return currentFrameImage as a fallback (which might be nil or the wrong frame)
+        DispatchQueue.main.async {
+            self.setFrame(to: index)
+        }
+        
+        return currentFrameImage
     }
-    
     // Helper method to load a specific frame
     private func loadFrameIfNeeded(at index: Int) {
         // Only load if the requested index is different from the current one
@@ -3400,8 +3414,7 @@ struct RecordingMetadata: Codable {
 }
 
 extension CameraLiDARManager {
-    
-    /// Comprehensive method to clear all frames and reset state
+    // Comprehensive method to clear all frames and reset state
     func clearAllFrames() {
         print("🧹 CameraLiDARManager: Starting comprehensive cleanup...")
         

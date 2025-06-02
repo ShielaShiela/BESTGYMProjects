@@ -8,6 +8,9 @@
 import Foundation
 import SwiftUI
 
+
+// MARK: Angle Function
+
 func angleBetween(_ a: KeypointData, _ b: KeypointData, _ c: KeypointData) -> Double {
     let ab = CGVector(dx: a.x - b.x, dy: a.y - b.y)
     let cb = CGVector(dx: c.x - b.x, dy: c.y - b.y)
@@ -20,6 +23,19 @@ func angleBetween(_ a: KeypointData, _ b: KeypointData, _ c: KeypointData) -> Do
     let angleInRadians = acos(max(min(cosineAngle, 1.0), -1.0))
     return angleInRadians * 180 / .pi  // Convert to degrees
 }
+
+func wrapAngle(_ angle: Double) -> Double {
+    var result = angle
+    while result >= 180 {
+        result -= 360
+    }
+    while result < -180 {
+        result += 360
+    }
+    return result
+}
+
+// MARK: Image Function
 
 extension UIImage {
     func rotated(to orientation: UIImage.Orientation) -> UIImage? {

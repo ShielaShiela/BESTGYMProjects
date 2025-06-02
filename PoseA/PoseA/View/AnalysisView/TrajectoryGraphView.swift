@@ -6,33 +6,7 @@
 //  
 
 import SwiftUI
-
-// Placeholder implementations for other graph types
-struct TrajectoryGraphView: View {
-    let selectedJoints: [String]
-    let timeRange: ClosedRange<Double>
-    let poseProcessor: VitPoseProcessor
-    
-    var body: some View {
-        Text("Joint Trajectory Visualization")
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemGray6))
-            .cornerRadius(8)
-    }
-}
-
-struct VelocityGraphView: View {
-    let selectedJoints: [String]
-    let timeRange: ClosedRange<Double>
-    let poseProcessor: VitPoseProcessor
-    
-    var body: some View {
-        Text("Joint Velocity Analysis")
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemGray6))
-            .cornerRadius(8)
-    }
-}
+import Charts
 
 struct AccelerationGraphView: View {
     let selectedJoints: [String]

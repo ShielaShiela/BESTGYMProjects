@@ -31,37 +31,44 @@ struct KeypointConnection {
 struct JointData: Identifiable {
     var id: String { joint }
     var joint: String
-    var dataPoints: [xyChartData]
+    var dataPoints: [xyzChartData]
 }
 
-struct xyChartData: Identifiable {
+struct xyzChartData: Identifiable {
     var id = UUID()
     var x: Double
     var y: Double
+    var z: Float
 }
 
-extension xyChartData {
-    init(x: Int, y: Double) {
+extension xyzChartData {
+    init(x: Int, y: Double, z: Float = 0) {
         self.x = Double(x)
         self.y = y
+        self.z = z
     }
 
-    init(x: Double, y: Double) {
+    init(x: Double, y: Double, z: Float = 0) {
         self.x = x
         self.y = y
+        self.z = z
     }
 }
 
 // Joint colors for the graph
 let jointColors: [String: Color] = [
-    "L Shoulder": .blue,
-    "R Shoulder": .red,
-    "L Elbow": .orange,
-    "R Elbow": .yellow,
-    "L Hip": .purple,
-    "R Hip": .pink,
-    "L Knee": .black,
-    "R Knee": .gray
+    "L Shoulder": .cyan,
+    "R Shoulder": .blue,
+    "L Elbow": .pink,
+    "R Elbow": .red,
+    "L Wrist": .brown,
+    "R Wrist": .indigo,
+    "L Hip": .orange,
+    "R Hip": .yellow,
+    "L Knee": .green,
+    "R Knee": .purple,
+    "L Ankle": .black,
+    "R Ankle": .gray
 ]
 
 // MARK: Error Variables
@@ -85,3 +92,83 @@ struct VideoSettings {
     )
 }
 
+// MARK: RecordingMetadata.json Structure
+struct RecordingMetadata: Codable {
+    let personName: String
+    let action: String
+    let frameCount: Int
+    let useLiDAR: Bool
+    let duration: TimeInterval
+    let resolution: Resolution
+    let deviceOrientation: DeviceOrientation?
+    let timestamp: TimeInterval
+    let distance: String?
+    let cameraIntrinsics: [[Float]]
+    
+    struct Resolution: Codable {
+        let width: CGFloat
+        let height: CGFloat
+    }
+    
+    struct DeviceOrientation: Codable {
+        let rawValue: Int
+        let name: String
+        
+        // Add camera orientation to clarify how the image was actually captured
+        var cameraOrientation: String?
+        
+        // Add image dimensions to help resolve orientation issues
+        var capturedWidth: Int?
+        var capturedHeight: Int?
+        
+        // Convert to UIDeviceOrientation
+        var uiDeviceOrientation: UIDeviceOrientation {
+            return UIDeviceOrientation(rawValue: self.rawValue) ?? .portrait
+        }
+        
+        // Determine if device was held in portrait or landscape
+        var isPortraitOrientation: Bool {
+            return uiDeviceOrientation == .portrait || uiDeviceOrientation == .portraitUpsideDown
+        }
+    }
+        
+
+    
+    // Static method to create a default metadata with portrait orientation
+    static func defaultMetadata() -> RecordingMetadata {
+        return RecordingMetadata(
+            personName: "Unknown",
+            action: "Unknown",
+            frameCount: 0,
+            useLiDAR: false,
+            duration: 0.0,
+            resolution: Resolution(width: 1920, height: 1080),
+            deviceOrientation: DeviceOrientation(rawValue: UIDeviceOrientation.portrait.rawValue, name: "portrait"),
+            timestamp: Date().timeIntervalSince1970,
+            distance: nil,
+            cameraIntrinsics: [
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0]
+            ]
+        )
+    }
+}
+
+// MARK: Error Enumeration
+enum FileAccessError: LocalizedError {
+    case fileNotFound
+    case accessDenied
+    case unsupportedFormat(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .fileNotFound:
+            return "The selected file or folder could not be found."
+        case .accessDenied:
+            return "Access to the selected file or folder was denied."
+        case .unsupportedFormat(let format):
+            return "Unsupported file format: \(format)"
+        }
+    }
+}

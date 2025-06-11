@@ -122,7 +122,8 @@ struct ChartsView: View {
         let minX = allXValues.min() ?? 0
         let maxY = allYValues.max() ?? 0
         let minY = allYValues.min() ?? 0
-        
+        print("minX = \(minX), maxX = \(maxX)")
+        print("minY = \(minY), maxY = \(maxY)")
         // Add some padding to the Y scale (10% on each side)
         let yPadding = (maxY - minY) * 0.2
         let xPadding = (maxX - minX) * 0.2

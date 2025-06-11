@@ -13,12 +13,13 @@ struct AnalysisGraphView: View {
     let selectedJoints: [String]
     let timeRange: ClosedRange<Double>
     let poseProcessor: VitPoseProcessor
+    let cameraManager: CameraLiDARManager
     let currentFrameIndex: Int
     
     // Body View
     var body: some View {
         // Data Provider
-        let jointDataProvider = DefaultJointDataProvider(poseProcessor: poseProcessor)
+        let jointDataProvider = JointDataProvider(poseProcessor: poseProcessor)
 
         VStack {
             if selectedJoints.isEmpty {
@@ -29,9 +30,14 @@ struct AnalysisGraphView: View {
                 // Different visualizations based on analysis type
                 switch analysisType {
                 case .jointAngles:
-                    let chartData = selectedJoints.map { joint in
-                        JointData(joint: joint, dataPoints: jointDataProvider.getAngleData(for: joint))
-                    }
+                    let chartData = selectedJoints
+                        .filter { joint in
+                            return !(joint == "L Ankle" || joint == "R Ankle" || joint == "L Wrist" || joint == "R Wrist")
+                        }
+                        .map { joint in
+                            JointData(joint: joint, dataPoints: jointDataProvider.getAngleData(for: joint))
+                        }
+                    
                     ChartsView(
                         chartData: chartData,
                         timeRange: timeRange,
@@ -111,11 +117,10 @@ struct AnalysisGraphView: View {
                     Spacer()
                     
                 case .comparison:
-                    ComparisonGraphView(
-                        selectedJoints: selectedJoints,
-                        timeRange: timeRange,
-                        poseProcessor: poseProcessor
-                    )
+                    Text("Comparison with Reference Motion")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
                 }
             }
         }

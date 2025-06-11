@@ -14,6 +14,7 @@ struct PoseAnalysisView: View {
     // Define Variable
     let poseProcessor: VitPoseProcessor
     let currentFrameIndex: Int // MARK: Currently not used
+    let cameraManager: CameraLiDARManager
     
     // Define Binding
     @Binding var showAnalysisView: Bool
@@ -51,14 +52,21 @@ struct PoseAnalysisView: View {
                 // Fixed Horizontal Joint Selection
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
+                        
                         ForEach(availableJoints, id: \.self) { joint in
-                            JointSelectionButton(
-                                jointName: joint,
-                                isSelected: selectedJoints.contains(joint),
-                                onToggle: {
-                                    toggleJointSelection(joint)
-                                }
-                            )
+                            // Disable Ankle Measurement for Joint Angle
+                            if (joint == "L Ankle" || joint == "R Ankle" || joint == "L Wrist" || joint == "R Wrist") && selectedAnalysisType == .jointAngles {
+                                EmptyView()
+                            }
+                            else{
+                                JointSelectionButton(
+                                    jointName: joint,
+                                    isSelected: selectedJoints.contains(joint),
+                                    onToggle: {
+                                        toggleJointSelection(joint)
+                                    }
+                                )
+                            }
                         }
                     }
                     .padding(.horizontal)
@@ -74,6 +82,7 @@ struct PoseAnalysisView: View {
                             selectedJoints: selectedJoints,
                             timeRange: timeRange,
                             poseProcessor: poseProcessor,
+                            cameraManager: cameraManager,
                             currentFrameIndex: currentFrameIndex // MARK: Currently not used
                         )
                         .padding()

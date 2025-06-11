@@ -28,7 +28,7 @@ protocol CaptureDataReceiver: AnyObject {
     func onNewPhotoData(capturedData: CameraCapturedData)
 }
 
-class CameraLiDARDepthController: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+class CameraLiDARDepthControllerUI: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     enum ConfigurationError: Error {
         case lidarDeviceUnavailable
@@ -85,7 +85,7 @@ class CameraLiDARDepthController: NSObject, ObservableObject, AVCaptureVideoData
         do {
             try setupSession()
         } catch {
-            print("Unable to configure the capture session: \(error)")
+            log("Unable to configure the capture session: \(error)", level: .error)
             setupBasicCamera()
         }
     }
@@ -102,7 +102,7 @@ class CameraLiDARDepthController: NSObject, ObservableObject, AVCaptureVideoData
             setupCaptureOutputs()
             hasLiDARSupport = true
         } catch ConfigurationError.lidarDeviceUnavailable {
-            print("LiDAR not available, falling back to basic camera")
+            log("LiDAR not available, falling back to basic camera", level: .info)
             setupBasicCamera()
             hasLiDARSupport = false
         } catch {
@@ -143,8 +143,8 @@ class CameraLiDARDepthController: NSObject, ObservableObject, AVCaptureVideoData
             // Finish the device configuration.
             device.unlockForConfiguration()
             
-            print("Selected video format: \(device.activeFormat)")
-            print("Selected depth format: \(String(describing: device.activeDepthDataFormat))")
+            log("Selected video format: \(device.activeFormat)", level: .info)
+            log("Selected depth format: \(String(describing: device.activeDepthDataFormat))", level: .info)
             
             // Add a device input to the capture session.
             let deviceInput = try AVCaptureDeviceInput(device: device)
@@ -156,17 +156,17 @@ class CameraLiDARDepthController: NSObject, ObservableObject, AVCaptureVideoData
     }
     
     private func setupCaptureOutputs() {
+        log("Setting up capture outputs...", level: .info)
         
-        print("Setting up capture outputs")
         // Create an object to output video sample buffers.
         videoDataOutput = AVCaptureVideoDataOutput()
 //        captureSession.addOutput(videoDataOutput)
         
         if captureSession.canAddOutput(videoDataOutput) {
             captureSession.addOutput(videoDataOutput)
-            print("Added video data output")
+            log("Successfully added video data output", level: .info)
         } else {
-            print("Could not add video data output")
+            log("Failed to add video data output", level: .info)
         }
         
         // Only set up depth output if LiDAR is available
@@ -177,17 +177,16 @@ class CameraLiDARDepthController: NSObject, ObservableObject, AVCaptureVideoData
 //            captureSession.addOutput(depthDataOutput)
             if captureSession.canAddOutput(depthDataOutput!) {
                     captureSession.addOutput(depthDataOutput!)
-                    print("Added depth data output")
+                    log("Successfully added depth data output", level: .info)
                 } else {
-                    print("Could not add depth data output")
+                    log("Failed to add depth data output", level: .info)
                 }
             
             
             // Create an object to synchronize the delivery of depth and video data.
             outputVideoSync = AVCaptureDataOutputSynchronizer(dataOutputs: [depthDataOutput!, videoDataOutput])
             outputVideoSync?.setDelegate(self, queue: videoQueue)
-            print("Set up data output synchronizer")
-            
+            log("Setup data output synchronizer", level: .debug)
 
             // Enable camera intrinsics matrix delivery.
             guard let outputConnection = videoDataOutput.connection(with: .video) else { return }
@@ -197,12 +196,12 @@ class CameraLiDARDepthController: NSObject, ObservableObject, AVCaptureVideoData
             
             if let connection = depthDataOutput!.connection(with: .depthData) {
             if connection.isEnabled {
-                print("Depth data connection is enabled")
+                log("Depth data connection is enabled", level: .info)
             } else {
-                print("Depth data connection is not enabled")
+                log("Depth data connection is disabled", level: .info)
             }
             } else {
-                print("No depth data connection available")
+                log("No depth data connection available", level: .info)
             }
         }
         
@@ -274,97 +273,6 @@ class CameraLiDARDepthController: NSObject, ObservableObject, AVCaptureVideoData
         
     }
     
-//    func startVideoRecording() {
-//        guard !isRecording else { return }
-//
-//        let dateFormatter = DateFormatter()
-//        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-//        let timestamp = dateFormatter.string(from: Date())
-//
-//        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-//        recordingFolder = documentsPath.appendingPathComponent("VideoRecording_\(timestamp)")
-//
-//        do {
-//            try FileManager.default.createDirectory(at: recordingFolder!, withIntermediateDirectories: true, attributes: nil)
-//            isRecording = true
-//            recordingStartTime = Date()
-//            frameCount = 0
-//            print("Started video recording to folder: \(recordingFolder!.path)")
-//        } catch {
-//            print("Error creating recording folder: \(error.localizedDescription)")
-//        }
-//    }
-//
-//    func stopVideoRecording(completion: @escaping (URL?) -> Void) {
-//        guard isRecording, let folder = recordingFolder else {
-//            completion(nil)
-//            return
-//        }
-//
-//        isRecording = false
-//
-//        // Create a metadata file with recording information
-//        let metadataURL = folder.appendingPathComponent("recording_metadata.json")
-//        let metadata: [String: Any] = [
-//            "frameCount": frameCount,
-//            "duration": Date().timeIntervalSince(recordingStartTime!),
-//            "resolution": [
-//                "width": preferredWidthResolution,
-//                "height": preferredWidthResolution * 9 / 16
-//            ]
-//        ]
-//
-//        do {
-//            let jsonData = try JSONSerialization.data(withJSONObject: metadata, options: .prettyPrinted)
-//            try jsonData.write(to: metadataURL)
-//            print("Recording metadata saved")
-//            completion(folder)
-//        } catch {
-//            print("Error saving recording metadata: \(error.localizedDescription)")
-//            completion(nil)
-//        }
-//
-//        recordingFolder = nil
-//        frameCount = 0
-//        recordingStartTime = nil
-//    }
-//
-//    func stopVideoRecording(completion: @escaping (URL?) -> Void) {
-//        guard isRecording, let folder = recordingFolder else {
-//            completion(nil)
-//            return
-//        }
-//
-//        isRecording = false
-//
-//        // Create a metadata file with recording information
-//        let metadataURL = folder.appendingPathComponent("recording_metadata.json")
-//        let metadata: [String: Any] = [
-//            "frameCount": frameCount,
-//            "duration": Date().timeIntervalSince(recordingStartTime!),
-//            "resolution": [
-//                "width": preferredWidthResolution,
-//                "height": preferredWidthResolution * 9 / 16
-//            ]
-//        ]
-//
-//        do {
-//            let jsonData = try JSONSerialization.data(withJSONObject: metadata, options: .prettyPrinted)
-//            try jsonData.write(to: metadataURL)
-//            print("Recording metadata saved")
-//            completion(folder)
-//        } catch {
-//            print("Error saving recording metadata: \(error.localizedDescription)")
-//            completion(nil)
-//        }
-//
-//        recordingFolder = nil
-//        frameCount = 0
-//        recordingStartTime = nil
-//    }
-//
- 
-    
     func setupBasicCamera() {
         // Remove any existing inputs
         for input in captureSession.inputs {
@@ -390,103 +298,10 @@ class CameraLiDARDepthController: NSObject, ObservableObject, AVCaptureVideoData
             captureSession.addOutput(videoOutput)
         }
     }
-
-    
-//    func startVideoRecording() {
-//        guard !isRecording else { return }
-//
-//        let dateFormatter = DateFormatter()
-//        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-//        let timestamp = dateFormatter.string(from: Date())
-//
-//        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-//        recordingFolder = documentsPath.appendingPathComponent("VideoRecording_\(timestamp)")
-//
-//        do {
-//            try FileManager.default.createDirectory(at: recordingFolder!, withIntermediateDirectories: true, attributes: nil)
-//            isRecording = true
-//            recordingStartTime = Date()
-//            frameCount = 0
-//            print("Started video recording to folder: \(recordingFolder!.path)")
-//        } catch {
-//            print("Error creating recording folder: \(error.localizedDescription)")
-//        }
-//    }
-//
-//    func stopVideoRecording(completion: @escaping (URL?) -> Void) {
-//        guard isRecording, let folder = recordingFolder else {
-//            completion(nil)
-//            return
-//        }
-//
-//        isRecording = false
-//
-//        // Create a metadata file with recording information
-//        let metadataURL = folder.appendingPathComponent("recording_metadata.json")
-//        let metadata: [String: Any] = [
-//            "frameCount": frameCount,
-//            "duration": Date().timeIntervalSince(recordingStartTime!),
-//            "resolution": [
-//                "width": preferredWidthResolution,
-//                "height": preferredWidthResolution * 9 / 16
-//            ]
-//        ]
-//
-//        do {
-//            let jsonData = try JSONSerialization.data(withJSONObject: metadata, options: .prettyPrinted)
-//            try jsonData.write(to: metadataURL)
-//            print("Recording metadata saved")
-//            completion(folder)
-//        } catch {
-//            print("Error saving recording metadata: \(error.localizedDescription)")
-//            completion(nil)
-//        }
-//
-//        recordingFolder = nil
-//        frameCount = 0
-//        recordingStartTime = nil
-//    }
-//
-//    func stopVideoRecording(completion: @escaping (URL?) -> Void) {
-//        guard isRecording, let folder = recordingFolder else {
-//            completion(nil)
-//            return
-//        }
-//
-//        isRecording = false
-//
-//        // Create a metadata file with recording information
-//        let metadataURL = folder.appendingPathComponent("recording_metadata.json")
-//        let metadata: [String: Any] = [
-//            "frameCount": frameCount,
-//            "duration": Date().timeIntervalSince(recordingStartTime!),
-//            "resolution": [
-//                "width": preferredWidthResolution,
-//                "height": preferredWidthResolution * 9 / 16
-//            ]
-//        ]
-//
-//        do {
-//            let jsonData = try JSONSerialization.data(withJSONObject: metadata, options: .prettyPrinted)
-//            try jsonData.write(to: metadataURL)
-//            print("Recording metadata saved")
-//            completion(folder)
-//        } catch {
-//            print("Error saving recording metadata: \(error.localizedDescription)")
-//            completion(nil)
-//        }
-//
-//        recordingFolder = nil
-//        frameCount = 0
-//        recordingStartTime = nil
-//    }
-//
- 
-    
 }
 
 // MARK: Output Synchronizer Delegate
-extension CameraLiDARDepthController: AVCaptureDataOutputSynchronizerDelegate {
+extension CameraLiDARDepthControllerUI: AVCaptureDataOutputSynchronizerDelegate {
     
     func dataOutputSynchronizer(_ synchronizer: AVCaptureDataOutputSynchronizer,
                                 didOutput synchronizedDataCollection: AVCaptureSynchronizedDataCollection) {
@@ -501,16 +316,7 @@ extension CameraLiDARDepthController: AVCaptureDataOutputSynchronizerDelegate {
               let cameraCalibrationData = syncedDepthData.depthData.cameraCalibrationData else { return }
         
         let colorImage = generateUIImage(from: pixelBuffer)
-        
-//        // Package the captured data.
-//        let data = CameraCapturedData(depth: syncedDepthData.depthData.depthDataMap.texture(withFormat: .r16Float, planeIndex: 0, addToCache: textureCache),
-//                                      colorY: pixelBuffer.texture(withFormat: .r8Unorm, planeIndex: 0, addToCache: textureCache),
-//                                      colorCbCr: pixelBuffer.texture(withFormat: .rg8Unorm, planeIndex: 1, addToCache: textureCache),
-//                                      cameraIntrinsics: cameraCalibrationData.intrinsicMatrix,
-//                                      cameraReferenceDimensions: cameraCalibrationData.intrinsicMatrixReferenceDimensions,
-//                                      originalDepth: syncedDepthData.depthData,
-//                                      colorImage: colorImage)
-        
+
         // Convert the depth data to the expected format.
        let convertedDepth = syncedDepthData.depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat16)
        
@@ -581,7 +387,7 @@ extension CameraLiDARDepthController: AVCaptureDataOutputSynchronizerDelegate {
 }
 
 // MARK: Photo Capture Delegate
-extension CameraLiDARDepthController: AVCapturePhotoCaptureDelegate {
+extension CameraLiDARDepthControllerUI: AVCapturePhotoCaptureDelegate {
     
     func capturePhoto() {
         var photoSettings: AVCapturePhotoSettings
@@ -782,123 +588,3 @@ extension CameraLiDARDepthController: AVCapturePhotoCaptureDelegate {
     }
     
 }
-
-
-//extension CameraLiDARDepthController {
-//    func startRecording() {
-//        guard !isRecording else { return }
-//
-//        let dateFormatter = DateFormatter()
-//        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-//        let currentDateTime = dateFormatter.string(from: Date())
-//
-//        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-//        let videoOutputURL = documentsPath.appendingPathComponent("depthVideo_\(currentDateTime).mov")
-//
-//        do {
-//            assetWriter = try AVAssetWriter(outputURL: videoOutputURL, fileType: .mov)
-//
-//            // Video input
-//            let videoSettings: [String: Any] = [
-//                AVVideoCodecKey: AVVideoCodecType.h264,
-//                AVVideoWidthKey: preferredWidthResolution,
-//                AVVideoHeightKey: preferredWidthResolution * 9 / 16 // Assuming 16:9 aspect ratio
-//            ]
-//            let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
-//            videoInput.expectsMediaDataInRealTime = true
-//            assetWriter?.add(videoInput)
-//
-//            // Depth input
-//            let depthSettings: [String: Any] = [
-//                AVVideoCodecKey: AVVideoCodecType.h264,
-//                AVVideoWidthKey: preferredWidthResolution,
-//                AVVideoHeightKey: preferredWidthResolution * 9 / 16,
-//                AVVideoPixelAspectRatioKey: [
-//                    AVVideoPixelAspectRatioHorizontalSpacingKey: 1,
-//                    AVVideoPixelAspectRatioVerticalSpacingKey: 1
-//                ]
-//            ]
-//            let depthInput = AVAssetWriterInput(mediaType: .video, outputSettings: depthSettings)
-//            depthInput.expectsMediaDataInRealTime = true
-//            assetWriter?.add(depthInput)
-//
-//            assetWriter?.startWriting()
-//            assetWriter?.startSession(atSourceTime: CMTime.zero)
-//
-//            isRecording = true
-//            print("Started recording depth video")
-//        } catch {
-//            print("Error setting up asset writer: \(error.localizedDescription)")
-//        }
-//    }
-//
-////    func stopRecording(completion: @escaping (URL?) -> Void) {
-////        guard isRecording, let assetWriter = assetWriter else {
-////            completion(nil)
-////            return
-////        }
-////
-////        isRecording = false
-////
-////        assetWriter.finishWriting {
-////            print("Finished recording depth video")
-////            let outputURL = assetWriter.outputURL
-////            self.assetWriter = nil
-////            completion(outputURL)
-////        }
-////    }
-//
-//    func stopRecording(completion: @escaping (Bool, Error?) -> Void) {
-//            guard isRecording, let assetWriter = assetWriter else {
-//                completion(false, nil)
-//                return
-//            }
-//
-//            isRecording = false
-//
-//            assetWriter.finishWriting {
-//                print("Finished recording depth video")
-//                let outputURL = assetWriter.outputURL
-//                self.assetWriter = nil
-//
-//                PHPhotoLibrary.requestAuthorization { status in
-//                    guard status == .authorized else {
-//                        completion(false, NSError(domain: "PermissionDenied", code: 0, userInfo: [NSLocalizedDescriptionKey: "Permission to access Photos library was denied"]))
-//                        return
-//                    }
-//
-//                    PHPhotoLibrary.shared().performChanges({
-//                        let request = PHAssetCreationRequest.forAsset()
-//                        request.addResource(with: .video, fileURL: outputURL, options: nil)
-//                    }) { success, error in
-//                        if success {
-//                            try? FileManager.default.removeItem(at: outputURL)
-//                        }
-//                        completion(success, error)
-//                    }
-//                }
-//            }
-//        }
-//}
-
-extension MTLTexture {
-    func toData() -> Data? {
-        let width = self.width
-        let height = self.height
-        let bytesPerRow = width * 4
-        var data = [UInt8](repeating: 0, count: height * bytesPerRow)
-        self.getBytes(&data, bytesPerRow: bytesPerRow, from: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0)
-        return Data(data)
-    }
-}
-
-extension matrix_float3x3 {
-    func toArray() -> [[Float]] {
-        return [
-            [columns.0.x, columns.0.y, columns.0.z],
-            [columns.1.x, columns.1.y, columns.1.z],
-            [columns.2.x, columns.2.y, columns.2.z]
-        ]
-    }
-}
-

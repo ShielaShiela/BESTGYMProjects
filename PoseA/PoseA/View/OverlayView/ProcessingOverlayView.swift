@@ -12,21 +12,28 @@ struct ProcessingOverlayView: View {
     
     var body: some View {
         ZStack {
-            Color.black.opacity(0.7)
-                .edgesIgnoringSafeArea(.all)
+            // Blur background
+            Color.black.opacity(0.3)
+                .background(.ultraThinMaterial.opacity(0.5))
+                .ignoresSafeArea()
             
-            VStack(spacing: 20) {
+            VStack(spacing: 50) {
                 ProgressView()
-                    .scaleEffect(1.5)
+                    .scaleEffect(2)
                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                 
                 Text(status)
-                    .font(.headline)
+                    .font(.body)
+                    .fontWeight(.medium)
                     .foregroundColor(.white)
             }
             .padding(30)
-            .background(Color(.systemGray5))
-            .cornerRadius(15)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.black.opacity(0.5))
+            )
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
     }
 }

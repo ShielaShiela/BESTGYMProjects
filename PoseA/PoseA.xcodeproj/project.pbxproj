@@ -6,12 +6,6 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		97BAF6792D754600008E34D4 /* VitPoseh.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 97BAF6782D754600008E34D4 /* VitPoseh.mlpackage */; };
-		97BAF67A2D754600008E34D4 /* VitPoseh.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 97BAF6782D754600008E34D4 /* VitPoseh.mlpackage */; };
-		97BAF67B2D754600008E34D4 /* VitPoseh.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 97BAF6782D754600008E34D4 /* VitPoseh.mlpackage */; };
-/* End PBXBuildFile section */
-
 /* Begin PBXContainerItemProxy section */
 		97BAF65C2D7543FC008E34D4 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -33,17 +27,14 @@
 		97BAF6492D7543FA008E34D4 /* PoseA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PoseA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		97BAF65B2D7543FC008E34D4 /* PoseATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PoseATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		97BAF6652D7543FC008E34D4 /* PoseAUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PoseAUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		97BAF6782D754600008E34D4 /* VitPoseh.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = VitPoseh.mlpackage; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		97BAF6B82D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseATests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				CameraLiDARManager.swift,
-				CVPixelBufferExtension.swift,
-				Extensions.swift,
-				Metal/DepthOverlay.swift,
+				Camera/CameraLiDARManager.swift,
+				General/Extensions.swift,
 				Metal/MetalContentView.swift,
 				Metal/MetalEnvironment.swift,
 				Metal/MetalPointCloud.swift,
@@ -51,22 +42,23 @@
 				Metal/MetalTextureViewColor.swift,
 				Metal/MetalTextureViewDepth.swift,
 				Metal/MetalTextureViewFused.swift,
+				Model/VitPoseh.mlpackage,
+				NotUsed/CVPixelBufferExtension.swift,
+				NotUsed/DepthOverlay.swift,
 				Shaders/PointCloud.metal,
 				Shaders/shaders.metal,
 				Shaders/YCbCrToRGB.metal,
-				View/AnalysisView/ChartsView.swift,
-				View/KeypointView/FixedConnectionLine.swift,
-				View/PoseAnalysisView.swift,
+				View/PoseAnalysisView/ChartsView.swift,
+				View/PoseAnalysisView/PoseAnalysisView.swift,
+				View/VideoFrameView/KeypointView/FixedConnectionLine.swift,
 			);
 			target = 97BAF65A2D7543FC008E34D4 /* PoseATests */;
 		};
 		97BAF6B92D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseAUITests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				CameraLiDARManager.swift,
-				CVPixelBufferExtension.swift,
-				Extensions.swift,
-				Metal/DepthOverlay.swift,
+				Camera/CameraLiDARManager.swift,
+				General/Extensions.swift,
 				Metal/MetalContentView.swift,
 				Metal/MetalEnvironment.swift,
 				Metal/MetalPointCloud.swift,
@@ -74,12 +66,15 @@
 				Metal/MetalTextureViewColor.swift,
 				Metal/MetalTextureViewDepth.swift,
 				Metal/MetalTextureViewFused.swift,
+				Model/VitPoseh.mlpackage,
+				NotUsed/CVPixelBufferExtension.swift,
+				NotUsed/DepthOverlay.swift,
 				Shaders/PointCloud.metal,
 				Shaders/shaders.metal,
 				Shaders/YCbCrToRGB.metal,
-				View/AnalysisView/ChartsView.swift,
-				View/KeypointView/FixedConnectionLine.swift,
-				View/PoseAnalysisView.swift,
+				View/PoseAnalysisView/ChartsView.swift,
+				View/PoseAnalysisView/PoseAnalysisView.swift,
+				View/VideoFrameView/KeypointView/FixedConnectionLine.swift,
 			);
 			target = 97BAF6642D7543FC008E34D4 /* PoseAUITests */;
 		};
@@ -147,7 +142,6 @@
 				97BAF65E2D7543FC008E34D4 /* PoseATests */,
 				97BAF6682D7543FC008E34D4 /* PoseAUITests */,
 				97BAF64A2D7543FA008E34D4 /* Products */,
-				97BAF6782D754600008E34D4 /* VitPoseh.mlpackage */,
 			);
 			sourceTree = "<group>";
 		};
@@ -305,7 +299,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				97BAF6792D754600008E34D4 /* VitPoseh.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -313,7 +306,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				97BAF67B2D754600008E34D4 /* VitPoseh.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -321,7 +313,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				97BAF67A2D754600008E34D4 /* VitPoseh.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

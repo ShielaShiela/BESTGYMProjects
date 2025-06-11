@@ -60,7 +60,7 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
         case pointcloud
     }
     
-    let controller: CameraLiDARDepthController
+    let controller: CameraLiDARDepthControllerUI
     var cancellables = Set<AnyCancellable>()
     var session: AVCaptureSession { controller.captureSession }
     
@@ -166,7 +166,7 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
         useLiDAR = !discoverySession.devices.isEmpty
         
         // Initialize controller with appropriate configuration
-        controller = CameraLiDARDepthController()
+        controller = CameraLiDARDepthControllerUI()
         controller.isFilteringEnabled = true
         
         if useLiDAR {
@@ -608,36 +608,6 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
         // Create and return a UIImage
         return UIImage(cgImage: cgImage)
     }
-//    func loadVideoFolder(from url: URL) {
-//        frameURLs.removeAll()
-//        currentFrameIndex = 0
-//
-//        if let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
-//            for case let fileURL as URL in enumerator {
-//                if fileURL.lastPathComponent.hasPrefix("frame_") {
-//                    frameURLs.append(fileURL)
-//                }
-//            }
-//        }
-//
-//        // Sort the frame URLs based on their numeric suffix
-//        frameURLs.sort { (url1, url2) -> Bool in
-//            let number1 = extractFrameNumber(from: url1.lastPathComponent)
-//            let number2 = extractFrameNumber(from: url2.lastPathComponent)
-//            return number1 < number2
-//        }
-//
-//        totalFrames = frameURLs.count
-//
-//        if !frameURLs.isEmpty {
-//            loadFrame(at: 0)
-//        }
-//    }
-    
-    // Adapted from your `loadVideoFolder` logic
-    // Inside class CameraLiDARManager...
-
-    
     
     private func createTexture(from data: Data, pixelFormat: MTLPixelFormat, device: MTLDevice) throws -> MTLTexture {
         let width = Int(sqrt(Double(data.count / MemoryLayout<Float16>.size)))
@@ -712,26 +682,6 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
             loadFrame(at: currentFrameIndex)
             print("Explicitly reloaded frame at index \(currentFrameIndex)")
         }
-//
-//    func startPlayback() {
-//        stopPlayback()
-//        playbackTimer = Timer.scheduledTimer(withTimeInterval: 1.0/30.0, repeats: true) { [weak self] _ in
-//            self?.nextFrame()
-//
-//        }
-//        isPlaying = true
-//    }
-//
-//    func stopPlayback() {
-//        playbackTimer?.invalidate()
-//        playbackTimer = nil
-//
-//        isPlaying = false
-//    }
-    
-    // In CameraLiDARManager
-    
-    
     
     func getDepth(at imagePoint: CGPoint) -> Float? {
         guard let depthTexture = self.capturedData.depth else {
@@ -757,23 +707,21 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
         return Float(depthValue)
     }
 
-
-
     func calculate3DPoint(from imagePoint: CGPoint, depthValue: Float) -> SIMD3<Float>? {
         let intrinsics = self.capturedData.cameraIntrinsics
-
+        print(intrinsics)
         // Adjust intrinsics for image size differences
         let referenceSize = self.capturedData.cameraReferenceDimensions
         let imageSize = self.capturedData.colorImage?.size ?? referenceSize
 
         let scaleX = Float(imageSize.width / referenceSize.width)
         let scaleY = Float(imageSize.height / referenceSize.height)
-
+        print("ScaleX: \(scaleX), ScaleY: \(scaleY)")
         let fx = intrinsics.columns.0.x * scaleX
         let fy = intrinsics.columns.1.y * scaleY
         let cx = intrinsics.columns.2.x * scaleX
         let cy = intrinsics.columns.2.y * scaleY
-
+        
         let x = Float(imagePoint.x)
         let y = Float(imagePoint.y)
 
@@ -819,67 +767,6 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
         controller.stopStream()
     }
 }
-    
-extension CGImage {
-    func toPixelBuffer(width: Int, height: Int) -> CVPixelBuffer? {
-        var pixelBuffer: CVPixelBuffer?
-        let attributes = [kCVPixelBufferCGImageCompatibilityKey: kCFBooleanTrue,
-                          kCVPixelBufferCGBitmapContextCompatibilityKey: kCFBooleanTrue] as CFDictionary
-        CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_32ARGB, attributes, &pixelBuffer)
-
-        if let pixelBuffer = pixelBuffer {
-            CVPixelBufferLockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: 0))
-            let colorSpace = CGColorSpaceCreateDeviceRGB()
-            let context = CGContext(data: CVPixelBufferGetBaseAddress(pixelBuffer),
-                                    width: width,
-                                    height: height,
-                                    bitsPerComponent: 8,
-                                    bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
-                                    space: colorSpace,
-                                    bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue)
-            context?.draw(self, in: CGRect(x: 0, y: 0, width: width, height: height))
-            CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: 0))
-            return pixelBuffer
-        }
-        return nil
-    }
-}
-
-extension MTLTexture {
-    func toPixelBuffer() -> CVPixelBuffer? {
-        var pixelBuffer: CVPixelBuffer?
-        let attributes = [kCVPixelBufferCGImageCompatibilityKey: kCFBooleanTrue,
-                          kCVPixelBufferCGBitmapContextCompatibilityKey: kCFBooleanTrue] as CFDictionary
-        CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_32BGRA, attributes, &pixelBuffer)
-
-        if let pixelBuffer = pixelBuffer {
-            CVPixelBufferLockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: 0))
-            let pixelData = CVPixelBufferGetBaseAddress(pixelBuffer)
-
-            let region = MTLRegionMake2D(0, 0, width, height)
-            self.getBytes(pixelData!, bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer), from: region, mipmapLevel: 0)
-
-            CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: 0))
-            return pixelBuffer
-        }
-        return nil
-    }
-    
-    func getPixelValues<T>() -> [T] {
-        let width = self.width
-        let height = self.height
-        let bytesPerRow = width * MemoryLayout<T>.stride
-        let size = height * bytesPerRow
-        var bytes = [UInt8](repeating: 0, count: size)
-        
-        getBytes(&bytes, bytesPerRow: bytesPerRow, from: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0)
-        
-        return bytes.withUnsafeBytes { buffer in
-            Array(buffer.bindMemory(to: T.self))
-        }
-    }
-}
-
 
 
 extension CameraLiDARManager {
@@ -931,8 +818,6 @@ extension CameraLiDARManager {
 
 
 extension CameraLiDARManager {
- 
-    
     // Function to preload frames in a sliding window
     func preloadFramesAroundIndex(_ currentIndex: Int) {
         // Define the window of frames to keep loaded
@@ -985,7 +870,6 @@ extension CameraLiDARManager {
 
 // MARK: - Thread-Safe Camera Operations
 extension CameraLiDARManager {
-    
     func startStream() {
         controller.startStream()
         isLiveCapture = true
@@ -1056,7 +940,6 @@ extension CameraLiDARManager {
 
 // Add these methods to CameraLiDARManager
 extension CameraLiDARManager {
-    
     // Start measuring depth at the center of the frame
     func startCenterDepthDetection() {
         // Stop any existing timer
@@ -1122,7 +1005,6 @@ extension CameraLiDARManager {
 
 // MARK: ALL ABOUT File Handling
 extension CameraLiDARManager {
-    
     func loadVideoFromPhotoLibrary(asset: PHAsset, completion: @escaping (Bool, Int, Error?) -> Void) {
         // Reset state
         pauseStream()
@@ -1253,37 +1135,6 @@ extension CameraLiDARManager {
         // Notify observers
         FrameUpdatePublisher.shared.notifyFrameChanged(frameIndex: currentFrameIndex)
     }
-    
-    // In CameraLiDARManager class
-
-    // Add this method to your CameraLiDARManager class
-//    func clearAllFrames() {
-//        // Clear all stored frames
-//        videoFrames = []
-//        frameURLs = []
-//        totalFrames = 0
-//        currentFrameIndex = 0
-//        sliderPosition = 0
-//        
-//        // Reset current capture data
-//        capturedData = CameraCapturedData()
-//        
-//        // Stop any ongoing playback
-//        if isPlaying {
-//            stopPlayback()
-//        }
-//        
-//        // Reset other state as needed
-//        dataAvailable = false
-//        isDataLoaded = false
-//        
-//        // Clear cached data
-//        preloadedFrames.removeAll()
-//        keypointData.removeAll()
-//        keypointDataByFrame.removeAll()
-//        processedImages.removeAll()
-//    }
-    
 
     func loadVideoFolder(from url: URL) {
         print("➡️ Starting loadVideoFolder for URL: \(url.path)")
@@ -1608,25 +1459,6 @@ extension CameraLiDARManager {
         RunLoop.main.add(playbackTimer!, forMode: .common)
     }
 
-    // Update your setFrame method to include an emergency fix
-//    func setFrame(to index: Int) {
-//        // Check for live capture mode and fix it if needed
-//        if isLiveCapture {
-//            print("⚠️ Emergency fix: isLiveCapture was true in setFrame")
-//            isLiveCapture = false
-//        }
-//
-//        // Rest of your setFrame implementation...
-//    }
-
-
-    // MARK: - Other Playback Helpers (Ensure these exist)
-//    func stopPlayback() {
-//        playbackTimer?.invalidate()
-//        playbackTimer = nil
-//        isPlaying = false
-//    }
-
     func loadVideoFile(_ url: URL, completion: @escaping (Bool, Int, Error?) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else {
@@ -1934,19 +1766,10 @@ extension CameraLiDARManager {
         // No change needed
         return image
     }
-
-
-
-  
-  
-
 }
 
 // MARK:: All about playback controls
 extension CameraLiDARManager {
-    
-    
-    
     // Ensure this helper exists
     private func updateSliderPosition() {
         DispatchQueue.main.async {
@@ -1969,59 +1792,6 @@ extension CameraLiDARManager {
             }
         }
         
-//    func startPlayback() {
-//        // Must run on main thread
-//        if !Thread.isMainThread {
-//            DispatchQueue.main.async {
-//                self.startPlayback()
-//            }
-//            return
-//        }
-//
-//        // Check if we can play
-//        guard !isPlaying && totalFrames > 0 else {
-//            print("⚠️ Cannot start playback: isPlaying=\(isPlaying), totalFrames=\(totalFrames)")
-//            return
-//        }
-//
-//        // Set flag
-//        isPlaying = true
-//        print("▶️ Starting playback from frame \(currentFrameIndex)")
-//
-//        // Create a repeating timer for playback
-//        playbackTimer = Timer.scheduledTimer(withTimeInterval: 1.0/15.0, repeats: true) { [weak self] timer in
-//            guard let self = self, self.isPlaying else {
-//                timer.invalidate()
-//                print("⏹️ Playback timer stopped")
-//                return
-//            }
-//
-//            // Log playback progress occasionally
-//            if self.currentFrameIndex % 10 == 0 {
-//                print("▶️ Playing frame \(self.currentFrameIndex)/\(self.totalFrames)")
-//            }
-//
-//            // Move to next frame
-//            let nextIndex = self.currentFrameIndex + 1
-//
-//            // Check if we've reached the end
-//            if nextIndex >= self.totalFrames {
-//                // Stop playback
-//                timer.invalidate()
-//                self.playbackTimer = nil
-//                self.isPlaying = false
-//                print("⏹️ Playback complete")
-//                return
-//            }
-//
-//            // Set the frame to the next index
-//            self.setFrame(to: nextIndex)
-//        }
-//
-//        // Make sure the timer is retained and fires even during scrolling
-//        RunLoop.main.add(playbackTimer!, forMode: .common)
-//    }
-
     func stopPlayback() {
         // Must run on main thread
         if !Thread.isMainThread {
@@ -2052,42 +1822,6 @@ extension CameraLiDARManager {
             updateSliderPosition()
         }
     }
-    
-    // Add this to your CameraLiDARManager class
-//    func forceFrameUpdate(to index: Int) {
-//        // Always ensure we're not in live capture mode
-//        if isLiveCapture {
-//            print("⚠️ ForceFrameUpdate: Disabling live capture mode")
-//            controller.stopStream()
-//            isLiveCapture = false
-//        }
-//
-//        // Verify index is valid
-//        guard index >= 0 && index < totalFrames else {
-//            print("❌ ForceFrameUpdate: Invalid frame index: \(index) (total: \(totalFrames))")
-//            return
-//        }
-//
-//        // Update current index and slider
-//        currentFrameIndex = index
-//        sliderPosition = Double(index)
-//
-//        // Force correct frame display
-//        if isLoadedDataLiDAR {
-//            // Load LiDAR frame from directory
-//            if index < lidarFrameURLs.count {
-//                let frameDir = lidarFrameURLs[index]
-//                loadLiDARFrameDirectly(from: frameDir)
-//            }
-//        } else if index < videoFrames.count {
-//            // Load from pre-extracted video frames
-//            let orientedImage = applyCorrectOrientation(to: videoFrames[index])
-//            currentFrameImage = orientedImage
-//            onFrameChange?(index)
-//        }
-//
-//        print("✅ Frame updated to \(index)")
-//    }
     
     func loadLiDARFrameWithOrientation(from frameDir: URL) -> UIImage? {
         // Look for image file with various possible names
@@ -2168,7 +1902,6 @@ extension CameraLiDARManager {
 
 //MARK:: All about Recording
 extension CameraLiDARManager {
-    
     func getCameraOrientation() -> UIDeviceOrientation {
         // Try to get orientation from the camera connection first
         if let connection = controller.captureSession.connections.first,
@@ -2391,6 +2124,7 @@ extension CameraLiDARManager {
             }
         }
     }
+    
     // Stop recording with proper cleanup
     func stopRecording(completion: @escaping (URL?) -> Void) {
         DispatchQueue.main.async {
@@ -2710,9 +2444,6 @@ extension CameraLiDARManager {
 
 }
 
-// Add this extension to your CameraLiDARManager class
-// Add this extension to your CameraLiDARManager class
-
 // Add this method to your CameraLiDARManager class
 extension CameraLiDARManager {
     // Thread-safe method to update current frame
@@ -2806,610 +2537,6 @@ extension CameraLiDARManager {
             // Set the frame index which should trigger your existing frame loading logic
             currentFrameIndex = index
         }
-    }
-}
-extension UIImage.Orientation {
-    var debugDescription: String {
-        switch self {
-        case .up: return "up (0)"
-        case .down: return "down (2)"
-        case .left: return "left (4)"
-        case .right: return "right (3)"
-        case .upMirrored: return "upMirrored (1)"
-        case .downMirrored: return "downMirrored (5)"
-        case .leftMirrored: return "leftMirrored (7)"
-        case .rightMirrored: return "rightMirrored (6)"
-        @unknown default: return "unknown (\(self.rawValue))"
-        }
-    }
-}
-extension UIDeviceOrientation {
-    var name: String {
-        switch self {
-        case .portrait: return "portrait"
-        case .portraitUpsideDown: return "portraitUpsideDown"
-        case .landscapeLeft: return "landscapeLeft"
-        case .landscapeRight: return "landscapeRight"
-        case .faceUp: return "faceUp"
-        case .faceDown: return "faceDown"
-        case .unknown: return "unknown"
-        @unknown default: return "unknown"
-        }
-    }
-    
-    // Convert UIDeviceOrientation to AVCaptureVideoOrientation
-    var videoOrientation: AVCaptureVideoOrientation {
-        switch self {
-        case .portrait: return .portrait
-        case .portraitUpsideDown: return .portraitUpsideDown
-        case .landscapeLeft: return .landscapeRight  // They're opposite
-        case .landscapeRight: return .landscapeLeft  // They're opposite
-        default: return .portrait
-        }
-    }
-}
-
-//// Extension for RecordingMetadata.DeviceOrientation
-//extension RecordingMetadata.DeviceOrientation {
-//    var uiDeviceOrientation: UIDeviceOrientation {
-//        return UIDeviceOrientation(rawValue: self.rawValue) ?? .portrait
-//    }
-//}
-
-
-class CameraCapturedData {
-    
-    var depth: MTLTexture?
-    var colorY: MTLTexture?
-    var colorCbCr: MTLTexture?
-    var cameraIntrinsics: matrix_float3x3
-    var cameraReferenceDimensions: CGSize
-    var depthCenter: Float16
-    var originalDepth: AVDepthData?
-    var colorImage: UIImage?
-    var processedImage: UIImage?
-//        let filterOn: Bool
-//        let pointCloudManager = PointCloudManager()
-    
-    init(depth: MTLTexture? = nil,
-         colorY: MTLTexture? = nil,
-         colorCbCr: MTLTexture? = nil,
-         cameraIntrinsics: matrix_float3x3 = matrix_float3x3(),
-         cameraReferenceDimensions: CGSize = .zero,
-         depthCenter: Float16 = 0,
-         originalDepth: AVDepthData? = nil,
-         colorImage: UIImage? = nil,
-         processedImage: UIImage? = nil){
-        
-        self.depth = depth
-        self.colorY = colorY
-        self.colorCbCr = colorCbCr
-        self.cameraIntrinsics = cameraIntrinsics
-        self.cameraReferenceDimensions = cameraReferenceDimensions
-        self.depthCenter = depthCenter
-        self.originalDepth = originalDepth
-        self.colorImage = colorImage
-        self.processedImage = processedImage
-        
-        
-    }
-    
-    
-    
-    private func createCaptureFolder(at url: URL) throws -> URL {
-        //            let folderName = UUID().uuidString
-        //            let folderURL = url.appendingPathComponent(folderName)
-        //            try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true, attributes: nil)
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        let timestamp = dateFormatter.string(from: Date())
-        
-        let folderName = "Capture_\(timestamp)"
-        let folderURL = url.appendingPathComponent(folderName)
-        
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true, attributes: nil)
-        
-        print("Created folder: \(folderURL.path)")
-        
-        return folderURL
-    }
-    
-    
-    func matrixToArray(_ matrix: matrix_float3x3) -> [[Float]] {
-        return [
-            [matrix.columns.0[0], matrix.columns.0[1], matrix.columns.0[2]],
-            [matrix.columns.1[0], matrix.columns.1[1], matrix.columns.1[2]],
-            [matrix.columns.2[0], matrix.columns.2[1], matrix.columns.2[2]]
-        ]
-    }
-    
-    private func cameraIntrinsicsToArray() -> [[Double]] {
-        return [
-            [Double(cameraIntrinsics.columns.0.x), Double(cameraIntrinsics.columns.0.y), Double(cameraIntrinsics.columns.0.z)],
-            [Double(cameraIntrinsics.columns.1.x), Double(cameraIntrinsics.columns.1.y), Double(cameraIntrinsics.columns.1.z)],
-            [Double(cameraIntrinsics.columns.2.x), Double(cameraIntrinsics.columns.2.y), Double(cameraIntrinsics.columns.2.z)]
-        ]
-    }
-    func saveCaptureData(to url: URL, filter depthfilter:  Bool) throws {
-        let folderURL = try createCaptureFolder(at: url)
-        
-        try saveDepthData(to: folderURL.appendingPathComponent("depthData.dat"))
-        try saveColorData(to: folderURL)
-        
-        if let colorImage = self.colorImage {
-            try saveUIImage(colorImage, to: folderURL.appendingPathComponent("colorImage.jpg"))
-        } else {
-            print("Warning: colorImage is nil, cannot save")
-        }
-        
-        let metadata: [String: Any] = [
-            "cameraIntrinsics": cameraIntrinsicsToArray(),
-            "cameraReferenceDimensions": [
-                "width": cameraReferenceDimensions.width,
-                "height": cameraReferenceDimensions.height
-            ],
-            "depthCenter": Double(depthCenter), // Convert Float16 to Double
-            "depthfilter": depthfilter
-
-        ]
-        
-        let metadataURL = folderURL.appendingPathComponent("metadata.plist")
-        
-        // Use FileManager to write the dictionary directly
-        (metadata as NSDictionary).write(to: metadataURL, atomically: true)
-        
-        print("Metadata saved successfully to: \(metadataURL.path)")
-        
-        // Save point cloud as PLY
-       
-        try savePointCloudAsPLY(to: folderURL.appendingPathComponent("pointcloud.ply"))
-        print("Point cloud saved successfully.")
-      
-        print ("yooooo")
-    }
-    
-    private func saveUIImage(_ image: UIImage, to url: URL) throws {
-        guard let imageData = image.jpegData(compressionQuality: 1.0) else {
-            throw NSError(domain: "CameraCapturedData", code: 9, userInfo: [NSLocalizedDescriptionKey: "Failed to create JPEG data from UIImage"])
-        }
-        try imageData.write(to: url)
-        print("UIImage saved successfully to: \(url.path)")
-    }
-    
-    
-    private func saveDepthData(to url: URL) throws {
-        guard let depth = self.depth else {
-            throw NSError(domain: "CameraCapturedData", code: 1, userInfo: [NSLocalizedDescriptionKey: "No depth data available"])
-        }
-        
-        let width = depth.width
-        let height = depth.height
-        let bytesPerPixel = 2 // For R16Float format
-        let bytesPerRow = width * bytesPerPixel
-        
-        var depthData = [Float16](repeating: 0, count: width * height)
-        let region = MTLRegionMake2D(0, 0, width, height)
-        
-        depth.getBytes(&depthData, bytesPerRow: bytesPerRow, from: region, mipmapLevel: 0)
-        
-        let data = Data(bytes: depthData, count: depthData.count * MemoryLayout<Float16>.size)
-        try data.write(to: url)
-        
-        // Save depth dimensions
-        let depthInfo: [String: Any] = [
-            "width": width,
-            "height": height
-        ]
-        let depthInfoURL = url.deletingLastPathComponent().appendingPathComponent("depthInfo.plist")
-        (depthInfo as NSDictionary).write(to: depthInfoURL, atomically: true)
-    }
-    
-    private func saveColorData(to url: URL) throws {
-        guard let colorY = self.colorY, let colorCbCr = self.colorCbCr else {
-            throw NSError(domain: "CameraCapturedData", code: 1, userInfo: [NSLocalizedDescriptionKey: "No color data available"])
-        }
-        
-        // Save Y plane
-        try saveTexture(colorY, to: url.appendingPathComponent("colorY.dat"))
-        
-        // Save CbCr plane
-        try saveTexture(colorCbCr, to: url.appendingPathComponent("colorCbCr.dat"))
-        
-        // Save texture information
-        let textureInfo: [String: Any] = [
-            "yWidth": colorY.width,
-            "yHeight": colorY.height,
-            "yPixelFormat": colorY.pixelFormat.rawValue,
-            "cbcrWidth": colorCbCr.width,
-            "cbcrHeight": colorCbCr.height,
-            "cbcrPixelFormat": colorCbCr.pixelFormat.rawValue
-        ]
-        let infoURL = url.appendingPathComponent("colorTextureInfo.plist")
-        let infoData = try PropertyListSerialization.data(fromPropertyList: textureInfo, format: .xml, options: 0)
-        try infoData.write(to: infoURL)
-        
-        
-        print("yehaa")
-    }
-    
-    private func saveTexture(_ texture: MTLTexture, to url: URL) throws {
-        let width = texture.width
-        let height = texture.height
-        let bytesPerPixel = texture.pixelFormat.bytesPerPixel
-        let bytesPerRow = width * bytesPerPixel
-        let dataSize = height * bytesPerRow
-        
-        var data = [UInt8](repeating: 0, count: dataSize)
-        let region = MTLRegionMake2D(0, 0, width, height)
-        texture.getBytes(&data, bytesPerRow: bytesPerRow, from: region, mipmapLevel: 0)
-        
-        try Data(data).write(to: url)
-    }
-    
-    
-    private func arrayToMatrix(_ array: [Float]) -> matrix_float3x3 {
-        return matrix_float3x3(columns: (
-            SIMD3<Float>(array[0], array[1], array[2]),
-            SIMD3<Float>(array[3], array[4], array[5]),
-            SIMD3<Float>(array[6], array[7], array[8])
-        ))
-    }
-    func load(from url: URL, device: MTLDevice) throws {
-        let colorCbCrURL = url.appendingPathComponent("colorCbCr.dat")
-        let colorYURL = url.appendingPathComponent("colorY.dat")
-        let depthDataURL = url.appendingPathComponent("depthData.dat")
-        let metadataURL = url.appendingPathComponent("metadata.plist")
-        let textureInfoURL = url.appendingPathComponent("colorTextureInfo.plist")
-        
-        let colorImageURL = url.appendingPathComponent("colorImage.jpg")
-        if let imageData = try? Data(contentsOf: colorImageURL),
-           let image = UIImage(data: imageData) {
-            self.colorImage = image
-        }
-        
-        
-        print("Starting to load data from \(url.path)")
-        
-        // Load metadata
-        let metadataData = try Data(contentsOf: metadataURL)
-        if let metadata = try PropertyListSerialization.propertyList(from: metadataData, format: nil) as? [String: Any] {
-            // Camera Intrinsics
-            if let intrinsicsArray = metadata["cameraIntrinsics"] as? [[Double]] {
-                self.cameraIntrinsics = arrayToMatrix(intrinsicsArray)
-                print("Camera Intrinsics loaded: \(self.cameraIntrinsics)")
-            } else {
-                print("Warning: Failed to load camera intrinsics")
-            }
-            
-            // Camera Reference Dimensions
-            if let referenceDimensions = metadata["cameraReferenceDimensions"] as? [String: CGFloat] {
-                self.cameraReferenceDimensions = CGSize(width: referenceDimensions["width"] ?? 0, height: referenceDimensions["height"] ?? 0)
-            } else if let referenceDimensions = metadata["cameraReferenceDimensions"] as? [String: Double] {
-                self.cameraReferenceDimensions = CGSize(width: CGFloat(referenceDimensions["width"] ?? 0), height: CGFloat(referenceDimensions["height"] ?? 0))
-            } else {
-                print("Warning: Failed to load camera reference dimensions")
-                self.cameraReferenceDimensions = CGSize(width: 1920, height: 1080) // Example default
-            }
-            print("Camera Reference Dimensions: \(self.cameraReferenceDimensions)")
-            
-            // Depth Center
-            if let depthCenter = metadata["depthCenter"] as? Double {
-                self.depthCenter = Float16(depthCenter)
-            } else if let depthCenter = metadata["depthCenter"] as? Float {
-                self.depthCenter = Float16(depthCenter)
-            } else {
-                print("Warning: Failed to load depth center")
-                self.depthCenter = 0.0 // Default value
-            }
-            print("Depth Center: \(self.depthCenter)")
-        } else {
-            throw NSError(domain: "MetadataError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to parse metadata"])
-        }
-        
-        // Load texture information
-        let textureInfoData = try Data(contentsOf: textureInfoURL)
-        guard let textureInfo = try PropertyListSerialization.propertyList(from: textureInfoData, format: nil) as? [String: Any] else {
-            throw NSError(domain: "CameraCapturedData", code: 4, userInfo: [NSLocalizedDescriptionKey: "Failed to load color texture info"])
-        }
-        
-        // Load textures
-        let yWidth = textureInfo["yWidth"] as? Int ?? 0
-        let yHeight = textureInfo["yHeight"] as? Int ?? 0
-        let yPixelFormatRaw = textureInfo["yPixelFormat"] as? UInt ?? 0
-        let yPixelFormat = MTLPixelFormat(rawValue: yPixelFormatRaw) ?? .r8Unorm
-        
-        let cbcrWidth = textureInfo["cbcrWidth"] as? Int ?? 0
-        let cbcrHeight = textureInfo["cbcrHeight"] as? Int ?? 0
-        let cbcrPixelFormatRaw = textureInfo["cbcrPixelFormat"] as? UInt ?? 0
-        let cbcrPixelFormat = MTLPixelFormat(rawValue: cbcrPixelFormatRaw) ?? .r8Unorm
-        
-        print("Loading textures...")
-        do {
-            self.colorY = try loadTexture(from: colorYURL, width: yWidth, height: yHeight, pixelFormat: yPixelFormat, device: device)
-            print("ColorY texture loaded: \(self.colorY != nil)")
-            
-            self.colorCbCr = try loadTexture(from: colorCbCrURL, width: cbcrWidth, height: cbcrHeight, pixelFormat: cbcrPixelFormat, device: device)
-            print("ColorCbCr texture loaded: \(self.colorCbCr != nil)")
-            
-            self.depth = try loadDepthTexture(from: depthDataURL, device: device)
-            print("Depth texture loaded: \(self.depth != nil)")
-          
-            if self.colorY == nil || self.colorCbCr == nil || self.depth == nil {
-                print("Warning: One or more textures are nil after loading")
-                if self.colorY == nil { print("ColorY is nil") }
-                if self.colorCbCr == nil { print("ColorCbCr is nil") }
-                if self.depth == nil { print("Depth is nil") }
-            } else {
-                print("All textures loaded successfully")
-            }
-        } catch {
-            print("Error loading textures: \(error)")
-            throw error
-        }
-        
-        
-    }
-    
-    private func loadTexture(from url: URL, width: Int, height: Int, pixelFormat: MTLPixelFormat, device: MTLDevice) throws -> MTLTexture {
-        print("Loading texture from \(url.lastPathComponent)")
-        print("Texture dimensions: \(width)x\(height), PixelFormat: \(pixelFormat)")
-        
-        do {
-            let data = try Data(contentsOf: url)
-            print("Loaded \(data.count) bytes for texture")
-            
-            let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: pixelFormat, width: width, height: height, mipmapped: false)
-            textureDescriptor.usage = [.shaderRead, .shaderWrite]
-            
-            guard let texture = device.makeTexture(descriptor: textureDescriptor) else {
-                throw NSError(domain: "CameraCapturedData", code: 5, userInfo: [NSLocalizedDescriptionKey: "Failed to create texture"])
-            }
-            
-            let bytesPerRow = width * pixelFormat.bytesPerPixel
-            let region = MTLRegionMake2D(0, 0, width, height)
-            
-            texture.replace(region: region, mipmapLevel: 0, withBytes: [UInt8](data), bytesPerRow: bytesPerRow)
-            
-            print("Texture created successfully")
-            return texture
-        } catch {
-            print("Error loading texture: \(error)")
-            throw error
-        }
-    }
-    
-    private func loadDepthTexture(from url: URL, device: MTLDevice) throws -> MTLTexture {
-        let depthData = try Data(contentsOf: url)
-        
-        let depthInfoURL = url.deletingLastPathComponent().appendingPathComponent("depthInfo.plist")
-        guard let depthInfo = NSDictionary(contentsOf: depthInfoURL) as? [String: Any],
-              let width = depthInfo["width"] as? Int,
-              let height = depthInfo["height"] as? Int else {
-            throw NSError(domain: "CameraCapturedData", code: 7, userInfo: [NSLocalizedDescriptionKey: "Failed to load depth info"])
-        }
-        
-        let depthValues = depthData.withUnsafeBytes { Array(UnsafeBufferPointer<Float16>(start: $0.bindMemory(to: Float16.self).baseAddress!, count: depthData.count / MemoryLayout<Float16>.size)) }
-        
-        let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .r16Float,
-                                                                         width: width,
-                                                                         height: height,
-                                                                         mipmapped: false)
-        textureDescriptor.usage = [.shaderRead, .shaderWrite]
-        
-        guard let texture = device.makeTexture(descriptor: textureDescriptor) else {
-            throw NSError(domain: "CameraCapturedData", code: 8, userInfo: [NSLocalizedDescriptionKey: "Failed to create depth texture"])
-        }
-        
-        let region = MTLRegionMake2D(0, 0, width, height)
-        texture.replace(region: region, mipmapLevel: 0, withBytes: depthValues, bytesPerRow: width * MemoryLayout<Float16>.size)
-        
-        return texture
-    }
-    
-    private func arrayToMatrix(_ array: [[Double]]) -> matrix_float3x3 {
-        return matrix_float3x3(columns: (
-            SIMD3<Float>(Float(array[0][0]), Float(array[0][1]), Float(array[0][2])),
-            SIMD3<Float>(Float(array[1][0]), Float(array[1][1]), Float(array[1][2])),
-            SIMD3<Float>(Float(array[2][0]), Float(array[2][1]), Float(array[2][2]))
-        ))
-    }
-}
-extension CameraCapturedData {
-    func saveCaptureData(to url: URL, isVideoFrame: Bool = false, completion: @escaping (Error?) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                let folderURL: URL
-                if isVideoFrame {
-                    folderURL = url  // For video frames, use the provided URL directly
-                } else {
-                    folderURL = try self.createCaptureFolder(at: url)  // For single captures, create a new folder
-                }
-                
-                try self.saveDepthData(to: folderURL.appendingPathComponent("depthData.dat"))
-                try self.saveColorData(to: folderURL)
-                
-                if let colorImage = self.colorImage {
-                    try self.saveUIImage(colorImage, to: folderURL.appendingPathComponent("colorImage.jpg"))
-                } else {
-                    print("Warning: colorImage is nil, cannot save")
-                }
-                
-                let metadata: [String: Any] = [
-                    "cameraIntrinsics": self.cameraIntrinsicsToArray(),
-                    "cameraReferenceDimensions": [
-                        "width": self.cameraReferenceDimensions.width,
-                        "height": self.cameraReferenceDimensions.height
-                    ],
-                    "depthCenter": Double(self.depthCenter),
-                    "timestamp": Date().timeIntervalSinceReferenceDate
-                ]
-                
-                let metadataURL = folderURL.appendingPathComponent("metadata.plist")
-                
-                // Use FileManager to write the dictionary directly
-                (metadata as NSDictionary).write(to: metadataURL, atomically: true)
-                
-                DispatchQueue.main.async {
-                    print("Data saved successfully to: \(folderURL.path)")
-                    completion(nil)
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    print("Error saving capture data: \(error)")
-                    completion(error)
-                }
-            }
-        }
-    }
-
-        func savePointCloudAsPLY(to url: URL, maxDepth: Float = 10000.0, minDepth: Float = 0.1) throws {
-            guard let depthTexture = self.depth,
-                  let colorYTexture = self.colorY,
-                  let colorCbCrTexture = self.colorCbCr else {
-                throw NSError(domain: "CameraCapturedData", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing texture data"])
-            }
-
-            let width = depthTexture.width
-            let height = depthTexture.height
-
-            let depthPixels = depthTexture.getPixelValues() as [Float16]
-            let colorYPixels = colorYTexture.getPixelValues() as [UInt8]
-            let colorCbCrPixels = colorCbCrTexture.getPixelValues() as [SIMD2<UInt8>]
-
-            let depthResolution = simd_float2(x: Float(width), y: Float(height))
-            let scaleRes = simd_float2(x: Float(cameraReferenceDimensions.width) / depthResolution.x,
-                                       y: Float(cameraReferenceDimensions.height) / depthResolution.y)
-            
-            var scaledIntrinsics = cameraIntrinsics
-            scaledIntrinsics[0][0] /= scaleRes.x
-            scaledIntrinsics[1][1] /= scaleRes.y
-            scaledIntrinsics[2][0] /= scaleRes.x
-            scaledIntrinsics[2][1] /= scaleRes.y
-
-            var points: [String] = []
-
-            for y in 0..<height {
-                for x in 0..<width {
-                    let depth = Float(depthPixels[y * width + x])
-                    if depth > minDepth && depth < maxDepth {
-                        let position = calculatePosition(x: Float(x), y: Float(y), depth: depth, intrinsics: scaledIntrinsics)
-                        let color = getColor(x: x, y: y, colorYPixels: colorYPixels, colorCbCrPixels: colorCbCrPixels, width: width)
-                        points.append("\(position.x) \(position.y) \(position.z) \(color.x) \(color.y) \(color.z)")
-                    }
-                }
-            }
-
-            var fileContent = """
-            ply
-            format ascii 1.0
-            element vertex \(points.count)
-            property float x
-            property float y
-            property float z
-            property uchar red
-            property uchar green
-            property uchar blue
-            end_header
-            
-            """
-
-            fileContent += points.joined(separator: "\n")
-
-            try fileContent.write(to: url, atomically: true, encoding: .utf8)
-        }
-
-        private func calculatePosition(x: Float, y: Float, depth: Float, intrinsics: simd_float3x3) -> SIMD3<Float> {
-            let fx = intrinsics[0][0]
-            let fy = intrinsics[1][1]
-            let cx = intrinsics[2][0]
-            let cy = intrinsics[2][1]
-
-            let pointX = (x - cx) * depth / fx
-            let pointY = -(y - cy) * depth / fy  // Flip Y-axis to match Metal rendering
-            let pointZ = -depth  // Negate Z to match Metal rendering
-
-            return SIMD3<Float>(pointX, pointY, pointZ)
-        }
-
-        private func getColor(x: Int, y: Int, colorYPixels: [UInt8], colorCbCrPixels: [SIMD2<UInt8>], width: Int) -> SIMD3<UInt8> {
-            let yValue = Float(colorYPixels[y * width + x])
-            let cbcrValue = colorCbCrPixels[(y/2) * (width/2) + (x/2)]
-            let ycbcr = SIMD4<Float>(yValue, Float(cbcrValue.x), Float(cbcrValue.y), 1.0)
-            
-            let ycbcrToRGBTransform = simd_float4x4(
-                SIMD4<Float>(+1.0000, +1.0000, +1.0000, +0.0000),
-                SIMD4<Float>(+0.0000, -0.3441, +1.7720, +0.0000),
-                SIMD4<Float>(+1.4020, -0.7141, +0.0000, +0.0000),
-                SIMD4<Float>(-0.7010, +0.5291, -0.8860, +1.0000)
-            )
-
-            let rgbaColor = ycbcrToRGBTransform * ycbcr
-            return SIMD3<UInt8>(UInt8(max(0, min(255, rgbaColor.x * 255))),
-                                UInt8(max(0, min(255, rgbaColor.y * 255))),
-                                UInt8(max(0, min(255, rgbaColor.z * 255))))
-        }
-    
-}
-
-struct RecordingMetadata: Codable {
-    let personName: String
-    let action: String
-    let frameCount: Int
-    let useLiDAR: Bool
-    let duration: TimeInterval
-    let resolution: Resolution
-    let deviceOrientation: DeviceOrientation?
-    let timestamp: TimeInterval
-    let distance: String?
-    let cameraIntrinsics: [[Float]]
-    
-    struct Resolution: Codable {
-        let width: CGFloat
-        let height: CGFloat
-    }
-    
-    struct DeviceOrientation: Codable {
-        let rawValue: Int
-        let name: String
-        
-        // Add camera orientation to clarify how the image was actually captured
-        var cameraOrientation: String?
-        
-        // Add image dimensions to help resolve orientation issues
-        var capturedWidth: Int?
-        var capturedHeight: Int?
-        
-        // Convert to UIDeviceOrientation
-        var uiDeviceOrientation: UIDeviceOrientation {
-            return UIDeviceOrientation(rawValue: self.rawValue) ?? .portrait
-        }
-        
-        // Determine if device was held in portrait or landscape
-        var isPortraitOrientation: Bool {
-            return uiDeviceOrientation == .portrait || uiDeviceOrientation == .portraitUpsideDown
-        }
-    }
-        
-
-    
-    // Static method to create a default metadata with portrait orientation
-    static func defaultMetadata() -> RecordingMetadata {
-        return RecordingMetadata(
-            personName: "Unknown",
-            action: "Unknown",
-            frameCount: 0,
-            useLiDAR: false,
-            duration: 0.0,
-            resolution: Resolution(width: 1920, height: 1080),
-            deviceOrientation: DeviceOrientation(rawValue: UIDeviceOrientation.portrait.rawValue, name: "portrait"),
-            timestamp: Date().timeIntervalSince1970,
-            distance: nil,
-            cameraIntrinsics: [
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                [0.0, 0.0, 1.0]
-            ]
-        )
     }
 }
 

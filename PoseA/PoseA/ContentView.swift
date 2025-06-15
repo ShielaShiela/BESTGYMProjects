@@ -152,8 +152,6 @@ struct BESTGYMPoseApp: View {
             .sheet(isPresented: $appState.showAnalysisView) {
                 PoseAnalysisView(
                     poseProcessor: appState.poseProcessor,
-                    currentFrameIndex: cameraManager.currentFrameIndex,
-                    cameraManager: cameraManager,
                     showAnalysisView: $appState.showAnalysisView
                 )
                 .edgesIgnoringSafeArea(.all)

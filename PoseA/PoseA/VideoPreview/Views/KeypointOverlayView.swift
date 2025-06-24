@@ -8,7 +8,7 @@
 import SwiftUI
 
 // MARK: - Fixed Keypoint Overlay (Simplified)
-struct FixedKeypointOverlay: View {
+struct KeypointOverlayView: View {
     let keypoints: [KeypointData]
     let containerSize: CGSize
     let imageSize: CGSize
@@ -45,7 +45,7 @@ struct FixedKeypointOverlay: View {
         ZStack {
             // Draw connections first
             ForEach(connections.indices, id: \.self) { index in
-                FixedConnectionLine(
+                KeypointLineVM(
                     from: connections[index].0,
                     to: connections[index].1,
                     keypoints: keypoints,
@@ -60,7 +60,7 @@ struct FixedKeypointOverlay: View {
                 let keypoint = keypoints[index]
                 
                 if keypoint.confidence > 0.3 {
-                    FixedKeypointDot(
+                    KeypointDotVM(
                         keypoint: keypoint,
                         index: index,
                         containerSize: containerSize,

@@ -2,8 +2,8 @@
 //  FrameView.swift
 //  PoseA
 //
-//  Created by Bestlab on 5/29/25.
-//
+//  Created by Ardhika Maulidani on 5/29/25.
+//  Refactor from Shiela Cabahug's codebase
 
 import SwiftUI
 
@@ -13,7 +13,8 @@ struct FrameView: View {
     let keypoints: [KeypointData]?
     let isAnnotationMode: Bool
     let rotation: Int
-    let appState: AppState
+    @ObservedObject var appState: MainAppState
+    @ObservedObject var ROIModel: ROIViewModel
     @Binding var selectedKeypointIndex: Int?
     
     var body: some View {
@@ -34,9 +35,9 @@ struct FrameView: View {
                 }
                 
                 // ROI Selection Overlay
-                if appState.isROIMode {
-                    ROISelectionOverlay(
-                        appState: appState,
+                if ROIModel.isROIMode {
+                    ROIFrameOverlayView(
+                        ROIModel: ROIModel,
                         containerSize: geometry.size,
                         imageSize: image?.size ?? CGSize(width: 1920, height: 1440),
                         rotation: rotation
@@ -47,9 +48,9 @@ struct FrameView: View {
                 if let keypoints = keypoints,
                    !keypoints.isEmpty,
                    appState.showKeypoints,
-                   !appState.isSelectingROI {
+                   !ROIModel.isROIMode {
                     
-                    FixedKeypointOverlay(
+                    KeypointOverlayView(
                         keypoints: keypoints,
                         containerSize: geometry.size,
                         imageSize: image?.size ?? CGSize(width: 1920, height: 1440),

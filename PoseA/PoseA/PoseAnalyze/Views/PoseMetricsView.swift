@@ -11,7 +11,7 @@ import SwiftUI
 struct PoseMetricsView: View {
     let analysisType: PoseAnalysisView.AnalysisType
     let selectedJoints: [String]
-    @ObservedObject var chartBuilderViewModel: ChartBuilderViewModel
+    @ObservedObject var chartBuilderViewModel: ChartBuilderVM
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -41,12 +41,12 @@ struct PoseMetricsView: View {
                         
                         case .trajectories:
                             VStack {
-                                Text("X -> Min: \(String(format: "%.1f", dataMetrics.minX))px Max: \(String(format: "%.1f", dataMetrics.maxX))px")
+                                Text("X -> Min: \(String(format: "%.1f", dataMetrics.minX))cm Max: \(String(format: "%.1f", dataMetrics.maxX))cm")
                                     .font(.system(.body, design: .monospaced))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.5)
                                 
-                                Text("Y -> Min: \(String(format: "%.1f", dataMetrics.minY))px Max: \(String(format: "%.1f", dataMetrics.maxY))px")
+                                Text("Y -> Min: \(String(format: "%.1f", dataMetrics.minY))cm Max: \(String(format: "%.1f", dataMetrics.maxY))cm")
                                     .font(.system(.body, design: .monospaced))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.5)
@@ -54,24 +54,24 @@ struct PoseMetricsView: View {
                             
                         case .velocities:
                             VStack {
-                                Text("X -> Min: \(String(format: "%.1f", dataMetrics.minX))px/s Max: \(String(format: "%.1f", dataMetrics.maxX))px/s")
+                                Text("X -> Min: \(String(format: "%.1f", dataMetrics.minX))m/s Max: \(String(format: "%.1f", dataMetrics.maxX))m/s")
                                     .font(.system(.body, design: .monospaced))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.5)
                                 
-                                Text("Y -> Min: \(String(format: "%.1f", dataMetrics.minY))px/s Max: \(String(format: "%.1f", dataMetrics.maxY))px/s")
+                                Text("Y -> Min: \(String(format: "%.1f", dataMetrics.minY))m/s Max: \(String(format: "%.1f", dataMetrics.maxY))m/s")
                                     .font(.system(.body, design: .monospaced))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.5)
                             }
                         case .accelerations:
                             VStack {
-                                Text("X -> Min: \(String(format: "%.1f", dataMetrics.minX))px/s^2 Max: \(String(format: "%.1f", dataMetrics.maxX))px/s^2")
+                                Text("X -> Min: \(String(format: "%.1f", dataMetrics.minX))m/s^2 Max: \(String(format: "%.1f", dataMetrics.maxX))m/s^2")
                                     .font(.system(.body, design: .monospaced))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.3)
                                 
-                                Text("Y -> Min: \(String(format: "%.1f", dataMetrics.minY))px/s^2 Max: \(String(format: "%.1f", dataMetrics.maxY))px/s^2")
+                                Text("Y -> Min: \(String(format: "%.1f", dataMetrics.minY))m/s^2 Max: \(String(format: "%.1f", dataMetrics.maxY))m/s^2")
                                     .font(.system(.body, design: .monospaced))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.3)

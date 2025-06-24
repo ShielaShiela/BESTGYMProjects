@@ -7,202 +7,397 @@ import Foundation
 struct BESTGYMPoseApp: View {
     // MARK: - Properties
     @StateObject private var cameraManager = CameraLiDARManager()
-    @StateObject private var appState = AppState()
-    @State private var showSettingsView = false
+    @StateObject private var appState = MainAppState()
+    @StateObject private var ROIModel = ROIViewModel()
     
+
     // MARK: - Body
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Main content
-                VStack(spacing: 0) {
-                    // Top app header with mode selector
-                    AppHeader(
-                        appState: appState,
-                        cameraManager: cameraManager,
-                        processAction: processData,
-                        exportAction: exportKeypointsToJSON  // Add this line
-                    )
+        ZStack {
+            // Check for Device Orientation
+            DeviceOrientationVM(orientation: $appState.orientation)
+            
+            // Landscape Main Content
+            if self.appState.orientation == DeviceOrientationModel.landscape {
+                NavigationView {
+                    GeometryReader { geometry in
+                        HStack(spacing: 10) {
+                            // Left half: MainContentView with padding inside its half
+                            MainContentView(appState: appState,
+                                            ROIModel: ROIModel,
+                                            cameraManager: cameraManager)
+                            .frame(width: geometry.size.width / 2 - 10) // Half of screen minus spacing
+                            .padding()
+                            
+                            // Right half: Placeholder
+                            VStack {
+                                Text("Placeholder")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                            }
+                            .frame(width: geometry.size.width / 2 - 10)
+                            .padding()
+                        }
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                    }
+                    .toolbar {
+                        // Left Toolbar: File Related Toolbar
+                        ToolbarItemGroup(placement: .topBarTrailing) {
+                            HStack {
+                                if !appState.isRecordMode {
+                                    // Open File/Video Button
+                                    Button {
+                                        selectFileOrFolder()
+                                    } label: {
+                                        Image(systemName: "folder")
+                                    }
+                                }
+                                
+                                Menu {
+                                    // Analysis Mode actions
+                                    Button { selectFileOrFolder() } label: {
+                                        Label("Open File/Folder", systemImage: "folder")
+                                    }
+                                    Button { selectVideoFile() } label: {
+                                        Label("Open Video File", systemImage: "film")
+                                    }
+                                    Button { selectVideoFromLibrary() } label: {
+                                        Label("Video from Library", systemImage: "photo.on.rectangle")
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    Button { selectKeypointFile() } label: {
+                                        Label("Import Keypoints (.json)", systemImage: "square.and.arrow.down")
+                                    }
+                                }label: {
+                                    Label("Actions", systemImage: "ellipsis.circle")
+                                }
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(Color(.systemGray5))
+                            .clipShape(Capsule())
+                        }
+                        
+                        // Right Toolbar: App Mode Toolbar
+                        ToolbarItemGroup(placement: .topBarLeading) {
+                            Button {
+                                // Toggle Mode
+                                appState.isRecordMode.toggle()
+                                //handleModeChange(isRecordMode: appState.isRecordMode)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    // Icon changes based on mode
+                                    Image(systemName: appState.isRecordMode ? "record.circle" : "waveform")
+                                        .imageScale(.medium)
+
+                                    // Text label
+                                    Text(appState.isRecordMode ? "Record Mode" : "Analyze Mode")
+                                        .font(.caption)
+                                        .fontWeight(.light)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color(.systemGray5))
+                                .clipShape(Capsule())
+                            }
+                        }
+                    }
+                }
+            }
+            
+            
+            
+            else if self.appState.orientation == DeviceOrientationModel.portrait {
+                NavigationView {
+                    ZStack {
+                        // Main content
+                        VStack(spacing: 0) {
+                            // Top app header with mode selector
+                            AppHeader(
+                                appState: appState,
+                                ROIModel: ROIModel,
+                                cameraManager: cameraManager,
+                                processAction: processData,
+                                exportAction: exportKeypointsToJSON  // Add this line
+                            )
+                            
+                            // Main content container
+                            MainContentView(appState: appState,
+                                            ROIModel: ROIModel,
+                                            cameraManager: cameraManager)
+                        }
+                        
+                        // Loading Overlay View
+                        if appState.isProcessing {
+                            ProcessingOverlayView(status: appState.processingStatus)
+                        }
+                        
+                        // Error Overlay
+                        if let error = appState.errorMessage {
+                            ErrorOverlayView(message: error) {
+                                appState.errorMessage = nil
+                            }
+                        }
+                    }
+                    // Options Toolbar
+                    .toolbar {
+                        ToolbarItemGroup(placement: .navigationBarTrailing) {
+                            // Information Popover Button
+                            if cameraManager.totalFrames > 0 {
+                                Button {
+                                    self.appState.showHelpView = true
+                                } label: {
+                                    Image(systemName: "info.circle")
+                                }
+                                .popover(isPresented: $appState.showHelpView) {
+                                    // Status indicator
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Information")
+                                            .font(.body)
+                                            .fontWeight(.bold)
+                                        
+                                        HStack(spacing: 4) {
+                                            // Display File Name with proper handling
+                                            if !appState.sourceFileName.isEmpty {
+                                                // Use the explicit source file name if available
+                                                Circle()
+                                                    .fill(.green)
+                                                    .frame(width: 8, height: 8)
+                                                
+                                                Text("Filename: \(appState.sourceFileName)")
+                                                    .font(.caption)
+                                                    .lineLimit(1)
+                                                    .truncationMode(.middle)
+                                            } else if let sourceURL = appState.sourceURL ?? appState.originalKeypointFileURL {
+                                                // Fall back to URL's filename if sourceFileName is not set
+                                                Circle()
+                                                    .fill(.green)
+                                                    .frame(width: 8, height: 8)
+                                                
+                                                Text("Filename: \(sourceURL.lastPathComponent)")
+                                                    .font(.caption)
+                                                    .lineLimit(1)
+                                                    .truncationMode(.middle)
+                                            } else {
+                                                Circle()
+                                                    .fill(.orange)
+                                                    .frame(width: 8, height: 8)
+                                                
+                                                Text("Filename: No file loaded")
+                                                    .font(.caption)
+                                            }
+                                        }
+                                        
+                                        Divider()
+                                        
+                                        // Display Data Source Type
+                                        HStack(spacing: 4) {
+                                            Circle()
+                                                .fill(appState.isVideoSource ? .gray : .green)
+                                                .frame(width: 8, height: 8)
+                                            
+                                            Text(appState.isVideoSource ? "Source: Video (2D pose)" : "Source: Video+LiDAR (3D pose)")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        
+                                        Divider()
+                                        
+                                        // Keypoint Status Indicator
+                                        HStack(spacing: 4) {
+                                            // Check if keypoints actually exist by checking the processor
+                                            let hasKeypoints = appState.hasImportedKeypoints ||
+                                            (appState.poseProcessor.getTotalFrames() > 0 &&
+                                             appState.poseProcessor.hasKeypoints(for: cameraManager.currentFrameIndex))
+                                            
+                                            Circle()
+                                                .fill(hasKeypoints ? Color.green : Color.orange)
+                                                .frame(width: 8, height: 8)
+                                            
+                                            Text(hasKeypoints ? "Keypoints: Available" : "Keypoints: Not Detected")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        
+                                        Divider()
+                                        
+                                        // ROI Status
+                                        HStack(spacing: 4) {
+                                            Circle()
+                                                .fill(ROIModel.isROIAvailable ? Color.green : Color.gray)
+                                                .frame(width: 8, height: 8)
+                                            
+                                            Text(ROIModel.isROIAvailable ? "ROI Status: ROI Set" : "ROI Status: ROI Unavailable")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                    .padding()
+                                    .presentationCompactAdaptation(.popover)
+                                }
+                            }
+                            
+                            // Setting Button
+                            Button {
+                                self.appState.showSettingsView = true
+                            } label: {
+                                Image(systemName: "gear")
+                            }
+                            Menu {
+                                // Mode Toggle Section
+                                Button { toggleMode() } label: {
+                                    Label(appState.isRecordMode ? "Switch to Analysis Mode" : "Switch to Record Mode",
+                                          systemImage: appState.isRecordMode ? "waveform.path.ecg" : "record.circle")
+                                }
+                                
+                                Divider() // Separator
+                                
+                                // Context-sensitive actions based on current mode
+                                if !appState.isRecordMode {
+                                    // Analysis Mode actions
+                                    Button { selectFileOrFolder() } label: {
+                                        Label("Open File/Folder", systemImage: "folder")
+                                    }
+                                    Button { selectVideoFile() } label: {
+                                        Label("Open Video File", systemImage: "film")
+                                    }
+                                    Button { selectVideoFromLibrary() } label: {
+                                        Label("Video from Library", systemImage: "photo.on.rectangle")
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    Button { selectKeypointFile() } label: {
+                                        Label("Import Keypoints (.json)", systemImage: "square.and.arrow.down")
+                                    }
+                                } else {
+                                    // Record Mode actions
+                                    Button {
+                                        // Toggle LiDAR setting
+                                        appState.useLiDAR.toggle()
+                                    } label: {
+                                        Label(appState.useLiDAR ? "Disable LiDAR" : "Enable LiDAR",
+                                              systemImage: appState.useLiDAR ? "cube.fill" : "cube") // Using cube symbol instead of lidar.horizontal
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    Button {
+                                        resetRecordModeSettings()
+                                    } label: {
+                                        Label("Reset Capture Settings", systemImage: "arrow.counterclockwise")
+                                    }
+                                }
+                                
+                                Button {
+                                    self.appState.showSettingsView = true
+                                } label: {
+                                    Label("Settings", systemImage: "gear")
+                                }
+                            } label: {
+                                Label("Actions", systemImage: "ellipsis.circle")
+                            }
+                        }
+                    }
                     
-                    // Main content container
-                    MainContentView(appState: appState, cameraManager: cameraManager)
-                }
-                
-                // Loading Overlay View
-                if appState.isProcessing {
-                    ProcessingOverlayView(status: appState.processingStatus)
-                }
-                
-                // Error Overlay
-                if let error = appState.errorMessage {
-                    ErrorOverlayView(message: error) {
-                        appState.errorMessage = nil
+                    // Set Background
+                    .background(Color(.systemBackground))
+                    
+                    // Setting View
+                    .sheet(isPresented: $appState.showSettingsView) {
+                        SettingsView(appState: appState)
                     }
-                }
-            }
-            // Options Toolbar
-            .toolbar {
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    Button {
-                        showSettingsView = true
-                    } label: {
-                        Image(systemName: "gear")
-                    }
-                    Menu {
-                        // Mode Toggle Section
-                        Button { toggleMode() } label: {
-                            Label(appState.isRecordMode ? "Switch to Analysis Mode" : "Switch to Record Mode",
-                                  systemImage: appState.isRecordMode ? "waveform.path.ecg" : "record.circle")
-                        }
-                        
-                        Divider() // Separator
-                        
-                        // Context-sensitive actions based on current mode
-                        if !appState.isRecordMode {
-                            // Analysis Mode actions
-                            Button { selectFileOrFolder() } label: {
-                                Label("Open File/Folder", systemImage: "folder")
-                            }
-                            Button { selectVideoFile() } label: {
-                                Label("Open Video File", systemImage: "film")
-                            }
-                            Button { selectVideoFromLibrary() } label: {
-                                Label("Video from Library", systemImage: "photo.on.rectangle")
-                            }
-                            
-                            Divider()
-                            
-                            Button { selectKeypointFile() } label: {
-                                Label("Import Keypoints (.json)", systemImage: "square.and.arrow.down")
-                            }
-                        } else {
-                            // Record Mode actions
-                            Button {
-                                // Toggle LiDAR setting
-                                appState.useLiDAR.toggle()
-                            } label: {
-                                Label(appState.useLiDAR ? "Disable LiDAR" : "Enable LiDAR",
-                                      systemImage: appState.useLiDAR ? "cube.fill" : "cube") // Using cube symbol instead of lidar.horizontal
-                            }
-                            
-                            Divider()
-                            
-                            Button {
-                                resetRecordModeSettings()
-                            } label: {
-                                Label("Reset Capture Settings", systemImage: "arrow.counterclockwise")
+                    
+                    // File/Folder Picker
+                    .sheet(isPresented: $appState.isFilePickerPresented) {
+                        DocumentPickerUI { urls in
+                            if let url = urls.first {
+                                // Use loadData Function
+                                loadData(from: url)
                             }
                         }
-                        
-                        Button {
-                            showSettingsView = true
-                        } label: {
-                            Label("Settings", systemImage: "gear")
-                        }
-                    } label: {
-                        Label("Actions", systemImage: "ellipsis.circle")
                     }
-                }
-            }
-            // Set Background
-            .background(Color(.systemBackground))
-            
-            // Setting View
-            .sheet(isPresented: $showSettingsView) {
-                SettingsView(appState: appState)
-            }
-            
-            // File/Folder Picker
-            .sheet(isPresented: $appState.isFilePickerPresented) {
-                DocumentPickerUI { urls in
-                    if let url = urls.first {
-                        // Use loadData Function
-                        loadData(from: url)
-                    }
-                }
-            }
-            
-            // Video Picker
-            .sheet(isPresented: $appState.isVideoPickerPresented) {
-                VideoFilePickerUI { url in
-                    // Use loadVideo Function
-                    loadVideo(from: url)
-                }
-            }
-            
-            // Gallery Picker
-            .sheet(isPresented: $appState.isPhotoLibraryPresented) {
-                PhotoLibraryVideoPicker(isPresented: $appState.isPhotoLibraryPresented) { url in
-                    if let url = url {
-                        // Use loadVideo Function
-                        loadVideo(from: url)
-                    }
-                }
-            }
-            
-            // Keypoint Picker
-            .sheet(isPresented: $appState.isKeypointImportPresented) {
-                KeypointFilePickerUI { url in
-                    // Use loadKeypointFile
-                    loadKeypointFile(url)
-                }
-            }
-            
-            // Analysis View
-            .sheet(isPresented: $appState.showAnalysisView) {
-                PoseAnalysisView(
-                    poseProcessor: appState.poseProcessor,
-                    showAnalysisView: $appState.showAnalysisView
-                )
-                .edgesIgnoringSafeArea(.all)
-            }
-            
-            // First Launch Setup
-            .onAppear {
-                setupInitialState()
-                
-                NotificationCenter.default.addObserver(
-                        forName: NSNotification.Name("FrameChanged"),
-                        object: nil,
-                        queue: .main
-                    ) { notification in
-                        if let frameIndex = notification.userInfo?["frameIndex"] as? Int {
-                            log("Received frame change notification for frame \(frameIndex). Updating display...", level: .debug)
-                            self.updateDisplayWithKeypoints(for: frameIndex)
+                    
+                    // Video Picker
+                    .sheet(isPresented: $appState.isVideoPickerPresented) {
+                        VideoFilePickerUI { url in
+                            // Use loadVideo Function
+                            loadVideo(from: url)
                         }
                     }
-                
-                // Listen for recording completion
-                NotificationCenter.default.addObserver(
-                    forName: Notification.Name("RecordingFinished"),
-                    object: nil,
-                    queue: .main
-                ) { notification in
-                    if let url = notification.object as? URL {
-                        // Don't automatically load video after recording, just show confirmation
-                        log("Recording completed at: \(url.path)", level: .info)
+                    
+                    // Gallery Picker
+                    .sheet(isPresented: $appState.isPhotoLibraryPresented) {
+                        PhotoLibraryVideoPicker(isPresented: $appState.isPhotoLibraryPresented) { url in
+                            if let url = url {
+                                // Use loadVideo Function
+                                loadVideo(from: url)
+                            }
+                        }
+                    }
+                    
+                    // Keypoint Picker
+                    .sheet(isPresented: $appState.isKeypointImportPresented) {
+                        KeypointFilePickerUI { url in
+                            // Use loadKeypointFile
+                            loadKeypointFile(url)
+                        }
+                    }
+                    
+                    // Analysis View
+                    .sheet(isPresented: $appState.showAnalysisView) {
+                        PoseAnalysisView(
+                            poseProcessor: appState.poseProcessor,
+                            cameraManager: cameraManager,
+                            showAnalysisView: $appState.showAnalysisView
+                        )
+                        .edgesIgnoringSafeArea(.all)
+                    }
+                    
+                    // First Launch Setup
+                    .onAppear {
+                        setupInitialState()
                         
-                        // For LiDAR recordings you can enable this if desired:
-                        // if appState.useLiDAR {
-                        //     self.loadVideo(from: url)
-                        // }
+                        NotificationCenter.default.addObserver(
+                            forName: NSNotification.Name("FrameChanged"),
+                            object: nil,
+                            queue: .main
+                        ) { notification in
+                            if let frameIndex = notification.userInfo?["frameIndex"] as? Int {
+                                log("Received frame change notification for frame \(frameIndex). Updating display...", level: .debug)
+                                self.updateDisplayWithKeypoints(for: frameIndex)
+                            }
+                        }
+                        
+                        // Listen for recording completion
+                        NotificationCenter.default.addObserver(
+                            forName: Notification.Name("RecordingFinished"),
+                            object: nil,
+                            queue: .main
+                        ) { notification in
+                            if let url = notification.object as? URL {
+                                // Don't automatically load video after recording, just show confirmation
+                                log("Recording completed at: \(url.path)", level: .info)
+                            }
+                        }
+                    }
+                    .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                        log("App will resign active - keeping folder access alive", level: .info)
+                        // Don't clean up resources when app goes to background
+                        // This allows continued access when returning to the app
+                    }
+                    .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                        log("App did become active", level: .info)
+                        // Resources should still be accessible
+                    }
+                    .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
+                        log("App will terminate - cleaning up all resources", level: .info)
+                        SecurityScopedResourceManager.shared.stopAccessingAll()
                     }
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-               log("App will resign active - keeping folder access alive", level: .info)
-               // Don't clean up resources when app goes to background
-               // This allows continued access when returning to the app
-           }
-           .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-               log("App did become active", level: .info)
-               // Resources should still be accessible
-           }
-           .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
-               log("App will terminate - cleaning up all resources", level: .info)
-               SecurityScopedResourceManager.shared.stopAccessingAll()
-           }
-            
         }
     }
     
@@ -379,26 +574,26 @@ struct BESTGYMPoseApp: View {
             self.appState.isProcessing = true
             
             // Update status based on ROI
-            if self.appState.hasROI {
+            if self.ROIModel.isROIAvailable  {
                 self.appState.processingStatus = "Preparing ROI-based pose detection for all frames..."
             } else {
                 self.appState.processingStatus = "Preparing pose detection for all frames..."
             }
             
             print("Beginning optimized pose detection on \(self.cameraManager.totalFrames) frames")
-            if self.appState.hasROI {
-                print("Using ROI: \(self.appState.roiImageCoordinates!)")
+            if self.ROIModel.isROIAvailable  {
+                print("Using ROI: \(self.ROIModel.roiImageSpace!)")
             }
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                let statusText = self.appState.hasROI ?
+                let statusText = self.ROIModel.isROIAvailable  ?
                     "Detecting poses in ROI across \(self.cameraManager.totalFrames) frames..." :
                     "Detecting poses across \(self.cameraManager.totalFrames) frames..."
                 
                 self.appState.processingStatus = statusText
                 
                 // Pass ROI information to the pose processor
-                if let roiImageCoordinates = self.appState.roiImageCoordinates {
+                if let roiImageCoordinates = self.ROIModel.roiImageSpace {
                     self.appState.poseProcessor.setROI(roiImageCoordinates)
                 } else {
                     self.appState.poseProcessor.clearROI()
@@ -412,7 +607,7 @@ struct BESTGYMPoseApp: View {
                     // Update progress on main thread
                     DispatchQueue.main.async {
                         let percentage = Int(progressValue * 100)
-                        let statusText = self.appState.hasROI ?
+                        let statusText = self.ROIModel.isROIAvailable ?
                             "Processing ROI frames: \(percentage)%" :
                             "Processing frames: \(percentage)%"
                         self.appState.processingStatus = statusText

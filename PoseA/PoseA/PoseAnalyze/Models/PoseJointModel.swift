@@ -5,7 +5,7 @@
 //  Created by Ardhika Maulidani on 6/1/25.
 //
 
-import Foundation
+import SwiftUI
 
 // MARK: ------------------------------- Chart Data Structure BEGIN -------------------------------
 
@@ -52,3 +52,19 @@ var availableJoints: [String] {
         "L Ankle", "R Ankle"
     ]
 }
+
+// Joint colors for the graph
+let jointColors: [String: Color] = [
+    "L Shoulder": .cyan,
+    "R Shoulder": .blue,
+    "L Elbow": .pink,
+    "R Elbow": .red,
+    "L Wrist": .brown,
+    "R Wrist": .indigo,
+    "L Hip": .orange,
+    "R Hip": .yellow,
+    "L Knee": .green,
+    "R Knee": .purple,
+    "L Ankle": .black,
+    "R Ankle": .gray
+]

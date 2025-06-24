@@ -197,7 +197,7 @@ class CameraCapturedData {
         }
         
         
-        print("Starting to load data from \(url.path)")
+//        print("Starting to load data from \(url.path)")
         
         // Load metadata
         let metadataData = try Data(contentsOf: metadataURL)
@@ -205,7 +205,7 @@ class CameraCapturedData {
             // Camera Intrinsics
             if let intrinsicsArray = metadata["cameraIntrinsics"] as? [[Double]] {
                 self.cameraIntrinsics = arrayToMatrix(intrinsicsArray)!
-                print("Camera Intrinsics loaded: \(self.cameraIntrinsics)")
+//                print("Camera Intrinsics loaded: \(self.cameraIntrinsics)")
             } else {
                 print("Warning: Failed to load camera intrinsics")
             }
@@ -216,10 +216,10 @@ class CameraCapturedData {
             } else if let referenceDimensions = metadata["cameraReferenceDimensions"] as? [String: Double] {
                 self.cameraReferenceDimensions = CGSize(width: CGFloat(referenceDimensions["width"] ?? 0), height: CGFloat(referenceDimensions["height"] ?? 0))
             } else {
-                print("Warning: Failed to load camera reference dimensions")
+//                print("Warning: Failed to load camera reference dimensions")
                 self.cameraReferenceDimensions = CGSize(width: 1920, height: 1080) // Example default
             }
-            print("Camera Reference Dimensions: \(self.cameraReferenceDimensions)")
+//            print("Camera Reference Dimensions: \(self.cameraReferenceDimensions)")
             
             // Depth Center
             if let depthCenter = metadata["depthCenter"] as? Double {
@@ -230,7 +230,7 @@ class CameraCapturedData {
                 print("Warning: Failed to load depth center")
                 self.depthCenter = 0.0 // Default value
             }
-            print("Depth Center: \(self.depthCenter)")
+//            print("Depth Center: \(self.depthCenter)")
         } else {
             throw NSError(domain: "MetadataError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to parse metadata"])
         }
@@ -252,19 +252,18 @@ class CameraCapturedData {
         let cbcrPixelFormatRaw = textureInfo["cbcrPixelFormat"] as? UInt ?? 0
         let cbcrPixelFormat = MTLPixelFormat(rawValue: cbcrPixelFormatRaw) ?? .r8Unorm
         
-        print("Loading textures...")
         do {
             self.colorY = try loadTexture(from: colorYURL, width: yWidth, height: yHeight, pixelFormat: yPixelFormat, device: device)
-            print("ColorY texture loaded: \(self.colorY != nil)")
+//            print("ColorY texture loaded: \(self.colorY != nil)")
             
             self.colorCbCr = try loadTexture(from: colorCbCrURL, width: cbcrWidth, height: cbcrHeight, pixelFormat: cbcrPixelFormat, device: device)
-            print("ColorCbCr texture loaded: \(self.colorCbCr != nil)")
+//            print("ColorCbCr texture loaded: \(self.colorCbCr != nil)")
             
             self.depth = try loadDepthTexture(from: depthDataURL, device: device)
-            print("Depth texture loaded: \(self.depth != nil)")
+//            print("Depth texture loaded: \(self.depth != nil)")
           
             if self.colorY == nil || self.colorCbCr == nil || self.depth == nil {
-                print("Warning: One or more textures are nil after loading")
+//                print("Warning: One or more textures are nil after loading")
                 if self.colorY == nil { print("ColorY is nil") }
                 if self.colorCbCr == nil { print("ColorCbCr is nil") }
                 if self.depth == nil { print("Depth is nil") }
@@ -272,20 +271,54 @@ class CameraCapturedData {
                 print("All textures loaded successfully")
             }
         } catch {
-            print("Error loading textures: \(error)")
+//            print("Error loading textures: \(error)")
             throw error
         }
+    }
+    
+    func loadMetadata(from url: URL) throws {
+        let metadataURL = url.appendingPathComponent("metadata.plist")
         
-        
+        // Load metadata
+        let metadataData = try Data(contentsOf: metadataURL)
+        if let metadata = try PropertyListSerialization.propertyList(from: metadataData, format: nil) as? [String: Any] {
+            // Camera Intrinsics
+            if let intrinsicsArray = metadata["cameraIntrinsics"] as? [[Double]] {
+                self.cameraIntrinsics = arrayToMatrix(intrinsicsArray)!
+            } else {
+                print("Warning: Failed to load camera intrinsics")
+            }
+            
+            // Camera Reference Dimensions
+            if let referenceDimensions = metadata["cameraReferenceDimensions"] as? [String: CGFloat] {
+                self.cameraReferenceDimensions = CGSize(width: referenceDimensions["width"] ?? 0, height: referenceDimensions["height"] ?? 0)
+            } else if let referenceDimensions = metadata["cameraReferenceDimensions"] as? [String: Double] {
+                self.cameraReferenceDimensions = CGSize(width: CGFloat(referenceDimensions["width"] ?? 0), height: CGFloat(referenceDimensions["height"] ?? 0))
+            } else {
+                self.cameraReferenceDimensions = CGSize(width: 1920, height: 1080) // Example default
+            }
+            
+            // Depth Center
+            if let depthCenter = metadata["depthCenter"] as? Double {
+                self.depthCenter = Float16(depthCenter)
+            } else if let depthCenter = metadata["depthCenter"] as? Float {
+                self.depthCenter = Float16(depthCenter)
+            } else {
+                print("Warning: Failed to load depth center")
+                self.depthCenter = 0.0 // Default value
+            }
+        } else {
+            throw NSError(domain: "MetadataError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to parse metadata"])
+        }
     }
     
     private func loadTexture(from url: URL, width: Int, height: Int, pixelFormat: MTLPixelFormat, device: MTLDevice) throws -> MTLTexture {
-        print("Loading texture from \(url.lastPathComponent)")
-        print("Texture dimensions: \(width)x\(height), PixelFormat: \(pixelFormat)")
+//        print("Loading texture from \(url.lastPathComponent)")
+//        print("Texture dimensions: \(width)x\(height), PixelFormat: \(pixelFormat)")
         
         do {
             let data = try Data(contentsOf: url)
-            print("Loaded \(data.count) bytes for texture")
+//            print("Loaded \(data.count) bytes for texture")
             
             let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: pixelFormat, width: width, height: height, mipmapped: false)
             textureDescriptor.usage = [.shaderRead, .shaderWrite]
@@ -299,7 +332,7 @@ class CameraCapturedData {
             
             texture.replace(region: region, mipmapLevel: 0, withBytes: [UInt8](data), bytesPerRow: bytesPerRow)
             
-            print("Texture created successfully")
+//            print("Texture created successfully")
             return texture
         } catch {
             print("Error loading texture: \(error)")
@@ -330,8 +363,9 @@ class CameraCapturedData {
         }
         
         let region = MTLRegionMake2D(0, 0, width, height)
-        texture.replace(region: region, mipmapLevel: 0, withBytes: depthValues, bytesPerRow: width * MemoryLayout<Float16>.size)
-        
+        depthValues.withUnsafeBytes { rawBuffer in
+            texture.replace(region: region, mipmapLevel: 0, withBytes: rawBuffer.baseAddress!, bytesPerRow: width * MemoryLayout<Float16>.size)
+        }
         return texture
     }
 }

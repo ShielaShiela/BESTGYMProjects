@@ -5,7 +5,6 @@
 //  Created by Shiela Cabahug on 2024/7/4.
 //
 
-
 import Foundation
 import SwiftUI
 import Combine
@@ -137,10 +136,9 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
     
     @Published var currentFrameImage: UIImage? = nil
     @Published var lidarFrameImageURLs:[URL] = []
-
-   
-
-
+    @Published var _lidarFrameURLs: [URL] = []
+    @Published var DataLiDARAvailable: Bool = false
+    
     // --- Data Storage for Playback ---
     private var lidarFrameURLs: [URL] = []        // Stores URLs for LiDAR frame folders/images
     private var videoFrames: [UIImage] = []     // Stores extracted frames for video files (Your approach)
@@ -430,63 +428,6 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
         return (depthX, depthY)
     }
     
-    
-//    func processDepthForBlobs() {
-//        guard let colorImage = self.capturedData.colorImage,
-//              let depthTexture = self.capturedData.depth else {
-//            print("No color image or depth data available")
-//            return
-//        }
-//
-//        let imageOrientation = colorImage.imageOrientation
-//        let isLandscape = imageOrientation == .right || imageOrientation == .left
-//
-//        // If needed, rotate the image for blob detection
-//        let orientedImage = orientImage(colorImage, orientation: imageOrientation)
-//
-//        guard let blobsDetected = OpenCVWrapper.detectBlobs(orientedImage) else {
-//            print("No blobs detected")
-//            return
-//        }
-//
-//        let width = depthTexture.width
-//        let height = depthTexture.height
-//
-//        var depthData = [Float16](repeating: 0, count: width * height)
-//        depthTexture.getBytes(&depthData,
-//                              bytesPerRow: width * MemoryLayout<Float16>.stride,
-//                              from: MTLRegionMake2D(0, 0, width, height),
-//                              mipmapLevel: 0)
-//
-//        let scaleX = CGFloat(width) / orientedImage.size.width
-//        let scaleY = CGFloat(height) / orientedImage.size.height
-//        var i = 0
-//        for blobDict in blobsDetected {
-//            guard var x = blobDict["x"] as? CGFloat,
-//                  var y = blobDict["y"] as? CGFloat,
-//                  let size = blobDict["size"] as? CGFloat else {
-//                continue
-//            }
-//
-//            // Adjust coordinates if the image was rotated
-//            if isLandscape {
-//                let temp = x
-//                x = y
-//                y = orientedImage.size.width - temp
-//            }
-//
-//            let alignedDepth = alignDepth(coor: (Int(x), Int(y)), scaleX: scaleX, scaleY: scaleY)
-//            let depthX = alignedDepth.depthX
-//            let depthY = alignedDepth.depthY
-//
-//            // Use the loaded depth data
-//            let depthValue = getDepthFromLoadedData(depthData: depthData, width: width, x: depthX, y: depthY)
-//
-//            print("Blob \(i) at (\(x), \(y)) with size \(size), depth: \(depthValue) meters")
-//
-//            i+=1
-//        }
-//    }
     
     func getDepthFromLoadedData(depthData: [Float16], width: Int, x: Int, y: Int) -> Float16 {
         let index = y * width + x
@@ -1137,7 +1078,7 @@ extension CameraLiDARManager {
     }
 
     func loadVideoFolder(from url: URL) {
-        print("➡️ Starting loadVideoFolder for URL: \(url.path)")
+        log("Started load LiDAR video folder for URL: \(url.path)", level: .debug)
 
         // Perform all heavy operations on background thread
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -1156,18 +1097,6 @@ extension CameraLiDARManager {
                 self.dataAvailable = true
             }
 
-            // Load metadata
-            print("   Loading metadata...")
-            let metadata = self.loadMetadata(from: url)
-                        
-            // Update metadata on main thread
-            DispatchQueue.main.async {
-                self.loadedRecordingMetadata = metadata
-                print("Loaded metadata with orientation: \(metadata?.deviceOrientation?.name ?? "unknown")")
-            }
-            
-            print("   Finding frame directories...")
-            
             do {
                 // Get all direct children of the folder
                 let contents = try FileManager.default.contentsOfDirectory(
@@ -1187,7 +1116,7 @@ extension CameraLiDARManager {
                     }
                 }
                 
-                print("   Found \(frameDirectories.count) frame directories.")
+                log("Found \(frameDirectories.count) frame directories.", level: .debug)
                 
                 // Sort by frame number
                 frameDirectories.sort { (url1, url2) -> Bool in
@@ -1219,17 +1148,19 @@ extension CameraLiDARManager {
                     }
                     
                     if !foundImage {
-                        print("   ⚠️ No image found in \(frameDir.lastPathComponent)")
+                        log("No image is found in \(frameDir.lastPathComponent).", level: .debug)
                     }
                 }
                 
-                print("   Found \(imageURLs.count) frame images.")
+                log("Found \(imageURLs.count) vaild frame images.", level: .debug)
                 
                 // Update state on main thread
-                DispatchQueue.main.async {
+                DispatchQueue.main.async { [self] in
                     self.lidarFrameImageURLs = imageURLs
                     self.lidarFrameURLs = frameDirectories  // Store frame directories not image URLs
+                    self._lidarFrameURLs = frameDirectories // Published
                     self.totalFrames = imageURLs.count
+                    self.DataLiDARAvailable = self.isLoadedDataLiDAR
                     
                     // Make sure we set these flags again
                     self.isDataLoaded = !imageURLs.isEmpty

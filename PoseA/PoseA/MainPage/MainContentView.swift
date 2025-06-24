@@ -8,7 +8,8 @@
 import SwiftUI
 
 struct MainContentView: View {
-    @ObservedObject var appState: AppState
+    @ObservedObject var appState: MainAppState
+    @ObservedObject var ROIModel: ROIViewModel
     @ObservedObject var cameraManager: CameraLiDARManager
     
     var body: some View {
@@ -40,22 +41,6 @@ struct MainContentView: View {
                     )
                     .padding()
                 }
-                
-                // Analysis button
-//                if cameraManager.totalFrames > 0 && appState.poseProcessor.hasKeypoints(for: cameraManager.currentFrameIndex) {
-//                    Button(action: {
-//                        appState.showAnalysisView = true
-//                    }) {
-//                        Text("Show Analysis")
-//                            .font(.headline)
-//                            .padding(.horizontal, 16)
-//                            .padding(.vertical, 12)
-//                            .background(Color.blue)
-//                            .foregroundColor(.white)
-//                            .cornerRadius(8)
-//                    }
-//                    .padding(.bottom)
-//                }
             }
         }
     }
@@ -153,6 +138,7 @@ struct MainContentView: View {
                     isAnnotationMode: appState.isAnnotationMode,
                     rotation: appState.imageRotation,
                     appState: appState,
+                    ROIModel: ROIModel,
                     selectedKeypointIndex: $appState.selectedKeypointIndex
                 )
                 .overlay(

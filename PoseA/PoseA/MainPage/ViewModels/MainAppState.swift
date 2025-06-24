@@ -7,8 +7,8 @@
 
 import SwiftUI
 
-// MARK: - App State
-class AppState: ObservableObject {
+// MARK: - Main App State
+class MainAppState: ObservableObject {
     // UI state
     @Published var isProcessing = false
     @Published var processingStatus = ""
@@ -19,15 +19,25 @@ class AppState: ObservableObject {
     @Published var hasImportedKeypoints = false
     @Published var isRecordMode = false
 
-    // Pickers
+    // Pickers Status
     @Published var isFilePickerPresented = false
     @Published var isVideoPickerPresented = false
     @Published var isPhotoLibraryPresented = false
     @Published var isKeypointImportPresented = false
 
-    // Analysis view
+    // View Status
     @Published var showAnalysisView = false
-
+    @Published var showSettingsView = false
+    @Published var showHelpView = false
+    
+    // Device Orientation
+    @Published var orientation: DeviceOrientationModel = .portrait
+    
+    
+    
+    
+    
+    
     // File metadata
     @Published var sourceFileName = ""
     @Published var sourceURL: URL? = nil
@@ -51,14 +61,6 @@ class AppState: ObservableObject {
     @Published var imageRotation: Int = 0
 
     @Published var autoDetectKeypoints: Bool = false
-
-    @Published var isROIMode = false
-    @Published var roiRect: CGRect? = nil
-    @Published var isSelectingROI = false
-    @Published var hasROI = false
-    @Published var roiImageCoordinates: CGRect? = nil // ROI in actual image coordinates
-   
-    
     
     func resetFileAndKeypointState() {
         
@@ -143,38 +145,4 @@ class AppState: ObservableObject {
             }
         }
     }
-    
-    func enableROIMode() {
-            isROIMode = true
-            isSelectingROI = true
-            showKeypoints = false // Hide keypoints while selecting ROI
-        }
-        
-        func disableROIMode() {
-            isROIMode = false
-            isSelectingROI = false
-            roiRect = nil
-            hasROI = false
-            roiImageCoordinates = nil
-        }
-        
-        func setROI(_ displayRect: CGRect, imageCoordinates: CGRect) {
-            roiRect = displayRect // For display purposes
-            roiImageCoordinates = imageCoordinates // For actual processing
-            hasROI = true
-            isSelectingROI = false
-            // Re-enable keypoints after ROI selection
-            if poseProcessor.getTotalFrames() > 0 {
-                showKeypoints = true
-            }
-        }
-        
-        func clearROI() {
-            roiRect = nil
-            roiImageCoordinates = nil
-            hasROI = false
-            isROIMode = false
-            isSelectingROI = false
-        }
-    
 }

@@ -48,7 +48,7 @@
 				Utility/Shaders/PointCloud.metal,
 				Utility/Shaders/shaders.metal,
 				Utility/Shaders/YCbCrToRGB.metal,
-				VideoPreview/KeypointModel/FixedConnectionLine.swift,
+				VideoPreview/ViewModels/KeypointLineVM.swift,
 			);
 			target = 97BAF65A2D7543FC008E34D4 /* PoseATests */;
 		};
@@ -70,7 +70,7 @@
 				Utility/Shaders/PointCloud.metal,
 				Utility/Shaders/shaders.metal,
 				Utility/Shaders/YCbCrToRGB.metal,
-				VideoPreview/KeypointModel/FixedConnectionLine.swift,
+				VideoPreview/ViewModels/KeypointLineVM.swift,
 			);
 			target = 97BAF6642D7543FC008E34D4 /* PoseAUITests */;
 		};

@@ -8,7 +8,7 @@
 import SwiftUI
 
 // MARK: - Fixed Keypoint Dot
-struct FixedKeypointDot: View {
+struct KeypointDotVM: View {
     let keypoint: KeypointData
     let index: Int
     let containerSize: CGSize
@@ -28,7 +28,7 @@ struct FixedKeypointDot: View {
         
         let color = keypointColor(name: keypoint.name)
         // Fix: Convert Float to CGFloat explicitly
-        let size = 8.0 + (CGFloat(keypoint.confidence) * 6.0)
+        let size = 5.0 + (CGFloat(keypoint.confidence) * 6.0)
         
         ZStack {
             // Main keypoint circle

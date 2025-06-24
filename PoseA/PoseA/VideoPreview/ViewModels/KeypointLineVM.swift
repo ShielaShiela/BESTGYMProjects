@@ -8,7 +8,7 @@
 import SwiftUI
 
 // MARK: - Fixed Connection Line
-struct FixedConnectionLine: View {
+struct KeypointLineVM: View {
     let from: String
     let to: String
     let keypoints: [KeypointData]

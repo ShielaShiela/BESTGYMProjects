@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @ObservedObject var appState: AppState
+    @ObservedObject var appState: MainAppState
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {

@@ -7,41 +7,6 @@
 
 import SwiftUI
 
-// MARK: Keypoint Data Structure
-struct Keypoint {
-    let position: CGPoint
-    let confidence: Float
-    let name: String
-}
-
-enum BodySide {
-    case left
-    case right
-    case center
-}
-
-struct KeypointConnection {
-    let from: Int?
-    let to: Int?
-    let side: BodySide
-}
-
-// Joint colors for the graph
-let jointColors: [String: Color] = [
-    "L Shoulder": .cyan,
-    "R Shoulder": .blue,
-    "L Elbow": .pink,
-    "R Elbow": .red,
-    "L Wrist": .brown,
-    "R Wrist": .indigo,
-    "L Hip": .orange,
-    "R Hip": .yellow,
-    "L Knee": .green,
-    "R Knee": .purple,
-    "L Ankle": .black,
-    "R Ankle": .gray
-]
-
 // MARK: Error Variables
 struct ErrorWrapper: Identifiable {
     let id = UUID()

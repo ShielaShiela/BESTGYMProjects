@@ -12,26 +12,30 @@ import SwiftUI
 struct PoseAnalysisView: View {
     // MARK: - Input Properties
     let poseProcessor: VitPoseProcessor
+    let cameraManager: CameraLiDARManager
     @Binding var showAnalysisView: Bool
-
+    
     // MARK: - State Properties
-    @StateObject private var poseJointViewModel: PoseJointViewModel
-    @StateObject private var chartBuilderViewModel: ChartBuilderViewModel
+    @StateObject private var poseJointViewModel: PoseJointVM
+    @StateObject private var chartBuilderViewModel: ChartBuilderVM
+    
     @State private var selectedAnalysisType = AnalysisType.jointAngles
+    @State private var previousSelectedJoints: Set<String> = []
     @State private var selectedJoints: [String] = []
     @State private var isDataLoading = false
-
+    
     // MARK: - Init
-    init(poseProcessor: VitPoseProcessor, showAnalysisView: Binding<Bool>) {
+    init(poseProcessor: VitPoseProcessor, cameraManager: CameraLiDARManager, showAnalysisView: Binding<Bool>) {
         self.poseProcessor = poseProcessor
+        self.cameraManager = cameraManager
         self._showAnalysisView = showAnalysisView
         
         // Initialize ViewModels
-        let poseJointVM = PoseJointViewModel(poseProcessor: poseProcessor)
+        let poseJointVM = PoseJointVM(poseProcessor: poseProcessor, cameraManager: cameraManager)
         self._poseJointViewModel = StateObject(wrappedValue: poseJointVM)
-        self._chartBuilderViewModel = StateObject(wrappedValue: ChartBuilderViewModel(poseJointViewModel: poseJointVM))
+        self._chartBuilderViewModel = StateObject(wrappedValue: ChartBuilderVM(poseJointViewModel: poseJointVM))
     }
-   
+    
     // MARK: - Custom Variable
     enum AnalysisType: String, CaseIterable, Identifiable {
         // Identifier
@@ -57,8 +61,11 @@ struct PoseAnalysisView: View {
                 .pickerStyle(SegmentedPickerStyle())
                 .padding()
                 .onChange(of: selectedAnalysisType) { _, _ in
-                    updateChartData()
+                    previousSelectedJoints = Set(selectedJoints) // sync selection baseline
+                    chartBuilderViewModel.clearAllData()
+                    updateChartData(addedJoints: selectedJoints, removedJoints: [])
                 }
+
                 
                 // Fixed Horizontal Joint Selection
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -117,7 +124,7 @@ struct PoseAnalysisView: View {
                                 )
                                 .padding(.horizontal)
                             }
-
+                            
                             Spacer(minLength: 32)
                         }
                     }
@@ -134,44 +141,55 @@ struct PoseAnalysisView: View {
     }
     
     private func toggleJointSelection(_ joint: String) {
+        let oldSet = Set(selectedJoints)
         if selectedJoints.contains(joint) {
             selectedJoints.removeAll { $0 == joint }
         } else {
             selectedJoints.append(joint)
         }
         
-        // Clear existing data before updating
-        chartBuilderViewModel.clearData(for: selectedAnalysisType)
+        let newSet = Set(selectedJoints)
+        let added = newSet.subtracting(oldSet)
+        let removed = oldSet.subtracting(newSet)
         
-        // Update with new data
-        updateChartData()
+        // Update the chart incrementally
+        self.updateChartData(addedJoints: Array(added), removedJoints: Array(removed))
+        
+        previousSelectedJoints = newSet
     }
     
-    private func updateChartData() {
-        guard !selectedJoints.isEmpty else { return }
+    
+    private func updateChartData(addedJoints: [String], removedJoints: [String]) {
+        guard !selectedJoints.isEmpty else {
+            chartBuilderViewModel.clearAllData()
+            return
+        }
         
         isDataLoading = true
         
-        // Clear existing data before building new data
-        chartBuilderViewModel.clearData(for: selectedAnalysisType)
+        // Clear only removed joints
+        chartBuilderViewModel.clearData(for: selectedAnalysisType, joints: removedJoints)
         
-        // Build new data
+        // Add only new data for added joints
         switch selectedAnalysisType {
         case .jointAngles:
-            chartBuilderViewModel.buildAngleData(joints: selectedJoints)
+            chartBuilderViewModel.buildAngleData(joints: addedJoints) {
+                isDataLoading = false
+            }
         case .trajectories:
-            chartBuilderViewModel.buildPositionData(joints: selectedJoints)
+            chartBuilderViewModel.buildPositionData(joints: addedJoints) {
+                isDataLoading = false
+            }
         case .velocities:
-            chartBuilderViewModel.buildVelocityData(joints: selectedJoints)
+            chartBuilderViewModel.buildVelocityData(joints: addedJoints) {
+                isDataLoading = false
+            }
         case .accelerations:
-            chartBuilderViewModel.buildAccelerationData(joints: selectedJoints)
+            chartBuilderViewModel.buildAccelerationData(joints: addedJoints) {
+                isDataLoading = false
+            }
         case .comparison:
             break
-        }
-        
-        // Reset loading state after a short delay to ensure smooth UI
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            isDataLoading = false
         }
     }
 }

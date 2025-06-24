@@ -11,7 +11,7 @@ struct PoseGraphView: View {
     // Define Variable
     let analysisType: PoseAnalysisView.AnalysisType
     let selectedJoints: [String]
-    @ObservedObject var chartBuilderViewModel: ChartBuilderViewModel
+    @ObservedObject var chartBuilderViewModel: ChartBuilderVM
     
     // Body View
     var body: some View {
@@ -47,7 +47,7 @@ struct PoseGraphView: View {
                     // Chart View
                     ChartsView(
                         chartData: chartBuilderViewModel.positionData,
-                        yAxisUnit: "px"
+                        yAxisUnit: "cm"
                     )
                     
                     Spacer()
@@ -61,11 +61,11 @@ struct PoseGraphView: View {
                     // Double Chart View
                     ChartsView(
                         chartData: chartBuilderViewModel.velocityData.x,
-                        yAxisUnit: "px/s"
+                        yAxisUnit: "m/s"
                     )
                     ChartsView(
                         chartData: chartBuilderViewModel.velocityData.y,
-                        yAxisUnit: "px/s"
+                        yAxisUnit: "m/s"
                     )
                     
                     Spacer()
@@ -79,11 +79,11 @@ struct PoseGraphView: View {
                     // Double Chart View
                     ChartsView(
                         chartData: chartBuilderViewModel.accelerationData.x,
-                        yAxisUnit: "px/s2"
+                        yAxisUnit: "m/s2"
                     )
                     ChartsView(
                         chartData: chartBuilderViewModel.accelerationData.y,
-                        yAxisUnit: "px/s2"
+                        yAxisUnit: "m/s2"
                     )
                     
                     Spacer()

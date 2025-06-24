@@ -9,7 +9,7 @@ import SwiftUI
 import Metal
 import AVFoundation
 
-class CameraDataModel {
+class FrameDataModel: NSObject{
     // Define Variable
     var depth: MTLTexture?
     var colorY: MTLTexture?
@@ -21,7 +21,6 @@ class CameraDataModel {
     var colorImage: UIImage?
     var processedImage: UIImage?
     
-    // Initialize -> Default == Empty
     init(depth: MTLTexture? = nil,
          colorY: MTLTexture? = nil,
          colorCbCr: MTLTexture? = nil,

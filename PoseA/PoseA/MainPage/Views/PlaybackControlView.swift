@@ -14,13 +14,7 @@ struct PlaybackControlView: View {
     @State private var isFinished = false
     
     var body: some View {
-        VStack(spacing: 8) {
-            // (MARK: REMOVED BECAUSE REDUNDANT TO FRAME COUNTER INSIDE THE FRAME VIEW)
-            // Frame Counter
-//            Text("Frame \(cameraManager.currentFrameIndex + 1)/\(totalFrames)")
-//                .font(.caption)
-//                .foregroundColor(.secondary)
-            
+        VStack(spacing: 5) {
             // Frame Slider
             Slider(
                 value: Binding(

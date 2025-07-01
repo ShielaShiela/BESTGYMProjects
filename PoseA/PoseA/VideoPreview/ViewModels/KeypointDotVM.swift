@@ -14,8 +14,6 @@ struct KeypointDotVM: View {
     let containerSize: CGSize
     let imageSize: CGSize
     let rotation: Int
-    let isSelected: Bool
-    let isAnnotationMode: Bool
     
     var body: some View {
         let position = transformPoint(
@@ -38,15 +36,8 @@ struct KeypointDotVM: View {
             
             // White border
             Circle()
-                .stroke(Color.white, lineWidth: isSelected ? 3 : 1)
+                .stroke(Color.white, lineWidth: 1)
                 .frame(width: size, height: size)
-            
-            // Selection indicator
-            if isSelected {
-                Circle()
-                    .stroke(Color.yellow, lineWidth: 2)
-                    .frame(width: size + 8, height: size + 8)
-            }
         }
         .position(position)
     }

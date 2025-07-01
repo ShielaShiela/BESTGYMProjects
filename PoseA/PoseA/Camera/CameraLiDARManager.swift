@@ -5,10 +5,8 @@
 //  Created by Shiela Cabahug on 2024/7/4.
 //
 
-import Foundation
 import SwiftUI
 import Combine
-import simd
 import AVFoundation
 import Photos
 import Metal
@@ -17,13 +15,12 @@ import CoreGraphics
 
 
 class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
-    
-    var filter = true
-    var capturedData: CameraCapturedData
+//    var filter = true
+    var capturedData: FrameDataVM
     @Published var isFilteringDepth: Bool {
         didSet {
             controller.isFilteringEnabled = isFilteringDepth
-            filter = isFilteringDepth
+//            filter = isFilteringDepth
         }
     }
     
@@ -36,8 +33,7 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
             }
         }
     }
-        
-        
+
     @Published var orientation = UIDevice.current.orientation
     @Published var waitingForCapture = false
     @Published var processingCapturedResult = false
@@ -45,37 +41,16 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
     @Published var isDataLoaded = false
     
     @Published var isRecording = false
-    
-    @Published var tappedPoint: CGPoint?
     @Published var depthValue: Float?
-    @Published var depthAtTappedPoint: Float16?
-    
-    @Published var currentViewMode: ViewMode = .color
-    
-    enum ViewMode {
-        case color
-        case depth
-        case image
-        case pointcloud
-    }
     
     let controller: CameraLiDARDepthControllerUI
     var cancellables = Set<AnyCancellable>()
     var session: AVCaptureSession { controller.captureSession }
     
-    
-    private var assetWriter: AVAssetWriter?
-    private var colorWriterInput: AVAssetWriterInput?
-    private var depthWriterInput: AVAssetWriterInput?
-    private var colorPixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
-    private var depthPixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
     // Add these properties to your CameraLiDARManager class
     private var videoWriter: AVAssetWriter?
     private var videoWriterInput: AVAssetWriterInput?
     private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
-
-    private let frameInterval: TimeInterval = 1.0 / 30.0 // 30 fps
-    
 
     private var recordingStartTime: Date?
     private var recordingFolder: URL?
@@ -83,42 +58,28 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
     @Published var currentFrameIndex: Int = 0
     @Published var totalFrames: Int = 0
     private var frameURLs: [URL] = []
-    private var preloadedFrames: [Int: CameraCapturedData] = [:]
+    private var preloadedFrames: [Int: FrameDataModel] = [:]
     private let preloadRange = 5 // Preload 5 frames ahead and behind
     @Published var isPlaying: Bool = false
     @Published var playbackTimer: Timer?
     @Published var sliderPosition: Double = 0
     
-    
-    private let recordingQueue = DispatchQueue(label: "com.yourapp.recordingQueue", qos: .userInitiated)
-    private let processingQueue = DispatchQueue(label: "com.yourapp.processingQueue", qos: .userInteractive)
     private let sessionQueue = DispatchQueue(label: "com.bestgym.sessionQueue", qos: .userInitiated)
     
-    
-    // Stores the 2D image points where the user taps
-    @Published var selectedImagePoints: [CGPoint] = []
 
-    // Stores the computed 3D world coordinates corresponding to the selected image points
-    @Published var selectedWorldPoints: [SIMD3<Float>] = []
-    
-    @Published var distanceMeasured: Float? = nil
-
-//    @Published var annotatedPoints: [AnnotatedPoint] = []
     @Published var measuredDistance: Float?
-    
     @Published var selectedPoints: [CGPoint] = []
+    
     // Internal variables to store 3D points
     private var firstWorldPoint: SIMD3<Float>?
     private var secondWorldPoint: SIMD3<Float>?
     
 
     private var keypointData: [Int: [[String: Any]]] = [:] // Frame index -> keypoints
-    private var keypointDataByFrame: [Int: [KeypointData]] = [:]
     private var processedImage: UIImage?
     
     private var processedImages: [Int: UIImage] = [:]
     
-//    private var preloadedFrames: [Int: UIImage] = [:]
     private let preloadWindowSize = 30 // How many frames to keep ahead and behind
     private var preloadedFrameIndices = Set<Int>() // Track which frames are preloaded
     var onFrameChange: ((Int) -> Void)?
@@ -143,17 +104,13 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
     private var lidarFrameURLs: [URL] = []        // Stores URLs for LiDAR frame folders/images
     private var videoFrames: [UIImage] = []     // Stores extracted frames for video files (Your approach)
 
-    // Private storage
-//    private var loadedRecordingMetadata: RecordingMetadata?
-
     // Public accessor property
     public var recordingMetadata: RecordingMetadata? {
         return loadedRecordingMetadata
     }
-//    var videoFrames: [UIImage] = []
     init() {
         // Create an object to store the captured data for the views to present.
-        capturedData = CameraCapturedData()
+        capturedData = FrameDataVM()
         
         // Check if LiDAR is available
         let discoverySession = AVCaptureDevice.DiscoverySession(
@@ -183,29 +140,22 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
     }
     
     
+    // Protocol CaptureDataReceiver
+//    func startPhotoCapture() {
+//        controller.capturePhoto()
+//        waitingForCapture = true
+//    }
     
-    func startPhotoCapture() {
-        controller.capturePhoto()
-        waitingForCapture = true
-    }
-    
-    func onNewPhotoData(capturedData: CameraCapturedData) {
+    // Protocol CaptureDataReceiver
+    func onNewPhotoData(capturedData: FrameDataModel) {
         // Because the views hold a reference to `capturedData`, the app updates each texture separately.
-        self.capturedData.depth = capturedData.depth
-        self.capturedData.colorY = capturedData.colorY
-        self.capturedData.colorCbCr = capturedData.colorCbCr
-        self.capturedData.cameraIntrinsics = capturedData.cameraIntrinsics
-        self.capturedData.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
+        self.capturedData.database = capturedData
         waitingForCapture = false
         processingCapturedResult = true
-        self.capturedData.depthCenter = capturedData.depthCenter
-        self.capturedData.originalDepth = capturedData.originalDepth
-        self.capturedData.colorImage = capturedData.colorImage
     }
     
     // MARK: - Fix for the CameraLiDARManager onNewData method
-
-    func onNewData(capturedData: CameraCapturedData) {
+    func onNewData(capturedData: FrameDataModel) {
         // Always ensure we're on the main thread for @Published property updates
         if !Thread.isMainThread {
             DispatchQueue.main.async {
@@ -215,17 +165,17 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
         }
         
         // Update basic camera data
-        self.capturedData.colorY = capturedData.colorY
-        self.capturedData.colorCbCr = capturedData.colorCbCr
-        self.capturedData.cameraIntrinsics = capturedData.cameraIntrinsics
-        self.capturedData.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
-        self.capturedData.colorImage = capturedData.colorImage
+        self.capturedData.database.colorY = capturedData.colorY
+        self.capturedData.database.colorCbCr = capturedData.colorCbCr
+        self.capturedData.database.cameraIntrinsics = capturedData.cameraIntrinsics
+        self.capturedData.database.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
+        self.capturedData.database.colorImage = capturedData.colorImage
         
         // Only update LiDAR-specific data if LiDAR is available
         if useLiDAR {
-            self.capturedData.depth = capturedData.depth
-            self.capturedData.depthCenter = capturedData.depthCenter
-            self.capturedData.originalDepth = capturedData.originalDepth
+            self.capturedData.database.depth = capturedData.depth
+            self.capturedData.database.depthCenter = capturedData.depthCenter
+            self.capturedData.database.originalDepth = capturedData.originalDepth
         }
         
         dataAvailable = true
@@ -248,8 +198,8 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
             let videoWriter = try AVAssetWriter(outputURL: fileURL, fileType: .mp4)
             
             // Get dimensions from capturedData
-            let width = Int(self.capturedData.cameraReferenceDimensions.width)
-            let height = Int(self.capturedData.cameraReferenceDimensions.height)
+            let width = Int(self.capturedData.database.cameraReferenceDimensions.width)
+            let height = Int(self.capturedData.database.cameraReferenceDimensions.height)
             
             print("Setting up video writer with dimensions: \(width)x\(height)")
             
@@ -302,85 +252,12 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
             print("❌ Failed to setup video writer: \(error)")
         }
     }
-    // MARK: - Improved pixelBufferFromImage method
-    func pixelBufferFromImage(_ image: UIImage) -> CVPixelBuffer? {
-        let width = Int(capturedData.cameraReferenceDimensions.width)
-        let height = Int(capturedData.cameraReferenceDimensions.height)
-        
-        // Make sure we have valid dimensions
-        guard width > 0 && height > 0 else {
-            print("❌ Invalid dimensions for pixel buffer")
-            return nil
-        }
-        
-        // Create pixel buffer
-        var pixelBuffer: CVPixelBuffer?
-        let status = CVPixelBufferCreate(
-            kCFAllocatorDefault,
-            width,
-            height,
-            kCVPixelFormatType_32BGRA, // Try BGRA instead of ARGB
-            [
-                kCVPixelBufferCGImageCompatibilityKey: kCFBooleanTrue,
-                kCVPixelBufferCGBitmapContextCompatibilityKey: kCFBooleanTrue
-            ] as CFDictionary,
-            &pixelBuffer
-        )
-        
-        guard status == kCVReturnSuccess, let buffer = pixelBuffer else {
-            print("❌ Failed to create pixel buffer: \(status)")
-            return nil
-        }
-        
-        // Lock buffer and get base address
-        CVPixelBufferLockBaseAddress(buffer, [])
-        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
-        
-        let baseAddress = CVPixelBufferGetBaseAddress(buffer)
-        let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
-        
-        // Create a CG context
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let context = CGContext(
-            data: baseAddress,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: bytesPerRow,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-        ) else {
-            print("❌ Failed to create context")
-            return nil
-        }
-        
-        // Draw the image
-        context.clear(CGRect(x: 0, y: 0, width: width, height: height))
-        
-        // Scale the image to fit the context
-        let drawRect = CGRect(x: 0, y: 0, width: width, height: height)
-        
-        if let cgImage = image.cgImage {
-            // Draw using CGImage
-            context.draw(cgImage, in: drawRect)
-        } else {
-            // Fallback to UIImage drawing
-            UIGraphicsPushContext(context)
-            image.draw(in: drawRect)
-            UIGraphicsPopContext()
-        }
-        
-        return buffer
-    }
-
-    
-    
 
     func saveCapturedData(completion: @escaping (Bool) -> Void) {
         do {
             
             let documentDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-            try capturedData.saveCaptureData(to: documentDirectory,filter: controller.isFilteringEnabled)
+            capturedData.saveData(to: documentDirectory, filter: controller.isFilteringEnabled)
             completion(true)
         } catch {
             print("Error saving capture data: \(error)")
@@ -394,6 +271,8 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
         }
     }
     
+    
+    
     func loadCapturedData(from url: URL, device: MTLDevice) {
         
         controller.stopStream()
@@ -401,11 +280,10 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
         
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                try self.capturedData.load(from: url, device: device)
+                self.capturedData.loadData(from: url, device: device)
                 DispatchQueue.main.async {
                     self.dataAvailable = true
                     
-//                    self.currentViewMode = .color  // Set default view mode
                     print("Data loaded successfully and view updated")
                 }
             } catch {
@@ -415,164 +293,6 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
                 }
             }
         }
-    }
-    
-    func checkImageOrientation(_ image: UIImage) -> UIImage.Orientation {
-        return image.imageOrientation
-    }
-    
-    func alignDepth(coor: (x: Int, y: Int), scaleX: CGFloat, scaleY: CGFloat) -> (depthX: Int, depthY: Int) {
-        let depthX = Int(CGFloat(coor.x) * scaleX)
-        let depthY = Int(CGFloat(coor.y) * scaleY)
-        // Assuming you want to return these values for now
-        return (depthX, depthY)
-    }
-    
-    
-    func getDepthFromLoadedData(depthData: [Float16], width: Int, x: Int, y: Int) -> Float16 {
-        let index = y * width + x
-        guard index >= 0 && index < depthData.count else {
-            print("Warning: Depth index out of bounds")
-            return 0
-        }
-        return depthData[index]
-    }
-    
-    func orientImage(_ image: UIImage, orientation: UIImage.Orientation) -> UIImage {
-        if orientation == .up {
-            return image
-        }
-        
-        UIGraphicsBeginImageContextWithOptions(image.size, false, image.scale)
-        defer { UIGraphicsEndImageContext() }
-        
-        let context = UIGraphicsGetCurrentContext()!
-        context.translateBy(x: image.size.width / 2, y: image.size.height / 2)
-        
-        switch orientation {
-        case .right, .rightMirrored:
-            context.rotate(by: .pi / 2)
-        case .left, .leftMirrored:
-            context.rotate(by: -.pi / 2)
-        case .down, .downMirrored:
-            context.rotate(by: .pi)
-        default:
-            break
-        }
-        
-        context.translateBy(x: -image.size.width / 2, y: -image.size.height / 2)
-        image.draw(at: .zero)
-        
-        return UIGraphicsGetImageFromCurrentImageContext()!
-    }
-    
-    func getDepthAdjustedForOrientation(depthMap: AVDepthData, x: Int, y: Int, orientation: UIImage.Orientation) -> Float16 {
-        let depthWidth = CVPixelBufferGetWidth(depthMap.depthDataMap)
-        let depthHeight = CVPixelBufferGetHeight(depthMap.depthDataMap)
-        
-        var adjustedX = x
-        var adjustedY = y
-        
-        switch orientation {
-        case .right, .rightMirrored:
-            adjustedX = y
-            adjustedY = depthWidth - 1 - x
-        case .left, .leftMirrored:
-            adjustedX = depthHeight - 1 - y
-            adjustedY = x
-        case .down, .downMirrored:
-            adjustedX = depthWidth - 1 - x
-            adjustedY = depthHeight - 1 - y
-        default:
-            break
-        }
-        
-        return getDepth(depthMap: depthMap, coor: (adjustedX, adjustedY), depthX: adjustedX, depthY: adjustedY)
-    }
-    
-    func getDepth(depthMap: AVDepthData,coor: (x: Int, y: Int), depthX : Int, depthY: Int ) -> (Float16){
-        
-        let depthMap = depthMap.depthDataMap
-        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
-        let rowData = CVPixelBufferGetBaseAddress(depthMap)! + depthY * CVPixelBufferGetBytesPerRow(depthMap)
-        let depthValue = rowData.assumingMemoryBound(to: Float16.self)[depthX]
-        CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
-        
-        
-        return depthValue
-        
-    }
-   
-    private func createUIImage(fromY yTexture: MTLTexture, CbCr cbcrTexture: MTLTexture) -> UIImage? {
-        let width = yTexture.width
-        let height = yTexture.height
-        
-        // Create a color space
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        
-        // Create a CIImage from the Y texture
-        guard let ciImageY = CIImage(mtlTexture: yTexture, options: [CIImageOption.colorSpace: colorSpace]) else {
-            print("Failed to create CIImage from Y texture")
-            return nil
-        }
-        
-        // Create a CIImage from the CbCr texture
-        guard let ciImageCbCr = CIImage(mtlTexture: cbcrTexture, options: [CIImageOption.colorSpace: colorSpace]) else {
-            print("Failed to create CIImage from CbCr texture")
-            return nil
-        }
-        
-        // Create a CIFilter to combine Y and CbCr
-        guard let filter = CIFilter(name: "CIColorCubesMixedWithMask") else {
-            print("Failed to create CIColorCubesMixedWithMask filter")
-            return nil
-        }
-        
-        filter.setValue(ciImageY, forKey: "inputImage")
-        filter.setValue(ciImageCbCr, forKey: "inputMask")
-        
-        // Get the output CIImage
-        guard let outputImage = filter.outputImage else {
-            print("Failed to get output image from filter")
-            return nil
-        }
-        
-        // Create a CIContext
-        let context = CIContext(options: nil)
-        
-        // Create a CGImage from the CIImage
-        guard let cgImage = context.createCGImage(outputImage, from: outputImage.extent) else {
-            print("Failed to create CGImage from CIImage")
-            return nil
-        }
-        
-        // Create and return a UIImage
-        return UIImage(cgImage: cgImage)
-    }
-    
-    private func createTexture(from data: Data, pixelFormat: MTLPixelFormat, device: MTLDevice) throws -> MTLTexture {
-        let width = Int(sqrt(Double(data.count / MemoryLayout<Float16>.size)))
-        let height = width
-        
-        let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: pixelFormat, width: width, height: height, mipmapped: false)
-        textureDescriptor.usage = [.shaderRead, .shaderWrite]
-        
-        guard let texture = device.makeTexture(descriptor: textureDescriptor) else {
-            throw NSError(domain: "CameraLiDARManager", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create texture"])
-        }
-        
-        let region = MTLRegionMake2D(0, 0, width, height)
-        texture.replace(region: region, mipmapLevel: 0, withBytes: [UInt8](data), bytesPerRow: width * MemoryLayout<Float16>.size)
-        
-        return texture
-    }
-
-    private func arrayToMatrix(_ array: [[Double]]) -> matrix_float3x3 {
-        return matrix_float3x3(columns: (
-            SIMD3<Float>(Float(array[0][0]), Float(array[0][1]), Float(array[0][2])),
-            SIMD3<Float>(Float(array[1][0]), Float(array[1][1]), Float(array[1][2])),
-            SIMD3<Float>(Float(array[2][0]), Float(array[2][1]), Float(array[2][2]))
-        ))
     }
     
     func loadFrame(at index: Int) {
@@ -586,22 +306,22 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
         
         do {
             // Load the frame data
-            try self.capturedData.load(from: frameURL, device: MTLCreateSystemDefaultDevice()!)
+            try self.capturedData.loadData(from: frameURL, device: MTLCreateSystemDefaultDevice()!)
             currentFrameIndex = index
             isDataLoaded = true
             
             // Load processed image if available
             if let processedImage = processedImages[index] {
-                capturedData.processedImage = processedImage
+                capturedData.database.processedImage = processedImage
                 print("Loaded processed image for frame \(index)")
             } else {
                 // Only clear processed image if we're not retaining them
-                capturedData.processedImage = nil
+                capturedData.database.processedImage = nil
             }
             
             // Apply orientation correction to the colorImage if available
-            if let colorImage = capturedData.colorImage {
-                capturedData.colorImage = applyCorrectOrientation(to: colorImage)
+            if let colorImage = capturedData.database.colorImage {
+                capturedData.database.colorImage = applyCorrectOrientation(to: colorImage)
                 print("Applied orientation correction to frame \(index)")
             }
             
@@ -610,202 +330,6 @@ class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
             print("Error loading frame at index \(index): \(error)")
             isDataLoaded = false
         }
-    }
-    
-    func reloadCurrentFrame() {
-            // Only proceed if we have valid frame URLs
-            guard !frameURLs.isEmpty && currentFrameIndex < frameURLs.count else {
-                print("Cannot reload frame: No valid frame URLs available")
-                return
-            }
-            
-            // Force reload the current frame using the existing loadFrame method
-            loadFrame(at: currentFrameIndex)
-            print("Explicitly reloaded frame at index \(currentFrameIndex)")
-        }
-    
-    func getDepth(at imagePoint: CGPoint) -> Float? {
-        guard let depthTexture = self.capturedData.depth else {
-            return nil
-        }
-
-        let depthWidth = depthTexture.width
-        let depthHeight = depthTexture.height
-        let imageSize = self.capturedData.colorImage?.size ?? CGSize(width: depthWidth, height: depthHeight)
-
-        // Map imagePoint to depth data coordinates
-        let depthX = Int(imagePoint.x / imageSize.width * CGFloat(depthWidth))
-        let depthY = Int(imagePoint.y / imageSize.height * CGFloat(depthHeight))
-
-        if depthX < 0 || depthX >= depthWidth || depthY < 0 || depthY >= depthHeight {
-            return nil
-        }
-
-        var depthValue: Float16 = 0.0
-        let region = MTLRegionMake2D(depthX, depthY, 1, 1)
-        depthTexture.getBytes(&depthValue, bytesPerRow: MemoryLayout<Float16>.size, from: region, mipmapLevel: 0)
-
-        return Float(depthValue)
-    }
-
-    func calculate3DPoint(from imagePoint: CGPoint, depthValue: Float) -> SIMD3<Float>? {
-        let intrinsics = self.capturedData.cameraIntrinsics
-        print(intrinsics)
-        // Adjust intrinsics for image size differences
-        let referenceSize = self.capturedData.cameraReferenceDimensions
-        let imageSize = self.capturedData.colorImage?.size ?? referenceSize
-
-        let scaleX = Float(imageSize.width / referenceSize.width)
-        let scaleY = Float(imageSize.height / referenceSize.height)
-        print("ScaleX: \(scaleX), ScaleY: \(scaleY)")
-        let fx = intrinsics.columns.0.x * scaleX
-        let fy = intrinsics.columns.1.y * scaleY
-        let cx = intrinsics.columns.2.x * scaleX
-        let cy = intrinsics.columns.2.y * scaleY
-        
-        let x = Float(imagePoint.x)
-        let y = Float(imagePoint.y)
-
-        // Compute normalized image coordinates
-        let X = (x - cx) * depthValue / fx
-        let Y = (y - cy) * depthValue / fy
-        let Z = depthValue
-
-        return SIMD3<Float>(X, Y, Z)
-    }
-    
-    // Helper to load raw image from file (used in LiDAR playback)
-    private func loadImageFromFile(url: URL) -> UIImage? {
-        guard let data = try? Data(contentsOf: url), let image = UIImage(data: data) else {
-            print("❌ Failed to load image from \(url.path)")
-            return nil
-        }
-        return image
-    }
-
-    // MARK: - Metadata Handling
-
-   
-
-    
-    // In CameraLiDARManager
-
-    func calculateDistanceBetweenPoints(point1: SIMD3<Float>, point2: SIMD3<Float>) -> Float {
-        return length(point1 - point2)
-    }
-
-    func storeKeypointData(_ data: [[String: Any]]) {
-        keypointData[currentFrameIndex] = data
-        print("Stored keypoint data for frame \(currentFrameIndex): \(data.count) keypoints")
-    }
-
-    func updateDisplayImage(_ image: UIImage) {
-        capturedData.processedImage = image
-    }
-
-
-    func stopCameraCapture() {
-        controller.stopStream()
-    }
-}
-
-
-extension CameraLiDARManager {
-    func addSelectedPoint(_ imagePoint: CGPoint) {
-        print("addSelectedPoint called with imagePoint: \(imagePoint)")
-
-        // Compute the 3D point
-        guard let depthValue = getDepth(at: imagePoint) else {
-            print("Depth data unavailable at this point.")
-            return
-        }
-
-        guard let worldPoint = calculate3DPoint(from: imagePoint, depthValue: depthValue) else {
-            print("Failed to compute 3D point.")
-            return
-        }
-
-        DispatchQueue.main.async {
-            if self.selectedPoints.count < 2 {
-                self.selectedPoints.append(imagePoint)
-            } else {
-                // Reset if two points are already selected
-                self.selectedPoints = [imagePoint]
-                self.measuredDistance = nil
-                self.firstWorldPoint = nil
-                self.secondWorldPoint = nil
-            }
-            print("selectedPoints updated: \(self.selectedPoints)")
-
-            // Store world points internally
-            if self.selectedPoints.count == 1 {
-                self.firstWorldPoint = worldPoint
-            } else if self.selectedPoints.count == 2 {
-                self.secondWorldPoint = worldPoint
-
-                if let distance = self.computeDistanceBetween(self.firstWorldPoint, and: self.secondWorldPoint) {
-                    self.measuredDistance = distance
-                    print("Measured distance: \(distance)")
-                }
-            }
-        }
-    }
-
-    private func computeDistanceBetween(_ point1: SIMD3<Float>?, and point2: SIMD3<Float>?) -> Float? {
-            guard let p1 = point1, let p2 = point2 else { return nil }
-            return simd_distance(p1, p2)
-        }
-}
-
-
-extension CameraLiDARManager {
-    // Function to preload frames in a sliding window
-    func preloadFramesAroundIndex(_ currentIndex: Int) {
-        // Define the window of frames to keep loaded
-        let framesToKeep = (currentIndex - preloadWindowSize)...(currentIndex + preloadWindowSize)
-        
-        // Convert to Set for easier operations
-        let framesToKeepSet = Set(framesToKeep.filter { $0 >= 0 && $0 < totalFrames })
-        
-        // Find frames that need to be preloaded (in window but not yet loaded)
-        let framesToPreload = framesToKeepSet.subtracting(preloadedFrameIndices)
-        
-        // Preload frames we don't already have
-        for frameIndex in framesToPreload {
-            // Preload this frame in the background
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                guard let self = self else { return }
-                
-                // Only proceed if this frame is still within our window
-                // (in case user has moved far away by now)
-                if abs(frameIndex - self.currentFrameIndex) <= self.preloadWindowSize {
-                    // Temporary CameraCapturedData instance for preloading
-                    let tempData = CameraCapturedData()
-                    
-                    if frameIndex < self.frameURLs.count {
-                        let frameURL = self.frameURLs[frameIndex]
-                        
-                        do {
-                            // Load frame data into temporary object
-                            if let device = MTLCreateSystemDefaultDevice() {
-                                try tempData.load(from: frameURL, device: device)
-                                
-                                // Store in cache (could use a dictionary if you need the actual data)
-                                DispatchQueue.main.async {
-                                    self.preloadedFrameIndices.insert(frameIndex)
-                                    print("✅ Preloaded frame \(frameIndex)")
-                                }
-                            }
-                        } catch {
-                            print("❌ Error preloading frame \(frameIndex): \(error)")
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Optionally, clear frames far outside our window to save memory
-        // This could be implemented if memory usage becomes an issue
     }
 }
 
@@ -830,6 +354,19 @@ extension CameraLiDARManager {
                 self.isLiveCapture = true
             }
         }
+    }
+    
+    /// Stops the live camera stream.
+    func pauseStream() {
+        // Use your existing implementation, ensuring it stops the session
+        // sessionQueue.async { // If using a session queue
+             if self.controller.captureSession.isRunning {
+                 self.controller.stopStream()
+                 // Update UI state on main thread if needed
+                 DispatchQueue.main.async { self.isLiveCapture = false }
+             }
+        // }
+        print("⏸️ Stream paused.")
     }
 }
 
@@ -867,7 +404,7 @@ extension CameraLiDARManager {
         }
         
         // Check current view state
-        if let colorImage = capturedData.colorImage {
+        if let colorImage = capturedData.database.colorImage {
             print("Color image available: \(colorImage.size)")
         } else {
             print("No color image available")
@@ -911,7 +448,7 @@ extension CameraLiDARManager {
         // Only proceed if we're in live capture mode with available depth data
         guard isLiveCapture,
               !isRecording,
-              let depthTexture = self.capturedData.depth else {
+              let depthTexture = self.capturedData.database.depth else {
             // Clear the depth value if conditions aren't met
             DispatchQueue.main.async {
                 self.centerDepthValue = nil
@@ -1040,22 +577,6 @@ extension CameraLiDARManager {
         print("   Extracted \(frames.count) frames from photo library video")
         return frames
     }
-    func loadVideoFrames(frames: [UIImage]) {
-        // Clear existing data
-        self.capturedData = CameraCapturedData()
-        self.videoFrames = frames
-        
-        // Set the first frame
-        if !frames.isEmpty {
-            self.currentFrameIndex = 0
-            self.sliderPosition = 0
-            self.totalFrames = frames.count
-            self.capturedData.colorImage = frames[0]
-        }
-        
-        // Mark data as available
-        self.dataAvailable = true
-    }
     
     // Modified version of setFrame for video files without depth
     func setVideoFrame(to index: Int) {
@@ -1069,7 +590,7 @@ extension CameraLiDARManager {
         sliderPosition = Double(index)
         
         // Immediately update the captured data with the current frame
-        capturedData.colorImage = videoFrames[index]
+        capturedData.database.colorImage = videoFrames[index]
         
         // Don't clear processedImage here - let the caller decide
         
@@ -1192,202 +713,9 @@ extension CameraLiDARManager {
     }
 
     // MARK: - Required Helper Functions (Ensure these exist)
-
-    /// Resets all state related to playback and loaded analysis data.
-    private func resetPlaybackState() {
-        stopPlayback() // Stop timer if running
-        currentFrameIndex = 0
-        totalFrames = 0
-        sliderPosition = 0.0
-        currentFrameImage = nil // Clear displayed image
-        loadedDataURL = nil
-        loadedRecordingMetadata = nil
-        lidarFrameImageURLs.removeAll()
-        videoFrames.removeAll() // Clear video frames too
-        isLoadedDataLiDAR = false
-        isDataLoaded = false
-        dataAvailable = isLiveCapture // Reset based on expected mode
-        // Clear any other caches (preloadedFrames, keypointData, etc.)
-        // preloadedFrames.removeAll()
-        // keypointData.removeAll()
-        print("🔄 Playback state reset.")
-    }
-
-    /// Loads and parses the recording_metadata.json file.
-    private func loadMetadata(from folderURL: URL) -> RecordingMetadata? {
-        let metadataURL = folderURL.appendingPathComponent("recording_metadata.json")
-        guard FileManager.default.fileExists(atPath: metadataURL.path) else {
-            // It's okay if metadata doesn't exist, just return nil.
-            return nil
-        }
-        do {
-            let jsonData = try Data(contentsOf: metadataURL)
-            let decoder = JSONDecoder()
-            let metadata = try decoder.decode(RecordingMetadata.self, from: jsonData)
-            return metadata
-        } catch {
-            print("❌ Error loading/parsing metadata from \(metadataURL.path): \(error)")
-            return nil
-        }
-    }
-
     /// Extracts the numeric part of a frame folder/file name (e.g., "frame_123" -> 123).
     private func extractFrameNumber(from string: String) -> Int {
         return Int(string.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) ?? 0
-    }
-
-    /// Stops the live camera stream.
-    func pauseStream() {
-        // Use your existing implementation, ensuring it stops the session
-        // sessionQueue.async { // If using a session queue
-             if self.controller.captureSession.isRunning {
-                 self.controller.stopStream()
-                 // Update UI state on main thread if needed
-                 DispatchQueue.main.async { self.isLiveCapture = false }
-             }
-        // }
-        print("⏸️ Stream paused.")
-    }
-
-    // Inside class CameraLiDARManager...
-
-    /// Sets the current frame for playback, loads its image, applies orientation, and updates the UI.
-    /// (This version is still a placeholder for the actual image loading/orientation part)
-    func setFrame(to index: Int) {
-        // Main thread check
-        if !Thread.isMainThread {
-            DispatchQueue.main.async {
-                self.setFrame(to: index)
-            }
-            return
-        }
-
-        // Validate conditions
-        if isLiveCapture {
-            print("⚠️ setFrame: isLiveCapture was true, disabling it")
-            controller.stopStream()
-            isLiveCapture = false
-        }
-        
-        if !isDataLoaded || !dataAvailable {
-            print("⚠️ setFrame: No data loaded")
-            return
-        }
-        
-        if index < 0 || index >= totalFrames {
-            print("⚠️ setFrame: Invalid index \(index) (total frames: \(totalFrames))")
-            return
-        }
-
-        // Update state
-        currentFrameIndex = index
-        sliderPosition = Double(index)
-
-        print("Setting frame to index: \(index)")
-
-        // Load frame on background thread for better performance
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            
-            if self.isLoadedDataLiDAR {
-                // Handle LiDAR data frames
-                if index >= self.lidarFrameURLs.count {
-                    print("❌ LiDAR frame index out of bounds")
-                    DispatchQueue.main.async { self.currentFrameImage = nil }
-                    return
-                }
-                
-                // Get the frame directory
-                let frameDir = self.lidarFrameURLs[index]
-                
-                // Use our enhanced frame loader
-                if let orientedImage = self.loadLiDARFrameWithOrientation(from: frameDir) {
-                    DispatchQueue.main.async {
-                        self.currentFrameImage = orientedImage
-                        self.onFrameChange?(index)
-                        // Broadcast frame change notification
-                        FrameUpdatePublisher.shared.notifyFrameChanged(frameIndex: index)
-                    }
-                } else {
-                    print("❌ Failed to load oriented image")
-                    DispatchQueue.main.async { self.currentFrameImage = nil }
-                }
-            } else {
-                // Video frames from memory
-                guard index < self.videoFrames.count else {
-                    print("❌ Video frame index out of bounds")
-                    DispatchQueue.main.async { self.currentFrameImage = nil }
-                    return
-                }
-                
-                // Apply orientation correction
-                let orientedImage = self.applyCorrectOrientation(to: self.videoFrames[index])
-                
-                DispatchQueue.main.async {
-                    self.currentFrameImage = orientedImage
-                    self.onFrameChange?(index)
-                    // Broadcast frame change notification
-                    FrameUpdatePublisher.shared.notifyFrameChanged(frameIndex: index)
-                }
-            }
-        }
-    }
-
-
- 
-    // Add this to your CameraLiDARManager class
-    func ensurePlaybackMode() {
-        if isLiveCapture {
-            print("⚠️ Forcing playback mode")
-            controller.stopStream()
-            isLiveCapture = false
-        }
-    }
-
-    // Update your startPlayback method
-    func startPlayback() {
-        // Make sure we're not in live capture mode
-        ensurePlaybackMode()
-        
-        // Stop any existing playback
-        stopPlayback()
-        
-        // Check if we have frames to play
-        if totalFrames <= 0 {
-            print("❌ Cannot start playback: no frames available")
-            return
-        }
-        
-        print("▶️ Starting playback from frame \(currentFrameIndex)")
-        isPlaying = true
-        
-        // Create a timer for playback
-        playbackTimer = Timer.scheduledTimer(withTimeInterval: 1.0/30.0, repeats: true) { [weak self] _ in
-            guard let self = self, self.isPlaying else { return }
-            
-            // Make sure we're in playback mode before trying to set frames
-            self.ensurePlaybackMode()
-            
-            // Move to next frame
-            let nextIndex = self.currentFrameIndex + 1
-            if nextIndex >= self.totalFrames {
-                // We've reached the end, stop playback
-                self.stopPlayback()
-                return
-            }
-            
-            // Update frame
-            self.currentFrameIndex = nextIndex
-            self.setFrame(to: nextIndex)
-            
-            // Log occasional progress
-            if nextIndex % 10 == 0 {
-                print("▶️ Playing frame \(nextIndex)/\(self.totalFrames)")
-            }
-        }
-        
-        // Make sure timer fires during scrolling or other interactions
-        RunLoop.main.add(playbackTimer!, forMode: .common)
     }
 
     func loadVideoFile(_ url: URL, completion: @escaping (Bool, Int, Error?) -> Void) {
@@ -1541,67 +869,6 @@ extension CameraLiDARManager {
         return frames
     }
 
-    // Add or update this method in your CameraLiDARManager class
-    func loadVideoWithMetadata(videoURL: URL, completion: @escaping (Bool, Int, Error?) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else {
-                DispatchQueue.main.async {
-                    completion(false, 0, NSError(domain: "CameraLiDARManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Self deallocated"]))
-                }
-                return
-            }
-            
-            // Reset state first
-            DispatchQueue.main.sync {
-                self.pauseStream()
-                self.resetPlaybackState()
-                self.isLiveCapture = false
-                self.loadedDataURL = videoURL
-                self.isLoadedDataLiDAR = false
-            }
-            
-            // First check for metadata in same folder
-            let folderURL = videoURL.deletingLastPathComponent()
-            let metadataURL = folderURL.appendingPathComponent("recording_metadata.json")
-            
-            print("Looking for metadata at: \(metadataURL.path)")
-            
-            if FileManager.default.fileExists(atPath: metadataURL.path) {
-                do {
-                    let data = try Data(contentsOf: metadataURL)
-                    let metadata = try JSONDecoder().decode(RecordingMetadata.self, from: data)
-                    
-                    // Update metadata on main thread
-                    DispatchQueue.main.async {
-                        self.loadedRecordingMetadata = metadata
-                        print("✅ Loaded recording metadata with orientation: \(metadata.deviceOrientation?.name ?? "unknown")")
-                    }
-                } catch {
-                    print("⚠️ Found metadata file but failed to parse: \(error.localizedDescription)")
-                    
-                    // Set a default metadata with portrait orientation as fallback
-                    DispatchQueue.main.async {
-                        self.loadedRecordingMetadata = RecordingMetadata.defaultMetadata()
-                    }
-                }
-            } else {
-                print("⚠️ No metadata file found, will use default orientation")
-                
-                // Set a default metadata with portrait orientation as fallback
-                DispatchQueue.main.async {
-                    self.loadedRecordingMetadata = RecordingMetadata.defaultMetadata()
-                }
-            }
-            
-            // Now load the video file
-            self.loadVideoFile(videoURL, completion: completion)
-        }
-    }
-
-    // Update or add the applyCorrectOrientation method
-    // This is a direct replacement for the applyCorrectOrientation method
-    // with special handling for your specific case
-
     // Improved version of applyCorrectOrientation
     func applyCorrectOrientation(to image: UIImage) -> UIImage {
         // First check if this is a valid image
@@ -1701,6 +968,160 @@ extension CameraLiDARManager {
 
 // MARK:: All about playback controls
 extension CameraLiDARManager {
+    /// Sets the current frame for playback, loads its image, applies orientation, and updates the UI.
+    func setFrame(to index: Int) {
+        // Main thread check
+        if !Thread.isMainThread {
+            DispatchQueue.main.async {
+                self.setFrame(to: index)
+            }
+            return
+        }
+
+        // Validate conditions
+        if isLiveCapture {
+            print("⚠️ setFrame: isLiveCapture was true, disabling it")
+            controller.stopStream()
+            isLiveCapture = false
+        }
+        
+        if !isDataLoaded || !dataAvailable {
+            print("⚠️ setFrame: No data loaded")
+            return
+        }
+        
+        if index < 0 || index >= totalFrames {
+            print("⚠️ setFrame: Invalid index \(index) (total frames: \(totalFrames))")
+            return
+        }
+
+        // Update state
+        currentFrameIndex = index
+        sliderPosition = Double(index)
+
+        print("Setting frame to index: \(index)")
+
+        // Load frame on background thread for better performance
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            if self.isLoadedDataLiDAR {
+                // Handle LiDAR data frames
+                if index >= self.lidarFrameURLs.count {
+                    print("❌ LiDAR frame index out of bounds")
+                    DispatchQueue.main.async { self.currentFrameImage = nil }
+                    return
+                }
+                
+                // Get the frame directory
+                let frameDir = self.lidarFrameURLs[index]
+                
+                // Use our enhanced frame loader
+                if let orientedImage = self.loadLiDARFrameWithOrientation(from: frameDir) {
+                    DispatchQueue.main.async {
+                        self.currentFrameImage = orientedImage
+                        self.onFrameChange?(index)
+                        // Broadcast frame change notification
+                        FrameUpdatePublisher.shared.notifyFrameChanged(frameIndex: index)
+                    }
+                } else {
+                    print("❌ Failed to load oriented image")
+                    DispatchQueue.main.async { self.currentFrameImage = nil }
+                }
+            } else {
+                // Video frames from memory
+                guard index < self.videoFrames.count else {
+                    print("❌ Video frame index out of bounds")
+                    DispatchQueue.main.async { self.currentFrameImage = nil }
+                    return
+                }
+                
+                // Apply orientation correction
+                let orientedImage = self.applyCorrectOrientation(to: self.videoFrames[index])
+                
+                DispatchQueue.main.async {
+                    self.currentFrameImage = orientedImage
+                    self.onFrameChange?(index)
+                    // Broadcast frame change notification
+                    FrameUpdatePublisher.shared.notifyFrameChanged(frameIndex: index)
+                }
+            }
+        }
+    }
+
+    /// Resets all state related to playback and loaded analysis data.
+    private func resetPlaybackState() {
+        stopPlayback() // Stop timer if running
+        currentFrameIndex = 0
+        totalFrames = 0
+        sliderPosition = 0.0
+        currentFrameImage = nil // Clear displayed image
+        loadedDataURL = nil
+        loadedRecordingMetadata = nil
+        lidarFrameImageURLs.removeAll()
+        videoFrames.removeAll() // Clear video frames too
+        isLoadedDataLiDAR = false
+        isDataLoaded = false
+        dataAvailable = isLiveCapture // Reset based on expected mode
+
+        print("🔄 Playback state reset.")
+    }
+ 
+    // Add this to your CameraLiDARManager class
+    func ensurePlaybackMode() {
+        if isLiveCapture {
+            print("⚠️ Forcing playback mode")
+            controller.stopStream()
+            isLiveCapture = false
+        }
+    }
+
+    // Update your startPlayback method
+    func startPlayback() {
+        // Make sure we're not in live capture mode
+        ensurePlaybackMode()
+        
+        // Stop any existing playback
+        stopPlayback()
+        
+        // Check if we have frames to play
+        if totalFrames <= 0 {
+            print("❌ Cannot start playback: no frames available")
+            return
+        }
+        
+        print("▶️ Starting playback from frame \(currentFrameIndex)")
+        isPlaying = true
+        
+        // Create a timer for playback
+        playbackTimer = Timer.scheduledTimer(withTimeInterval: 1.0/30.0, repeats: true) { [weak self] _ in
+            guard let self = self, self.isPlaying else { return }
+            
+            // Make sure we're in playback mode before trying to set frames
+            self.ensurePlaybackMode()
+            
+            // Move to next frame
+            let nextIndex = self.currentFrameIndex + 1
+            if nextIndex >= self.totalFrames {
+                // We've reached the end, stop playback
+                self.stopPlayback()
+                return
+            }
+            
+            // Update frame
+            self.currentFrameIndex = nextIndex
+            self.setFrame(to: nextIndex)
+            
+            // Log occasional progress
+            if nextIndex % 10 == 0 {
+                print("▶️ Playing frame \(nextIndex)/\(self.totalFrames)")
+            }
+        }
+        
+        // Make sure timer fires during scrolling or other interactions
+        RunLoop.main.add(playbackTimer!, forMode: .common)
+    }
+    
     // Ensure this helper exists
     private func updateSliderPosition() {
         DispatchQueue.main.async {
@@ -1788,79 +1209,11 @@ extension CameraLiDARManager {
             return nil
         }
     }
-
-    // Helper to load LiDAR frame directly (avoid the background thread)
-    private func loadLiDARFrameDirectly(from frameDir: URL) {
-        // Look for image file with various possible names
-        let possibleImageNames = ["colorImage.jpg", "colorImage", "color_image.jpg", "color.jpg"]
-        var imageURL: URL? = nil
-        
-        for name in possibleImageNames {
-            let testURL = frameDir.appendingPathComponent(name)
-            if FileManager.default.fileExists(atPath: testURL.path) {
-                imageURL = testURL
-                break
-            }
-        }
-        
-        guard let imageURL = imageURL else {
-            print("❌ No image file found in frame directory: \(frameDir.path)")
-            DispatchQueue.main.async { self.currentFrameImage = nil }
-            return
-        }
-        
-        do {
-            // Read the file data
-            let imageData = try Data(contentsOf: imageURL)
-            
-            if let image = UIImage(data: imageData) {
-                // Force immediate orientation correction
-                let orientedImage = self.applyCorrectOrientation(to: image)
-                self.currentFrameImage = orientedImage
-                self.onFrameChange?(currentFrameIndex)
-            } else {
-                print("❌ Failed to create UIImage from data")
-                self.currentFrameImage = nil
-            }
-        } catch {
-            print("❌ Error loading image: \(error)")
-            self.currentFrameImage = nil
-        }
-    }
-
 }
 
 
 //MARK:: All about Recording
 extension CameraLiDARManager {
-    func getCameraOrientation() -> UIDeviceOrientation {
-        // Try to get orientation from the camera connection first
-        if let connection = controller.captureSession.connections.first,
-           connection.isVideoOrientationSupported {
-            // Proper mapping of AVCaptureVideoOrientation to UIDeviceOrientation
-            switch connection.videoOrientation {
-            case .landscapeLeft:
-                return .landscapeRight  // Camera and device orientations are opposite
-            case .landscapeRight:
-                return .landscapeLeft   // Camera and device orientations are opposite
-            case .portraitUpsideDown:
-                return .portraitUpsideDown
-            case .portrait:
-                return .portrait
-            @unknown default:
-                return .portrait
-            }
-        } else {
-            // Fall back to device orientation
-            let deviceOrientation = UIDevice.current.orientation
-            if deviceOrientation == .faceUp || deviceOrientation == .faceDown || deviceOrientation == .unknown {
-                return .portrait  // Default to portrait for unusable orientations
-            } else {
-                return deviceOrientation
-            }
-        }
-    }
-    
     func startVideoRecording(personName: String, action: String, distance: String) {
         // Quick validation on main thread
         guard !isRecording else {
@@ -1957,9 +1310,6 @@ extension CameraLiDARManager {
         }
     }
 
-
-    // Replace the current startRecording method
-    // Add this method to CameraLiDARManager
     // Start standard recording
     func startRecording(personName: String, action: String) {
         // Quick validation on main thread
@@ -2177,45 +1527,6 @@ extension CameraLiDARManager {
         }
     }
     
-    func correctImageOrientation(_ image: UIImage, orientation: UIDeviceOrientation) -> UIImage {
-        // If the image doesn't have a CGImage, return the original
-        guard let cgImage = image.cgImage else {
-            return image
-        }
-        
-        // If orientation is unknown or the device is face up/down, use portrait orientation
-        let effectiveOrientation: UIDeviceOrientation
-        if orientation == .unknown || orientation == .faceUp || orientation == .faceDown {
-            effectiveOrientation = .portrait
-        } else {
-            effectiveOrientation = orientation
-        }
-        
-        // Get the correct orientation based on device orientation
-        var targetOrientation: UIImage.Orientation
-        
-        switch effectiveOrientation {
-        case .portrait:
-            targetOrientation = .right // Portrait mode requires 90° rotation
-        case .portraitUpsideDown:
-            targetOrientation = .left // Portrait upside down requires -90° rotation
-        case .landscapeLeft:
-            targetOrientation = .down // LandscapeLeft requires 180° rotation
-        case .landscapeRight:
-            targetOrientation = .up // LandscapeRight is the default camera orientation (0° rotation)
-        default:
-            targetOrientation = .up // Default for unknown orientations
-        }
-        
-        // If the current orientation already matches the target, return the original
-        if image.imageOrientation == targetOrientation {
-            return image
-        }
-        
-        // Create a new image with the target orientation
-        return UIImage(cgImage: cgImage, scale: image.scale, orientation: targetOrientation)
-    }
-
     private func getOrientationName(_ orientation: UIDeviceOrientation) -> String {
             switch orientation {
             case .portrait: return "portrait"
@@ -2254,8 +1565,8 @@ extension CameraLiDARManager {
                 let semaphore = DispatchSemaphore(value: 0)
                 
                 DispatchQueue.main.async {
-                    width = Int(self.capturedData.cameraReferenceDimensions.width)
-                    height = Int(self.capturedData.cameraReferenceDimensions.height)
+                    width = Int(self.capturedData.database.cameraReferenceDimensions.width)
+                    height = Int(self.capturedData.database.cameraReferenceDimensions.height)
                     orientation = self.recordingOrientation
                     semaphore.signal()
                 }
@@ -2277,8 +1588,8 @@ extension CameraLiDARManager {
             }
             
             // Get image dimensions
-            let width = capturedData.colorImage?.size.width ?? capturedData.cameraReferenceDimensions.width
-            let height = capturedData.colorImage?.size.height ?? capturedData.cameraReferenceDimensions.height
+            let width = capturedData.database.colorImage?.size.width ?? capturedData.database.cameraReferenceDimensions.width
+            let height = capturedData.database.colorImage?.size.height ?? capturedData.database.cameraReferenceDimensions.height
             
             // Record if the width/height ratio indicates landscape or portrait
             let isImageLandscape = width > height
@@ -2300,16 +1611,16 @@ extension CameraLiDARManager {
                 useLiDAR: isLiDAR,
                 duration: duration,
                 resolution: RecordingMetadata.Resolution(
-                    width: capturedData.cameraReferenceDimensions.width,
-                    height: capturedData.cameraReferenceDimensions.height
+                    width: capturedData.database.cameraReferenceDimensions.width,
+                    height: capturedData.database.cameraReferenceDimensions.height
                 ),
                 deviceOrientation: deviceOrientation,
                 timestamp: Date().timeIntervalSince1970,
                 distance: "Test",
                 cameraIntrinsics: [
-                    [Float(capturedData.cameraIntrinsics.columns.0.x), Float(capturedData.cameraIntrinsics.columns.0.y), Float(capturedData.cameraIntrinsics.columns.0.z)],
-                    [Float(capturedData.cameraIntrinsics.columns.1.x), Float(capturedData.cameraIntrinsics.columns.1.y), Float(capturedData.cameraIntrinsics.columns.1.z)],
-                    [Float(capturedData.cameraIntrinsics.columns.2.x), Float(capturedData.cameraIntrinsics.columns.2.y), Float(capturedData.cameraIntrinsics.columns.2.z)]
+                    [Float(capturedData.database.cameraIntrinsics.columns.0.x), Float(capturedData.database.cameraIntrinsics.columns.0.y), Float(capturedData.database.cameraIntrinsics.columns.0.z)],
+                    [Float(capturedData.database.cameraIntrinsics.columns.1.x), Float(capturedData.database.cameraIntrinsics.columns.1.y), Float(capturedData.database.cameraIntrinsics.columns.1.z)],
+                    [Float(capturedData.database.cameraIntrinsics.columns.2.x), Float(capturedData.database.cameraIntrinsics.columns.2.y), Float(capturedData.database.cameraIntrinsics.columns.2.z)]
                 ]
             )
             
@@ -2338,95 +1649,8 @@ extension CameraLiDARManager {
             print("❌ Failed to save metadata: \(error)")
         }
     }
-    
-    func debugOrientationStatus() {
-        print("===== ORIENTATION DEBUG =====")
-        
-        // Current device orientation
-        print("Current device orientation: \(UIDevice.current.orientation.rawValue) (\(UIDevice.current.orientation.name))")
-        
-        // Current UI orientation
-        print("Current interface orientation: \(UIApplication.shared.statusBarOrientation.rawValue)")
-        
-        // Metadata orientation if available
-        if let metadata = loadedRecordingMetadata,
-           let orientation = metadata.deviceOrientation {
-            print("Metadata device orientation: \(orientation.rawValue) (\(orientation.name))")
-            if let cameraOri = orientation.cameraOrientation {
-                print("Camera orientation: \(cameraOri)")
-            }
-            if let width = orientation.capturedWidth, let height = orientation.capturedHeight {
-                print("Captured dimensions: \(width)x\(height) (\(width > height ? "landscape" : "portrait"))")
-            }
-        } else {
-            print("No metadata orientation available")
-        }
-        
-        // Current frame image if available
-        if let image = currentFrameImage {
-            print("Current frame: \(image.size.width)x\(image.size.height) (orientation: \(image.imageOrientation.rawValue))")
-            print("Is landscape: \(image.size.width > image.size.height)")
-        } else {
-            print("No current frame")
-        }
-        
-        print("============================")
-    }
-
 }
 
-// Add this method to your CameraLiDARManager class
-extension CameraLiDARManager {
-    // Thread-safe method to update current frame
-    func forceFrameUpdate(to index: Int) {
-        if Thread.isMainThread {
-            _forceFrameUpdate(to: index)
-        } else {
-            DispatchQueue.main.async {
-                self._forceFrameUpdate(to: index)
-            }
-        }
-    }
-    
-    // Private implementation - always call on main thread
-    private func _forceFrameUpdate(to index: Int) {
-        // Ensure we're on the main thread
-        assert(Thread.isMainThread, "Frame updates must happen on the main thread")
-        
-        // Bounds check
-        guard index >= 0 && index < totalFrames else {
-            print("Error: Frame index \(index) is out of bounds (0..\(totalFrames-1))")
-            return
-        }
-        
-        // Update the frame index
-        self.currentFrameIndex = index
-        
-        // Notify any observers
-        if let handler = onFrameChange {
-            handler(index)
-        }
-        
-        // Notify via NotificationCenter as well
-        NotificationCenter.default.post(
-            name: NSNotification.Name("FrameChanged"),
-            object: nil,
-            userInfo: ["frameIndex": index]
-        )
-    }
-    
-    // Thread-safe overlay image setter
-    func setOverlayImage(_ image: UIImage) {
-        DispatchQueue.main.async {
-            self.currentFrameImage = image
-            
-            // Notify observers that the frame has been updated
-            if let handler = self.onFrameChange {
-                handler(self.currentFrameIndex)
-            }
-        }
-    }
-}
 // Add this method to your CameraLiDARManager class
 extension CameraLiDARManager {
     // Method to safely access frames by index
@@ -2461,14 +1685,6 @@ extension CameraLiDARManager {
         
         return currentFrameImage
     }
-    // Helper method to load a specific frame
-    private func loadFrameIfNeeded(at index: Int) {
-        // Only load if the requested index is different from the current one
-        if index != currentFrameIndex {
-            // Set the frame index which should trigger your existing frame loading logic
-            currentFrameIndex = index
-        }
-    }
 }
 
 extension CameraLiDARManager {
@@ -2496,23 +1712,18 @@ extension CameraLiDARManager {
         currentFrameImage = nil
         
         // Reset capture data
-        capturedData = CameraCapturedData()
+        capturedData = FrameDataVM()
         
         // Clear all caches
         preloadedFrames.removeAll()
         preloadedFrameIndices.removeAll()
         keypointData.removeAll()
-        keypointDataByFrame.removeAll()
         processedImages.removeAll()
         
         // Clear depth-related data
-        selectedImagePoints.removeAll()
-        selectedWorldPoints.removeAll()
         selectedPoints.removeAll()
-        distanceMeasured = nil
         measuredDistance = nil
         depthValue = nil
-        depthAtTappedPoint = nil
         firstWorldPoint = nil
         secondWorldPoint = nil
         
@@ -2531,41 +1742,5 @@ extension CameraLiDARManager {
         onFrameChange = nil
         
         print("✅ CameraLiDARManager: Cleanup complete")
-    }
-    
-    /// Pause playback without clearing data
-    func pausePlayback() {
-        if let timer = playbackTimer {
-            timer.invalidate()
-            playbackTimer = nil
-        }
-        isPlaying = false
-    }
-    
-    /// Reset just the playback state without clearing frames
-    func resetPlaybackPosition() {
-        currentFrameIndex = 0
-        sliderPosition = 0
-        if totalFrames > 0 {
-            setFrame(to: 0)
-        }
-    }
-    
-    /// Debug method to print current state
-    func debugPrintState() {
-        print("=== CameraLiDARManager State ===")
-        print("Total frames: \(totalFrames)")
-        print("Current frame index: \(currentFrameIndex)")
-        print("Video frames count: \(videoFrames.count)")
-        print("LiDAR frame URLs count: \(lidarFrameURLs.count)")
-        print("Has current image: \(currentFrameImage != nil)")
-        print("Is playing: \(isPlaying)")
-        print("Is live capture: \(isLiveCapture)")
-        print("Is recording: \(isRecording)")
-        print("Is data loaded: \(isDataLoaded)")
-        print("Data available: \(dataAvailable)")
-        print("Loaded data is LiDAR: \(isLoadedDataLiDAR)")
-        print("Has metadata: \(loadedRecordingMetadata != nil)")
-        print("================================")
     }
 }

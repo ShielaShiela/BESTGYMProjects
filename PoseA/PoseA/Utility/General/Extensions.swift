@@ -134,6 +134,66 @@ extension CGRect {
     }
 }
 
+extension CGImage {
+    func resize(to size: CGSize) -> CGImage? {
+        let width = Int(size.width)
+        let height = Int(size.height)
+        
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+        
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: bitmapInfo.rawValue
+        ) else {
+            return nil
+        }
+        
+        // Draw the original image in the new size
+        context.draw(self, in: CGRect(x: 0, y: 0, width: width, height: height))
+        
+        return context.makeImage()
+    }
+    
+    func toRGBPixels() -> [UInt8]? {
+        let width = self.width
+        let height = self.height
+        
+        // Calculate bytes per row with 4 bytes per pixel (RGBA)
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        
+        // Create buffer to hold pixel data
+        var buffer = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
+        
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+        
+        // Create CGContext with buffer
+        guard let context = CGContext(
+            data: &buffer,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: bitmapInfo.rawValue
+        ) else {
+            return nil
+        }
+        
+        // Draw image into context
+        context.draw(self, in: CGRect(x: 0, y: 0, width: width, height: height))
+        
+        return buffer
+    }
+}
+
 extension UIImage {
     func rotated(to orientation: UIImage.Orientation) -> UIImage? {
         guard let cgImage = self.cgImage else { return nil }
@@ -242,3 +302,14 @@ extension View{
     }
 }
 
+// Shared Style Modifier
+extension View {
+    func toolbarCapsuleStyle() -> some View {
+        self
+            .font(.caption)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6) // consistent vertical
+            .background(Color(.systemGray5))
+            .clipShape(Capsule())
+    }
+}

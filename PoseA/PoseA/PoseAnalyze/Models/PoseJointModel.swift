@@ -9,6 +9,12 @@ import SwiftUI
 
 // MARK: ------------------------------- Chart Data Structure BEGIN -------------------------------
 
+struct PointData: Identifiable {
+    let id = UUID()
+    let x: Double
+    let y: Double
+}
+
 struct JointData: Identifiable {
     var id: String { joint }
     var joint: String
@@ -40,18 +46,6 @@ struct dataMetrics {
     var maxZ: Float = 0.0
 }
 // MARK: -------------------------------- Chart Data Structure END --------------------------------
-
-
-var availableJoints: [String] {
-    return [
-        "L Shoulder", "R Shoulder",
-        "L Elbow", "R Elbow",
-        "L Wrist", "R Wrist",
-        "L Hip", "R Hip",
-        "L Knee", "R Knee",
-        "L Ankle", "R Ankle"
-    ]
-}
 
 // Joint colors for the graph
 let jointColors: [String: Color] = [

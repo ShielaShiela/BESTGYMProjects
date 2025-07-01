@@ -18,6 +18,7 @@ struct PoseAnalysisView: View {
     // MARK: - State Properties
     @StateObject private var poseJointViewModel: PoseJointVM
     @StateObject private var chartBuilderViewModel: ChartBuilderVM
+    @StateObject private var swingAnalysisViewModel: SwingDataVM
     
     @State private var selectedAnalysisType = AnalysisType.jointAngles
     @State private var previousSelectedJoints: Set<String> = []
@@ -34,6 +35,7 @@ struct PoseAnalysisView: View {
         let poseJointVM = PoseJointVM(poseProcessor: poseProcessor, cameraManager: cameraManager)
         self._poseJointViewModel = StateObject(wrappedValue: poseJointVM)
         self._chartBuilderViewModel = StateObject(wrappedValue: ChartBuilderVM(poseJointViewModel: poseJointVM))
+        self._swingAnalysisViewModel = StateObject(wrappedValue: SwingDataVM(poseJointViewModel: poseJointVM))
     }
     
     // MARK: - Custom Variable
@@ -43,10 +45,10 @@ struct PoseAnalysisView: View {
         
         // Enum Case
         case jointAngles = "Angle"
-        case trajectories = "Traj"
+        case trajectories2D = "Traj"
         case velocities = "Vel"
         case accelerations = "Acc"
-        case comparison = "Compare"
+        case swingMotion = "Swing"
     }
     
     var body: some View {
@@ -61,8 +63,10 @@ struct PoseAnalysisView: View {
                 .pickerStyle(SegmentedPickerStyle())
                 .padding()
                 .onChange(of: selectedAnalysisType) { _, _ in
+                    // Clear All Data
                     previousSelectedJoints = Set(selectedJoints) // sync selection baseline
                     chartBuilderViewModel.clearAllData()
+                    // Update the Data
                     updateChartData(addedJoints: selectedJoints, removedJoints: [])
                 }
 
@@ -74,6 +78,9 @@ struct PoseAnalysisView: View {
                             // Disable Ankle Measurement for Joint Angle
                             if (joint == "L Ankle" || joint == "R Ankle" || joint == "L Wrist" || joint == "R Wrist")
                                 && selectedAnalysisType == .jointAngles {
+                                EmptyView()
+                            }
+                            else if selectedAnalysisType == .swingMotion {
                                 EmptyView()
                             } else {
                                 JointSelectionButton(
@@ -108,7 +115,8 @@ struct PoseAnalysisView: View {
                             PoseGraphView(
                                 analysisType: selectedAnalysisType,
                                 selectedJoints: selectedJoints,
-                                chartBuilderViewModel: chartBuilderViewModel
+                                chartBuilderViewModel: chartBuilderViewModel,
+                                swingAnalysisViewModel: swingAnalysisViewModel
                             )
                             .padding()
                             .background(Color(.secondarySystemBackground))
@@ -116,11 +124,12 @@ struct PoseAnalysisView: View {
                             .padding(.horizontal)
                             
                             // Optional Analysis Metrics
-                            if !selectedJoints.isEmpty {
+                            if (selectedJoints.isEmpty && selectedAnalysisType == .swingMotion) || (!selectedJoints.isEmpty) {
                                 PoseMetricsView(
                                     analysisType: selectedAnalysisType,
                                     selectedJoints: selectedJoints,
-                                    chartBuilderViewModel: chartBuilderViewModel
+                                    chartBuilderViewModel: chartBuilderViewModel,
+                                    swingAnalysisViewModel: swingAnalysisViewModel
                                 )
                                 .padding(.horizontal)
                             }
@@ -158,17 +167,20 @@ struct PoseAnalysisView: View {
         previousSelectedJoints = newSet
     }
     
-    
+
     private func updateChartData(addedJoints: [String], removedJoints: [String]) {
-        guard !selectedJoints.isEmpty else {
+        guard (selectedJoints.isEmpty && selectedAnalysisType == .swingMotion) || (!selectedJoints.isEmpty) else {
             chartBuilderViewModel.clearAllData()
             return
         }
         
         isDataLoading = true
-        
+
         // Clear only removed joints
         chartBuilderViewModel.clearData(for: selectedAnalysisType, joints: removedJoints)
+        
+        // Swing Data Build (Optional)
+
         
         // Add only new data for added joints
         switch selectedAnalysisType {
@@ -176,9 +188,17 @@ struct PoseAnalysisView: View {
             chartBuilderViewModel.buildAngleData(joints: addedJoints) {
                 isDataLoading = false
             }
-        case .trajectories:
-            chartBuilderViewModel.buildPositionData(joints: addedJoints) {
+        case .trajectories2D:
+            chartBuilderViewModel.buildPositionData(joints: addedJoints, useDepth: false) {
                 isDataLoading = false
+            }
+        case .swingMotion:
+            chartBuilderViewModel.buildPositionData(joints: ["L Hip", "R Hip"], useDepth: false) {
+                swingAnalysisViewModel.estimateBar() {
+                    swingAnalysisViewModel.calculateAngleData() {
+                        isDataLoading = false
+                    }
+                }
             }
         case .velocities:
             chartBuilderViewModel.buildVelocityData(joints: addedJoints) {
@@ -188,8 +208,6 @@ struct PoseAnalysisView: View {
             chartBuilderViewModel.buildAccelerationData(joints: addedJoints) {
                 isDataLoading = false
             }
-        case .comparison:
-            break
         }
     }
 }

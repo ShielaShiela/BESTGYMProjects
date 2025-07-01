@@ -6,7 +6,6 @@ import Combine
 
 class VitPoseProcessor {
     // MARK: - Properties
-    
     private let modelConfig: MLModelConfiguration
     private var vitposeModel: VitPoseh?
     
@@ -15,13 +14,9 @@ class VitPoseProcessor {
     private var processedImages: [Int: UIImage] = [:]
     
     // MARK: - Constants
-    
     private let modelInputSize = CGSize(width: 192, height: 256)
-    
     private var visualizedFrameCache = NSCache<NSNumber, UIImage>()
-    
     private static var roiRect: CGRect? = nil
-
     
     // Keypoint names in COCO format
     private let keypointNames = [
@@ -51,8 +46,20 @@ class VitPoseProcessor {
         ("right_eye", "right_ear")
     ]
     
-    // MARK: - Initialization
+    // MARK: - Error Types
+    enum ProcessingError: Error {
+        case modelNotLoaded(String)
+        case imageConversionFailed(String)
+        case imageResizeFailed(String)
+        case pixelExtractionFailed(String)
+        case inputArrayCreationFailed(String)
+        case heatmapProcessingFailed(String)
+        case noKeypointData(String)
+        case unsupportedFormat(String)
+        case invalidFormat(String)
+    }
     
+    // MARK: - Initialization
     init() {
         self.modelConfig = MLModelConfiguration()
         self.modelConfig.computeUnits = .cpuAndGPU
@@ -64,50 +71,7 @@ class VitPoseProcessor {
         }
     }
     
-    // MARK: - Public Methods
-    
-    /// Process an image to detect pose keypoints and integrate depth data
-    func processImage(colorImage: UIImage, depthTexture: MTLTexture, frameIndex: Int) throws -> (keypointData: [KeypointData], visualizedImage: UIImage) {
-        guard self.vitposeModel != nil else {
-            throw ProcessingError.modelNotLoaded("VitPose model is not loaded")
-        }
-        
-        // Process the image to get keypoints
-        let keypoints = try detectKeypoints(from: colorImage, frameIndex: frameIndex)
-        
-        // Add depth information to keypoints
-        var keypointsWithDepth: [KeypointData] = []
-        for keypoint in keypoints {
-            let position = CGPoint(x: keypoint.x, y: keypoint.y)
-            let depthValue = getDepthValue(at: position, from: depthTexture, imageSize: colorImage.size)
-            
-            let keypointWithDepth = KeypointData(
-                name: keypoint.name,
-                x: keypoint.x,
-                y: keypoint.y,
-                confidence: keypoint.confidence,
-                depth: depthValue,
-                frameIndex: frameIndex
-            )
-            keypointsWithDepth.append(keypointWithDepth)
-        }
-        
-        // Create visualization
-        let mappedKeypoints = keypointsWithDepth.map { keypoint -> (String, CGPoint, Float, Float) in
-            return (keypoint.name, CGPoint(x: keypoint.x, y: keypoint.y), keypoint.confidence, keypoint.depth)
-        }
-        
-        let visualizedImage = visualizePose(colorImage: colorImage, keypoints: mappedKeypoints, connections: skeletonConnections)
-        
-        // Store the data
-        keypointsByFrame[frameIndex] = keypointsWithDepth
-        processedImages[frameIndex] = visualizedImage ?? colorImage
-        
-        return (keypointData: keypointsWithDepth, visualizedImage: visualizedImage ?? colorImage)
-    }
-    
     // MARK: - Keypoint Data Management
-    
     /// Get keypoints for a specific frame
     func getKeypoints(for frameIndex: Int) -> [KeypointData]? {
         return keypointsByFrame[frameIndex]
@@ -133,313 +97,6 @@ class VitPoseProcessor {
         visualizedFrameCache.removeAllObjects()
         processedImages.removeAll()
         VitPoseProcessor.roiRect = nil
-    }
-    
-    // In VitPoseProcessor
-    func updateKeypoint(_ keypoint: KeypointData, at index: Int, forFrame frameIndex: Int) {
-        // Check if we have keypoints for this frame
-        if var frameKeypoints = keypointsByFrame[frameIndex],
-           index < frameKeypoints.count {
-            // Update the keypoint
-            let oldKeypoint = frameKeypoints[index]
-            frameKeypoints[index] = keypoint
-            
-            // Store the updated array back in the dictionary
-            keypointsByFrame[frameIndex] = frameKeypoints
-            
-            print("VitPoseProcessor: Updated keypoint \(index) for frame \(frameIndex) from (\(oldKeypoint.x), \(oldKeypoint.y)) to (\(keypoint.x), \(keypoint.y))")
-            
-            // IMPORTANT: If you're caching visualized frames, you need to clear the cache for this frame
-            visualizedFrameCache.removeObject(forKey: NSNumber(value: frameIndex))
-        } else {
-            print("VitPoseProcessor: Failed to update keypoint - index out of bounds or no keypoints for frame")
-        }
-    }
-    
-    // Add this method to your VitPoseProcessor class
-    func clearCacheForFrame(_ frameIndex: Int) {
-        visualizedFrameCache.removeObject(forKey: NSNumber(value: frameIndex))
-        print("Cleared visualization cache for frame \(frameIndex)")
-    }
-    
-    // MARK: - Visualization Methods
-    func visualizeKeypointsForFrame(
-        _ frameIndex: Int,
-        originalImage: UIImage,
-        leftColor: UIColor = .blue,
-        rightColor: UIColor = .red,
-        centerColor: UIColor = .green,
-        applyRotation: Double = 0
-    ) -> UIImage? {
-        guard let keypoints = keypointsByFrame[frameIndex] else { return nil }
-        
-        // For annotation mode, the image is already rotated, so we don't need to rotate keypoints
-        if applyRotation == 0 {
-            // Just draw keypoints directly on the image (which might already be rotated)
-            let renderer = UIGraphicsImageRenderer(size: originalImage.size)
-            
-            return renderer.image { context in
-                // Draw original image
-                originalImage.draw(in: CGRect(origin: .zero, size: originalImage.size))
-                
-                let ctx = context.cgContext
-                
-                // Create lookup dictionary for connections
-                let keypointDict = Dictionary(uniqueKeysWithValues: keypoints.map {
-                    ($0.name, (CGPoint(x: $0.x, y: $0.y), $0.confidence, $0.depth))
-                })
-                
-                // Draw connections
-                ctx.setLineWidth(3.0)
-                
-                for (startName, endName) in skeletonConnections {
-                    guard let start = keypointDict[startName],
-                          let end = keypointDict[endName] else {
-                        continue
-                    }
-                    
-                    if start.1 > 0.15 && end.1 > 0.15 {
-                        // Determine line color
-                        if startName.contains("left") || endName.contains("left") {
-                            ctx.setStrokeColor(leftColor.cgColor)
-                        } else if startName.contains("right") || endName.contains("right") {
-                            ctx.setStrokeColor(rightColor.cgColor)
-                        } else {
-                            ctx.setStrokeColor(centerColor.cgColor)
-                        }
-                        
-                        // Draw connection line
-                        ctx.move(to: start.0)
-                        ctx.addLine(to: end.0)
-                        ctx.strokePath()
-                    }
-                }
-                
-                // Draw keypoints
-                for keypoint in keypoints {
-                    if keypoint.confidence > 0.15 {
-                        // Choose color based on name
-                        let color: UIColor
-                        if keypoint.name.contains("left") {
-                            color = leftColor
-                        } else if keypoint.name.contains("right") {
-                            color = rightColor
-                        } else {
-                            color = centerColor
-                        }
-                        
-                        ctx.setFillColor(color.cgColor)
-                        
-                        let position = CGPoint(x: keypoint.x, y: keypoint.y)
-                        let size = 8.0 + (CGFloat(keypoint.confidence) * 4.0)
-                        let rect = CGRect(x: position.x - size/2, y: position.y - size/2, width: size, height: size)
-                        ctx.fillEllipse(in: rect)
-                        
-                        // White border
-                        ctx.setStrokeColor(UIColor.white.cgColor)
-                        ctx.setLineWidth(1.0)
-                        ctx.strokeEllipse(in: rect)
-                        
-                        // Draw index for identification
-                        if let index = keypoints.firstIndex(where: { $0.name == keypoint.name }) {
-                            let indexText = "\(index)" as NSString
-                            let attributes: [NSAttributedString.Key: Any] = [
-                                .font: UIFont.boldSystemFont(ofSize: 10),
-                                .foregroundColor: UIColor.white
-                            ]
-                            indexText.draw(at: CGPoint(x: position.x + 6, y: position.y - 5), withAttributes: attributes)
-                        }
-                    }
-                }
-            }
-        }
-        // For normal viewing mode, we need to handle rotation of the image and keypoints together
-        else {
-            // For exact 90-degree rotations, use orientation-based image rotation
-            if applyRotation.truncatingRemainder(dividingBy: 90) == 0 {
-                guard let cgImage = originalImage.cgImage else { return nil }
-                
-                // Normalize rotation to 0-360
-                var normalizedRotation = applyRotation.truncatingRemainder(dividingBy: 360)
-                if normalizedRotation < 0 { normalizedRotation += 360 }
-                
-                // Map rotation angle to UIImage.Orientation
-                var orientation: UIImage.Orientation
-                switch Int(normalizedRotation) {
-                case 90:
-                    orientation = .right
-                case 180:
-                    orientation = .down
-                case 270:
-                    orientation = .left
-                default:
-                    orientation = .up
-                }
-                
-                // Create rotated base image
-                let rotatedImage = UIImage(cgImage: cgImage, scale: originalImage.scale, orientation: orientation)
-                
-                // Transform the keypoints to match the rotated image
-                let centerX = originalImage.size.width / 2
-                let centerY = originalImage.size.height / 2
-                
-                // Create a copy of keypoints to transform
-                var transformedKeypoints = [KeypointData]()
-                
-                for keypoint in keypoints {
-                    var newKeypoint = keypoint
-                    
-                    // Calculate offset from center
-                    let offsetX = keypoint.x - centerX
-                    let offsetY = keypoint.y - centerY
-                    
-                    // Apply appropriate transformation based on rotation angle
-                    switch Int(normalizedRotation) {
-                    case 90:
-                        // 90° clockwise: (x,y) -> (y,-x)
-                        newKeypoint.x = centerX + offsetY
-                        newKeypoint.y = centerY - offsetX
-                    case 180:
-                        // 180° rotation: (x,y) -> (-x,-y)
-                        newKeypoint.x = centerX - offsetX
-                        newKeypoint.y = centerY - offsetY
-                    case 270:
-                        // 270° clockwise: (x,y) -> (-y,x)
-                        newKeypoint.x = centerX - offsetY
-                        newKeypoint.y = centerY + offsetX
-                    default:
-                        break
-                    }
-                    
-                    transformedKeypoints.append(newKeypoint)
-                }
-                
-                // Create temporary copy of keypoints for visualization
-                let originalKeypointsByFrame = keypointsByFrame[frameIndex]
-                keypointsByFrame[frameIndex] = transformedKeypoints
-                
-                // Visualize using the rotated image and transformed keypoints with no further rotation
-                let result = visualizeKeypointsForFrame(
-                    frameIndex,
-                    originalImage: rotatedImage,
-                    leftColor: leftColor,
-                    rightColor: rightColor,
-                    centerColor: centerColor,
-                    applyRotation: 0
-                )
-                
-                // Restore original keypoints
-                keypointsByFrame[frameIndex] = originalKeypointsByFrame
-                
-                return result
-            }
-            
-            // For non-90-degree rotations, use renderer-based approach
-            let renderer = UIGraphicsImageRenderer(size: originalImage.size)
-            
-            return renderer.image { context in
-                // Draw original image
-                originalImage.draw(in: CGRect(origin: .zero, size: originalImage.size))
-                
-                let ctx = context.cgContext
-                
-                // Set up rotation values
-                let centerX = originalImage.size.width / 2
-                let centerY = originalImage.size.height / 2
-                let rotationRadians = applyRotation * .pi / 180.0
-                let cosAngle = cos(rotationRadians)
-                let sinAngle = sin(rotationRadians)
-                
-                // Transform keypoints based on rotation
-                let transformedKeypoints = keypoints.map { keypoint -> (KeypointData, CGPoint) in
-                    // Default position
-                    var position = CGPoint(x: keypoint.x, y: keypoint.y)
-                    
-                    // Calculate offset from center
-                    let offsetX = keypoint.x - centerX
-                    let offsetY = keypoint.y - centerY
-                    
-                    // Apply rotation transformation
-                    let newOffsetX = offsetX * cosAngle - offsetY * sinAngle
-                    let newOffsetY = offsetX * sinAngle + offsetY * cosAngle
-                    
-                    // Set rotated position
-                    position = CGPoint(
-                        x: centerX + newOffsetX,
-                        y: centerY + newOffsetY
-                    )
-                    
-                    return (keypoint, position)
-                }
-                
-                // Create lookup dictionary for connections
-                let keypointDict = Dictionary(uniqueKeysWithValues: transformedKeypoints.map {
-                    ($0.0.name, ($0.1, $0.0.confidence, $0.0.depth))
-                })
-                
-                // Draw connections
-                ctx.setLineWidth(3.0)
-                
-                for (startName, endName) in skeletonConnections {
-                    guard let start = keypointDict[startName],
-                          let end = keypointDict[endName] else {
-                        continue
-                    }
-                    
-                    if start.1 > 0.15 && end.1 > 0.15 {
-                        // Determine line color
-                        if startName.contains("left") || endName.contains("left") {
-                            ctx.setStrokeColor(leftColor.cgColor)
-                        } else if startName.contains("right") || endName.contains("right") {
-                            ctx.setStrokeColor(rightColor.cgColor)
-                        } else {
-                            ctx.setStrokeColor(centerColor.cgColor)
-                        }
-                        
-                        // Use transformed positions for drawing
-                        ctx.move(to: start.0)
-                        ctx.addLine(to: end.0)
-                        ctx.strokePath()
-                    }
-                }
-                
-                // Draw keypoints using transformed positions
-                for (keypoint, position) in transformedKeypoints {
-                    if keypoint.confidence > 0.15 {
-                        // Choose color based on name
-                        let color: UIColor
-                        if keypoint.name.contains("left") {
-                            color = leftColor
-                        } else if keypoint.name.contains("right") {
-                            color = rightColor
-                        } else {
-                            color = centerColor
-                        }
-                        
-                        ctx.setFillColor(color.cgColor)
-                        
-                        let size = 8.0 + (CGFloat(keypoint.confidence) * 4.0)
-                        let rect = CGRect(x: position.x - size/2, y: position.y - size/2, width: size, height: size)
-                        ctx.fillEllipse(in: rect)
-                        
-                        // White border
-                        ctx.setStrokeColor(UIColor.white.cgColor)
-                        ctx.setLineWidth(1.0)
-                        ctx.strokeEllipse(in: rect)
-                        
-                        // Draw index for identification
-                        if let index = keypoints.firstIndex(where: { $0.name == keypoint.name }) {
-                            let indexText = "\(index)" as NSString
-                            let attributes: [NSAttributedString.Key: Any] = [
-                                .font: UIFont.boldSystemFont(ofSize: 10),
-                                .foregroundColor: UIColor.white
-                            ]
-                            indexText.draw(at: CGPoint(x: position.x + 6, y: position.y - 5), withAttributes: attributes)
-                        }
-                    }
-                }
-            }
-        }
     }
     
     // MARK: - File Operations
@@ -648,7 +305,6 @@ class VitPoseProcessor {
     }
     
     // MARK: - Private Helper Methods
-    
     /// Parse keypoints from dictionary array
     private func parseKeypointsFromDictionary(_ points: [[String: Any]], frameIndex: Int) {
         var keypointsForFrame: [KeypointData] = []
@@ -778,36 +434,11 @@ class VitPoseProcessor {
         return keypoints
     }
     
-    /// Get depth value for a point
-    private func getDepthValue(at point: CGPoint, from depthTexture: MTLTexture, imageSize: CGSize) -> Float {
-        // Convert point to depth texture coordinates
-        let depthWidth = depthTexture.width
-        let depthHeight = depthTexture.height
-        
-        let depthX = Int(point.x * CGFloat(depthWidth) / imageSize.width)
-        let depthY = Int(point.y * CGFloat(depthHeight) / imageSize.height)
-        
-        // Check bounds
-        guard depthX >= 0, depthX < depthWidth, depthY >= 0, depthY < depthHeight else {
-            return 0.0
-        }
-        
-        // Read depth value
-        var depthValue: Float16 = 0.0
-        let region = MTLRegionMake2D(depthX, depthY, 1, 1)
-        let bytesPerRow = MemoryLayout<Float16>.size
-        
-        depthTexture.getBytes(&depthValue, bytesPerRow: bytesPerRow, from: region, mipmapLevel: 0)
-        
-        return Float(depthValue)
-    }
-    
     /// Visualize pose with keypoints and connections
-    private func visualizePose(
-        colorImage: UIImage,
-        keypoints: [(String, CGPoint, Float, Float)],
-        connections: [(String, String)]
-    ) -> UIImage? {
+    private func visualizePose(colorImage: UIImage,
+                               keypoints: [(String, CGPoint, Float, Float)],
+                               connections: [(String, String)]) -> UIImage? {
+        
         let renderer = UIGraphicsImageRenderer(size: colorImage.size)
         
         return renderer.image { context in
@@ -866,10 +497,6 @@ class VitPoseProcessor {
         }
         
     }
-    
-    // In VitPoseProcessor class
-
-    
 
     // Method to get a cached processed image
     func getProcessedImage(for frameIndex: Int) -> UIImage? {
@@ -880,246 +507,8 @@ class VitPoseProcessor {
     func storeProcessedImage(_ image: UIImage, for frameIndex: Int) {
         visualizedFrameCache.setObject(image, forKey: NSNumber(value: frameIndex))
     }
-
-    // Method to pre-visualize all frames with keypoints
-    // Method to pre-visualize all frames with keypoints
-    func preVisualizeKeypoints(originalImages: [UIImage],
-                              leftColor: UIColor,
-                              rightColor: UIColor,
-                              centerColor: UIColor,
-                              completion: @escaping () -> Void) {
-        
-        // Get all frame indices with keypoints
-        let frameIndices = getFrameIndicesWithKeypoints()
-        let totalFrames = frameIndices.count
-        var processedCount = 0
-        
-        print("Pre-visualizing \(totalFrames) frames with keypoints")
-        
-        // Skip if no frames to process
-        if totalFrames == 0 {
-            completion()
-            return
-        }
-        
-        // Process frames in background
-        DispatchQueue.global(qos: .userInitiated).async {
-            for frameIndex in frameIndices {
-                // Check if the frameIndex is valid for our images array
-                if frameIndex < originalImages.count {
-                    // Get the keypoints for this frame
-                    if self.getKeypoints(for: frameIndex) != nil {
-                        // Get the image without conditional binding since it's not optional
-                        let originalImage = originalImages[frameIndex]
-                        
-                        // Only visualize if we don't already have it cached
-                        if self.getProcessedImage(for: frameIndex) == nil {
-                            if let visualized = self.visualizeKeypointsForFrame(
-                                frameIndex,
-                                originalImage: originalImage,
-                                leftColor: leftColor,
-                                rightColor: rightColor,
-                                centerColor: centerColor
-                            ) {
-                                self.storeProcessedImage(visualized, for: frameIndex)
-                            }
-                        }
-                        
-                        processedCount += 1
-                        if processedCount % 10 == 0 {
-                            print("Pre-visualized \(processedCount)/\(totalFrames) frames")
-                        }
-                    }
-                }
-            }
-            
-            DispatchQueue.main.async {
-                print("✅ Completed pre-visualization of \(processedCount) frames")
-                completion()
-            }
-        }
-    }
-    
-    // MARK: - Error Types
-    
-    enum ProcessingError: Error {
-        case modelNotLoaded(String)
-        case imageConversionFailed(String)
-        case imageResizeFailed(String)
-        case pixelExtractionFailed(String)
-        case inputArrayCreationFailed(String)
-        case heatmapProcessingFailed(String)
-        case noKeypointData(String)
-        case unsupportedFormat(String)
-        case invalidFormat(String)
-    }
-}
-// In VitPoseProcessor.swift - completely rewrite processFrames with robust threading
-
-extension VitPoseProcessor {
-    // Thread-safe version of processImageWithoutDepth
-    func processImageWithoutDepth(colorImage: UIImage, frameIndex: Int) throws -> (visualizedImage: UIImage, keypoints: [KeypointData]) {
-        // Detect keypoints
-        let keypoints = try detectKeypoints(from: colorImage, frameIndex: frameIndex)
-        
-        // Convert for visualization
-        let mappedKeypoints = keypoints.map { keypoint -> (String, CGPoint, Float, Float) in
-            return (keypoint.name, CGPoint(x: keypoint.x, y: keypoint.y), keypoint.confidence, 0.0)
-        }
-        
-        // Create visualization
-        let visualizedImage = visualizePose(colorImage: colorImage, keypoints: mappedKeypoints, connections: skeletonConnections)
-        
-        // Thread-safe storage of results
-        DispatchQueue.main.sync {
-            // Store the data
-            keypointsByFrame[frameIndex] = keypoints
-        }
-        
-        // Store into cache on main thread (if needed)
-        if let image = visualizedImage {
-            DispatchQueue.main.sync {
-                visualizedFrameCache.setObject(image, forKey: NSNumber(value: frameIndex))
-            }
-        }
-        
-        return (visualizedImage: visualizedImage ?? colorImage, keypoints: keypoints)
-    }
 }
 
-// Add this method to your VitPoseProcessor class to provide safer keypoint access
-extension VitPoseProcessor {
-    // Thread-safe and null-safe method to get keypoints
-    func getSafeKeypoints(for frameIndex: Int) -> [KeypointData] {
-        // First check if we're on the main thread - if not, use sync to safely access
-        if !Thread.isMainThread {
-            var result: [KeypointData] = []
-            DispatchQueue.main.sync {
-                result = self.getSafeKeypoints(for: frameIndex)
-            }
-            return result
-        }
-        
-        // Now we're on the main thread, safely access the data
-        guard let keypoints = keypointsByFrame[frameIndex],
-              !keypoints.isEmpty else {
-            // Return empty array instead of nil
-            return []
-        }
-        
-        return keypoints
-    }
-    
-    // Check if a frame has valid keypoints
-    func hasValidKeypoints(for frameIndex: Int) -> Bool {
-        if !Thread.isMainThread {
-            var result = false
-            DispatchQueue.main.sync {
-                result = self.hasValidKeypoints(for: frameIndex)
-            }
-            return result
-        }
-        
-        return keypointsByFrame[frameIndex]?.isEmpty == false
-    }
-}
-
-// Add this method to VitPoseProcessor to handle orientation more gracefully
-extension VitPoseProcessor {
-    // Process a frame with orientation correction and safety checks
-    func processFrameWithSafetyChecks(frame: UIImage, frameIndex: Int) -> (keypoints: [KeypointData], visualizedImage: UIImage?) {
-        do {
-            // Log frame dimensions for debugging
-            print("Processing frame \(frameIndex): \(frame.size.width)x\(frame.size.height), orientation: \(frame.imageOrientation.rawValue)")
-            
-            // Ensure the frame is in the correct orientation
-            let correctedFrame = ensureCorrectOrientation(image: frame)
-            
-            // Process the corrected frame
-            let result = try processImageWithoutDepth(colorImage: correctedFrame, frameIndex: frameIndex)
-            
-            return (result.keypoints, result.visualizedImage)
-        } catch {
-            print("Error processing frame \(frameIndex): \(error)")
-            return ([], nil)
-        }
-    }
-    
-    // Improved frame processing with orientation handling
-    func processFrames(from cameraManager: CameraLiDARManager, progress: @escaping (Double) -> Void, completion: @escaping (Bool, Error?) -> Void) {
-        let totalFrames = cameraManager.totalFrames
-        guard totalFrames > 0 else {
-            DispatchQueue.main.async {
-                completion(false, ProcessingError.noKeypointData("No frames available for processing"))
-            }
-            return
-        }
-        
-        print("Starting pose detection on \(totalFrames) frames")
-        var processedFrames = 0
-        
-        // Use a background queue with higher priority for processing
-        DispatchQueue.global(qos: .userInitiated).async {
-            // Clear existing data to start fresh
-            DispatchQueue.main.sync {
-                self.keypointsByFrame.removeAll()
-                self.visualizedFrameCache.removeAllObjects()
-            }
-            
-            // Loop through all frames
-            for frameIndex in 0..<totalFrames {
-                // Get the frame
-                var currentImage: UIImage?
-                DispatchQueue.main.sync {
-                    currentImage = cameraManager.getFrame(at: frameIndex)
-                }
-                
-                guard let image = currentImage else {
-                    print("⚠️ Could not access frame \(frameIndex)")
-                    continue
-                }
-                
-                // Process with safety checks and orientation handling
-                let result = self.processFrameWithSafetyChecks(frame: image, frameIndex: frameIndex)
-                
-                // Safety check for valid keypoints
-                if !result.keypoints.isEmpty {
-                    // Store keypoints on main thread
-                    DispatchQueue.main.sync {
-                        self.keypointsByFrame[frameIndex] = result.keypoints
-                        
-                        // Cache visualized image if available
-                        if let visualizedImage = result.visualizedImage {
-                            self.visualizedFrameCache.setObject(visualizedImage, forKey: NSNumber(value: frameIndex))
-                        }
-                    }
-                }
-                
-                // Update processed count and calculate progress
-                processedFrames += 1
-                let progressValue = Double(processedFrames) / Double(totalFrames)
-                
-                // Report progress on main thread
-                DispatchQueue.main.async {
-                    progress(progressValue)
-                }
-                
-                // Print log updates at intervals
-                if processedFrames % 10 == 0 || processedFrames == totalFrames {
-                    print("Processed \(processedFrames)/\(totalFrames) frames")
-                }
-            }
-            
-            // Successfully processed all frames
-            print("✅ Pose detection complete. Processed \(processedFrames) frames.")
-            
-            // Complete on main thread
-            DispatchQueue.main.async {
-                completion(true, nil)
-            }
-        }
-    }
-}
 extension VitPoseProcessor {
     // Returns whether keypoints exist and have valid data
     func validateLoadedKeypoints() -> Bool {
@@ -1158,106 +547,8 @@ extension VitPoseProcessor {
         return true
     }
 }
-// MARK: - KeypointData Model
-
-//struct KeypointData: Codable, Identifiable {
-//    let id: UUID
-//    let name: String
-//    var x: CGFloat
-//    var y: CGFloat
-//    let confidence: Float
-//    let depth: Float
-//    let frameIndex: Int
-//
-//    // Store original position for reset functionality
-//    private let originalX: CGFloat
-//    private let originalY: CGFloat
-//
-//    init(name: String, x: CGFloat, y: CGFloat, confidence: Float, depth: Float, frameIndex: Int) {
-//        self.id = UUID()
-//        self.name = name
-//        self.x = x
-//        self.y = y
-//        self.confidence = confidence
-//        self.depth = depth
-//        self.frameIndex = frameIndex
-//        self.originalX = x
-//        self.originalY = y
-//    }
-//
-//    mutating func updatePosition(to newPosition: CGPoint) {
-//        self.x = newPosition.x
-//        self.y = newPosition.y
-//    }
-//
-//    mutating func resetPosition() {
-//        self.x = originalX
-//        self.y = originalY
-//    }
-//}
-// Updated KeypointData struct with Equatable conformance
-struct KeypointData: Identifiable, Codable, Equatable {
-    let id: UUID
-    let name: String
-    var x: CGFloat
-    var y: CGFloat
-    let confidence: Float
-    var depth: Float
-    let frameIndex: Int
-    
-    // Store original position for reset functionality
-    private let originalX: CGFloat
-    private let originalY: CGFloat
-    
-    init(name: String, x: CGFloat, y: CGFloat, confidence: Float, depth: Float, frameIndex: Int) {
-        self.id = UUID()
-        self.name = name
-        self.x = x
-        self.y = y
-        self.confidence = confidence
-        self.depth = depth
-        self.frameIndex = frameIndex
-        self.originalX = x
-        self.originalY = y
-    }
-    
-    var position: CGPoint {
-        return CGPoint(x: x, y: y)
-    }
-    
-    mutating func updatePosition(to newPosition: CGPoint) {
-        self.x = newPosition.x
-        self.y = newPosition.y
-    }
-    
-    mutating func resetPosition() {
-        self.x = originalX
-        self.y = originalY
-    }
-    
-    // Implement Equatable
-    static func == (lhs: KeypointData, rhs: KeypointData) -> Bool {
-        return lhs.id == rhs.id &&
-               lhs.name == rhs.name &&
-               lhs.x == rhs.x &&
-               lhs.y == rhs.y &&
-               lhs.confidence == rhs.confidence &&
-               lhs.depth == rhs.depth &&
-               lhs.frameIndex == rhs.frameIndex
-    }
-}
 
 // MARK: - Frame Update Publisher
-
-//class FrameUpdatePublisher {
-//    static let shared = FrameUpdatePublisher()
-//
-//    let publisher = PassthroughSubject<Int, Never>()
-//
-//    func notifyFrameChanged(frameIndex: Int) {
-//        publisher.send(frameIndex)
-//    }
-//}
 class FrameUpdatePublisher {
     static let shared = FrameUpdatePublisher()
     
@@ -1274,80 +565,15 @@ class FrameUpdatePublisher {
 }
 
 // Add this extension to fix the CGImage resize issue
-
-extension CGImage {
-    func resize(to size: CGSize) -> CGImage? {
-        let width = Int(size.width)
-        let height = Int(size.height)
-        
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
-        
-        guard let context = CGContext(
-            data: nil,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: width * 4,
-            space: colorSpace,
-            bitmapInfo: bitmapInfo.rawValue
-        ) else {
-            return nil
-        }
-        
-        // Draw the original image in the new size
-        context.draw(self, in: CGRect(x: 0, y: 0, width: width, height: height))
-        
-        return context.makeImage()
-    }
-    
-    func toRGBPixels() -> [UInt8]? {
-        let width = self.width
-        let height = self.height
-        
-        // Calculate bytes per row with 4 bytes per pixel (RGBA)
-        let bytesPerPixel = 4
-        let bytesPerRow = width * bytesPerPixel
-        
-        // Create buffer to hold pixel data
-        var buffer = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
-        
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
-        
-        // Create CGContext with buffer
-        guard let context = CGContext(
-            data: &buffer,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: bytesPerRow,
-            space: colorSpace,
-            bitmapInfo: bitmapInfo.rawValue
-        ) else {
-            return nil
-        }
-        
-        // Draw image into context
-        context.draw(self, in: CGRect(x: 0, y: 0, width: width, height: height))
-        
-        return buffer
-    }
-}
 extension VitPoseProcessor {
     func hasKeypoints(for frameIndex: Int) -> Bool {
         return keypointsByFrame[frameIndex] != nil && !keypointsByFrame[frameIndex]!.isEmpty
     }
-//
-//    func getKeypoints(for frameIndex: Int) -> [KeypointData]? {
-//        return keypointsByFrame[frameIndex]
-//    }
     
     func getTotalFrames() -> Int {
         return keypointsByFrame.keys.max() ?? 0
     }
     
-
     func loadKeypoints(from url: URL, completion: @escaping (Bool, Int, Error?) -> Void) {
         do {
             try importKeypoints(from: url)
@@ -1361,239 +587,41 @@ extension VitPoseProcessor {
     func setROI(_ rect: CGRect) {
             VitPoseProcessor.roiRect = rect
             print("ROI set for pose processor: \(rect)")
-        }
-        
-        func clearROI() {
-            VitPoseProcessor.roiRect = nil
-            print("ROI cleared from pose processor")
-        }
-        
-        // Method to crop image to ROI before processing
-        private func cropImageToROI(_ image: UIImage) -> (croppedImage: UIImage, roiOffset: CGPoint)? {
-            guard let roiRect = VitPoseProcessor.roiRect else { return (image, .zero) }
-            
-            guard let cgImage = image.cgImage else { return (image, .zero) }
-            
-            // Ensure ROI is within image bounds
-            let imageSize = CGSize(width: cgImage.width, height: cgImage.height)
-            let clampedROI = CGRect(
-                x: max(0, min(roiRect.origin.x, imageSize.width - 1)),
-                y: max(0, min(roiRect.origin.y, imageSize.height - 1)),
-                width: min(roiRect.width, imageSize.width - roiRect.origin.x),
-                height: min(roiRect.height, imageSize.height - roiRect.origin.y)
-            )
-            
-            // Crop the image
-            if let croppedCGImage = cgImage.cropping(to: clampedROI) {
-                let croppedImage = UIImage(cgImage: croppedCGImage)
-                let roiOffset = CGPoint(x: clampedROI.origin.x, y: clampedROI.origin.y)
-                return (croppedImage, roiOffset)
-            }
-            
-            return (image, .zero)
-        }
-        
-        // Override the existing processFrames method to handle ROI
-        func processFramesWithROI(
-            from cameraManager: CameraLiDARManager,
-            progress: @escaping (Double) -> Void,
-            completion: @escaping (Bool, Error?) -> Void
-        ) {
-            let totalFrames = cameraManager.totalFrames
-            guard totalFrames > 0 else {
-                DispatchQueue.main.async {
-                    completion(false, ProcessingError.noKeypointData("No frames available for processing"))
-                }
-                return
-            }
-            
-            print("Starting ROI-based pose detection on \(totalFrames) frames")
-            var processedFrames = 0
-            
-            DispatchQueue.global(qos: .userInitiated).async {
-                // Clear existing data
-                DispatchQueue.main.sync {
-                    self.clearAllData()
-                }
-                
-                // Process each frame
-                for frameIndex in 0..<totalFrames {
-                    // Get the frame
-                    var currentImage: UIImage?
-                    DispatchQueue.main.sync {
-                        currentImage = cameraManager.getFrame(at: frameIndex)
-                    }
-                    
-                    guard let originalImage = currentImage else {
-                        print("⚠️ Could not access frame \(frameIndex)")
-                        continue
-                    }
-                    
-                    do {
-                        // Crop to ROI if ROI is set, or use original image
-                        let (imageToProcess, roiOffset) = self.cropImageToROI(originalImage) ?? (originalImage, .zero)
-                        
-                        // Process the frame (either cropped or original)
-                        let result = try self.processImageWithoutDepth(colorImage: imageToProcess, frameIndex: frameIndex)
-                        
-                        // If we used ROI, adjust keypoint coordinates back to original image space
-                        if VitPoseProcessor.roiRect != nil {
-                            let adjustedKeypoints = result.keypoints.map { keypoint in
-                                KeypointData(
-                                    name: keypoint.name,
-                                    x: keypoint.x + roiOffset.x,
-                                    y: keypoint.y + roiOffset.y,
-                                    confidence: keypoint.confidence,
-                                    depth: keypoint.depth,
-                                    frameIndex: keypoint.frameIndex
-                                )
-                            }
-                            
-                            // Store adjusted keypoints
-                            DispatchQueue.main.sync {
-                                self.storeKeypoints(adjustedKeypoints, for: frameIndex)
-                            }
-                        }
-                        
-                        processedFrames += 1
-                        let progressValue = Double(processedFrames) / Double(totalFrames)
-                        
-                        // Report progress on main thread
-                        DispatchQueue.main.async {
-                            progress(progressValue)
-                        }
-                        
-                        // Print log updates at intervals
-                        if processedFrames % 10 == 0 || processedFrames == totalFrames {
-                            print("Processed \(processedFrames)/\(totalFrames) frames with ROI")
-                        }
-                        
-                    } catch {
-                        print("Error processing frame \(frameIndex): \(error)")
-                        DispatchQueue.main.async {
-                            completion(false, error)
-                        }
-                        return
-                    }
-                }
-                
-                print("✅ ROI-based pose detection complete. Processed \(processedFrames) frames.")
-                
-                // Complete on main thread
-                DispatchQueue.main.async {
-                    completion(true, nil)
-                }
-            }
-        }
-}
-
-
-// MARK: - Enhanced Error Handling and Recovery
-
-class ProcessingConfiguration {
-    static let shared = ProcessingConfiguration()
-    
-    // Configurable parameters for optimization
-    var batchSize: Int = 10 {
-        didSet {
-            print("Batch size updated to: \(batchSize)")
-        }
     }
-    
-    var maxCacheSize: Int = 50 {
-        didSet {
-            print("Max cache size updated to: \(maxCacheSize)")
-        }
+        
+    func clearROI() {
+        VitPoseProcessor.roiRect = nil
+        print("ROI cleared from pose processor")
     }
-    
-    var delayBetweenBatches: TimeInterval = 0.1 {
-        didSet {
-            print("Delay between batches updated to: \(delayBetweenBatches)s")
-        }
-    }
-    
-    var enableMemoryLogging: Bool = false
-    
-    private init() {}
-    
-    // Adjust parameters based on device capabilities
-    func optimizeForDevice() {
-        let processInfo = ProcessInfo.processInfo
-        let physicalMemory = processInfo.physicalMemory
-        let gigabytes = Double(physicalMemory) / (1024 * 1024 * 1024)
         
-        if gigabytes >= 8 {
-            // High-end device
-            batchSize = 15
-            maxCacheSize = 75
-            delayBetweenBatches = 0.05
-        } else if gigabytes >= 4 {
-            // Mid-range device
-            batchSize = 10
-            maxCacheSize = 50
-            delayBetweenBatches = 0.1
-        } else {
-            // Lower-end device
-            batchSize = 5
-            maxCacheSize = 25
-            delayBetweenBatches = 0.2
+    // Method to crop image to ROI before processing
+    private func cropImageToROI(_ image: UIImage) -> (croppedImage: UIImage, roiOffset: CGPoint)? {
+        guard let roiRect = VitPoseProcessor.roiRect else { return (image, .zero) }
+        
+        guard let cgImage = image.cgImage else { return (image, .zero) }
+        
+        // Ensure ROI is within image bounds
+        let imageSize = CGSize(width: cgImage.width, height: cgImage.height)
+        let clampedROI = CGRect(
+            x: max(0, min(roiRect.origin.x, imageSize.width - 1)),
+            y: max(0, min(roiRect.origin.y, imageSize.height - 1)),
+            width: min(roiRect.width, imageSize.width - roiRect.origin.x),
+            height: min(roiRect.height, imageSize.height - roiRect.origin.y)
+        )
+        
+        // Crop the image
+        if let croppedCGImage = cgImage.cropping(to: clampedROI) {
+            let croppedImage = UIImage(cgImage: croppedCGImage)
+            let roiOffset = CGPoint(x: clampedROI.origin.x, y: clampedROI.origin.y)
+            return (croppedImage, roiOffset)
         }
         
-        print("Optimized for device with \(String(format: "%.1f", gigabytes))GB RAM")
-        print("Batch size: \(batchSize), Cache size: \(maxCacheSize), Delay: \(delayBetweenBatches)s")
-    }
-}
-
-extension VitPoseProcessor {
-    
-    /// Monitor memory usage during processing
-    private func logMemoryUsage(context: String) {
-        guard ProcessingConfiguration.shared.enableMemoryLogging else { return }
-        
-        let task = mach_task_self_
-        var info = mach_task_basic_info()
-        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
-        
-        let kerr: kern_return_t = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-                task_info(task, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
-            }
-        }
-        
-        if kerr == KERN_SUCCESS {
-            let usedMemoryMB = Double(info.resident_size) / (1024 * 1024)
-            print("💾 Memory usage at \(context): \(String(format: "%.1f", usedMemoryMB))MB")
-        }
-    }
-    
-    /// Check if we should reduce batch size due to memory pressure
-    private func shouldReduceBatchSize() -> Bool {
-        // Check available memory
-        let task = mach_task_self_
-        var info = mach_task_basic_info()
-        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
-        
-        let kerr: kern_return_t = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-                task_info(task, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
-            }
-        }
-        
-        if kerr == KERN_SUCCESS {
-            let usedMemoryGB = Double(info.resident_size) / (1024 * 1024 * 1024)
-            let physicalMemoryGB = Double(ProcessInfo.processInfo.physicalMemory) / (1024 * 1024 * 1024)
-            let memoryUsageRatio = usedMemoryGB / physicalMemoryGB
-            
-            return memoryUsageRatio > 0.75 // Reduce batch size if using >75% memory
-        }
-        
-        return false
+        return (image, .zero)
     }
 }
 
 // MARK: - Optimized Frame Processing with Batch Management
 extension VitPoseProcessor {
-    
     /// Optimized frame processing with batch management and memory optimization
     func processFramesOptimized(
         from cameraManager: CameraLiDARManager,

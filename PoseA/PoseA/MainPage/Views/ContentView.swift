@@ -10,7 +10,6 @@ struct BESTGYMPoseApp: View {
     @StateObject private var appState = MainAppState()
     @StateObject private var ROIModel = ROIViewModel()
     
-
     // MARK: - Body
     var body: some View {
         ZStack {
@@ -27,7 +26,6 @@ struct BESTGYMPoseApp: View {
                                             ROIModel: ROIModel,
                                             cameraManager: cameraManager)
                             .frame(width: geometry.size.width / 2 - 10) // Half of screen minus spacing
-                            .padding()
                             
                             // Right half: Placeholder
                             VStack {
@@ -36,25 +34,50 @@ struct BESTGYMPoseApp: View {
                                     .fontWeight(.bold)
                             }
                             .frame(width: geometry.size.width / 2 - 10)
-                            .padding()
                         }
                         .frame(width: geometry.size.width, height: geometry.size.height)
+                        .padding(.top, 5)
                     }
                     .toolbar {
-                        // Left Toolbar: File Related Toolbar
+                        // Left Toolbar
+                        ToolbarItemGroup(placement: .topBarLeading) {
+                            Button {
+                                appState.isRecordMode.toggle()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: !appState.isRecordMode ? "record.circle" : "waveform")
+                                    Text(!appState.isRecordMode ? "Record Mode" : "Analyze Mode")
+                                }
+                            }
+                            .toolbarCapsuleStyle()
+                        }
+
+                        // Principal Toolbar
                         ToolbarItemGroup(placement: .topBarTrailing) {
-                            HStack {
+                            HStack(spacing: 6) {
+                                Button { print("ROI") } label: {
+                                    Label("ROI", systemImage: "crop")
+                                }
+                                Button { print("Annotate") } label: {
+                                    Label("Annotate", systemImage: "figure")
+                                }
+                                Button { print("Zoom") } label: {
+                                    Label("Zoom", systemImage: "plus.magnifyingglass")
+                                }
+                            }
+                            .toolbarCapsuleStyle()
+                        }
+
+                        // Right Toolbar
+                        ToolbarItemGroup(placement: .topBarTrailing) {
+                            HStack(spacing: 6) {
                                 if !appState.isRecordMode {
-                                    // Open File/Video Button
-                                    Button {
-                                        selectFileOrFolder()
-                                    } label: {
+                                    Button { selectFileOrFolder() } label: {
                                         Image(systemName: "folder")
                                     }
                                 }
-                                
+
                                 Menu {
-                                    // Analysis Mode actions
                                     Button { selectFileOrFolder() } label: {
                                         Label("Open File/Folder", systemImage: "folder")
                                     }
@@ -70,38 +93,11 @@ struct BESTGYMPoseApp: View {
                                     Button { selectKeypointFile() } label: {
                                         Label("Import Keypoints (.json)", systemImage: "square.and.arrow.down")
                                     }
-                                }label: {
+                                } label: {
                                     Label("Actions", systemImage: "ellipsis.circle")
                                 }
                             }
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 4)
-                            .background(Color(.systemGray5))
-                            .clipShape(Capsule())
-                        }
-                        
-                        // Right Toolbar: App Mode Toolbar
-                        ToolbarItemGroup(placement: .topBarLeading) {
-                            Button {
-                                // Toggle Mode
-                                appState.isRecordMode.toggle()
-                                //handleModeChange(isRecordMode: appState.isRecordMode)
-                            } label: {
-                                HStack(spacing: 6) {
-                                    // Icon changes based on mode
-                                    Image(systemName: appState.isRecordMode ? "record.circle" : "waveform")
-                                        .imageScale(.medium)
-
-                                    // Text label
-                                    Text(appState.isRecordMode ? "Record Mode" : "Analyze Mode")
-                                        .font(.caption)
-                                        .fontWeight(.light)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color(.systemGray5))
-                                .clipShape(Capsule())
-                            }
+                            .toolbarCapsuleStyle()
                         }
                     }
                 }
@@ -771,11 +767,6 @@ struct BESTGYMPoseApp: View {
             print("🧹 Cleaning up before folder selection...")
             cleanupPreviousData()
         }
-        // Then switch to analysis mode if needed
-        if appState.isRecordMode {
-            appState.isRecordMode = false
-            cameraManager.pauseStream()
-        }
         
         // Small delay to ensure cleanup completes
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -789,11 +780,6 @@ struct BESTGYMPoseApp: View {
                 print("🧹 Cleaning up before folder selection...")
                 cleanupPreviousData()
             }
-        // Then switch to analysis mode if needed
-        if appState.isRecordMode {
-            appState.isRecordMode = false
-            cameraManager.pauseStream()
-        }
         
         // Small delay to ensure cleanup completes
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -807,11 +793,6 @@ struct BESTGYMPoseApp: View {
                 print("🧹 Cleaning up before folder selection...")
                 cleanupPreviousData()
             }
-        // Then switch to analysis mode if needed
-        if appState.isRecordMode {
-            appState.isRecordMode = false
-            cameraManager.pauseStream()
-        }
         
         // Small delay to ensure cleanup completes
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -819,25 +800,17 @@ struct BESTGYMPoseApp: View {
         }
     }
     
-        private func selectKeypointFile() {
-            if appState.hasImportedKeypoints || appState.poseProcessor.getTotalFrames() > 0 {
-                    print("🧹 Cleaning up before folder selection...")
-                    cleanupPreviousData()
-                }
-                        
-            // Then switch to analysis mode if needed
-            if appState.isRecordMode {
-                appState.isRecordMode = false
-                cameraManager.pauseStream()
+    private func selectKeypointFile() {
+        if appState.hasImportedKeypoints || appState.poseProcessor.getTotalFrames() > 0 {
+                print("🧹 Cleaning up before folder selection...")
+                cleanupPreviousData()
             }
-            
-            // Small delay to ensure cleanup completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                self.appState.isKeypointImportPresented = true
-            }
-//            switchToAnalysisMode()
-       
+        
+        // Small delay to ensure cleanup completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.appState.isKeypointImportPresented = true
         }
+    }
     
     // Replace the exportKeypointsToJSON method in BESTGYMPoseApp.swift
     private func exportKeypointsToJSON() {
@@ -1164,7 +1137,6 @@ struct BESTGYMPoseApp: View {
             self.cameraManager.currentFrameImage = nil
             
             // Debug print to verify cleanup
-            self.cameraManager.debugPrintState()
             self.appState.poseProcessor.debugPrintState()
         }
         

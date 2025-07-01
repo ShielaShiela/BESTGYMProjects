@@ -13,21 +13,6 @@ struct ErrorWrapper: Identifiable {
     let error: String
 }
 
-// MARK: Video Variables
-struct VideoFormat {
-    let width: Int
-    let height: Int
-    let fps: Int
-}
-
-struct VideoSettings {
-    var selectedFormat: VideoFormat
-    
-    static let defaultSettings = VideoSettings(
-        selectedFormat: VideoFormat(width: 1920, height: 1080, fps: 30)
-    )
-}
-
 // MARK: RecordingMetadata.json Structure
 struct RecordingMetadata: Codable {
     let personName: String

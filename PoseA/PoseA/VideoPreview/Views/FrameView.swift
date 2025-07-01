@@ -11,11 +11,25 @@ import SwiftUI
 struct FrameView: View {
     let image: UIImage?
     let keypoints: [KeypointData]?
-    let isAnnotationMode: Bool
     let rotation: Int
     @ObservedObject var appState: MainAppState
     @ObservedObject var ROIModel: ROIViewModel
-    @Binding var selectedKeypointIndex: Int?
+    
+    // New Feature
+    @State private var isDataLoading = false
+
+    // MARK: - Init
+    init(image: UIImage?,
+         keypoints: [KeypointData]?,
+         rotation: Int,
+         appState: MainAppState,
+         ROIModel: ROIViewModel) {
+        self.image = image
+        self.keypoints = keypoints
+        self.rotation = rotation
+        self.appState = appState
+        self.ROIModel = ROIModel
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -54,9 +68,7 @@ struct FrameView: View {
                         keypoints: keypoints,
                         containerSize: geometry.size,
                         imageSize: image?.size ?? CGSize(width: 1920, height: 1440),
-                        rotation: rotation,
-                        isAnnotationMode: isAnnotationMode,
-                        selectedKeypointIndex: $selectedKeypointIndex
+                        rotation: rotation
                     )
                 }
             }

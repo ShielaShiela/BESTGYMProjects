@@ -15,24 +15,16 @@ func angleBetween(_ a: KeypointData, _ b: KeypointData, _ c: KeypointData) -> Fl
     let ab = CGVector(dx: a.x - b.x, dy: a.y - b.y)
     let cb = CGVector(dx: c.x - b.x, dy: c.y - b.y)
 
-    let dotProduct = ab.dx * cb.dx + ab.dy * cb.dy
-    let magnitudeAB = sqrt(ab.dx * ab.dx + ab.dy * ab.dy)
-    let magnitudeCB = sqrt(cb.dx * cb.dx + cb.dy * cb.dy)
+    let dot = ab.dx * cb.dx + ab.dy * cb.dy
+    let cross = ab.dx * cb.dy - ab.dy * cb.dx
 
-    let cosineAngle = dotProduct / (magnitudeAB * magnitudeCB)
-    let angleInRadians = acos(max(min(cosineAngle, 1.0), -1.0))
-    return Float(angleInRadians * 180 / .pi)  // Convert to degrees
-}
+    var angle = atan2(cross, dot) * 180 / .pi // [-180, 180]
 
-func wrapAngle(_ angle: Double) -> Double {
-    var result = angle
-    while result >= 180 {
-        result -= 360
+    if angle < 0 {
+        angle += 360 // Wrap to [0, 360]
     }
-    while result < -180 {
-        result += 360
-    }
-    return result
+
+    return Float(angle)
 }
 
 func transformPoint(x: CGFloat, y: CGFloat, containerSize: CGSize, imageSize: CGSize, rotation: Int) -> CGPoint {

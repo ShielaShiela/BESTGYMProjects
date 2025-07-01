@@ -12,11 +12,12 @@ struct PoseGraphView: View {
     let analysisType: PoseAnalysisView.AnalysisType
     let selectedJoints: [String]
     @ObservedObject var chartBuilderViewModel: ChartBuilderVM
+    @ObservedObject var swingAnalysisViewModel: SwingDataVM
     
     // Body View
     var body: some View {
         VStack {
-            if selectedJoints.isEmpty {
+            if selectedJoints.isEmpty && analysisType != .swingMotion {
                 Text("Select Joints to Analyze")
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: 500)
@@ -30,7 +31,7 @@ struct PoseGraphView: View {
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity, maxHeight: 500)
                     } else {
-                        ChartsView(
+                        Charts2DView(
                             chartData: chartBuilderViewModel.angleData,
                             yAxisUnit: "°"
                         )
@@ -43,9 +44,9 @@ struct PoseGraphView: View {
                         Spacer()
                     }
                     
-                case .trajectories:
+                case .trajectories2D:
                     // Chart View
-                    ChartsView(
+                    Charts2DView(
                         chartData: chartBuilderViewModel.positionData,
                         yAxisUnit: "cm"
                     )
@@ -56,14 +57,27 @@ struct PoseGraphView: View {
                     ChartsLegendView(chartData: chartBuilderViewModel.positionData)
                     
                     Spacer()
+
+                case .swingMotion:
+                    // Chart View
+                    ChartsPoseView(
+                        chartData: chartBuilderViewModel.positionData,
+                        BarPoint: swingAnalysisViewModel.barPosition
+                    )
+                    
+                    // Chart View
+                    Charts2DView(
+                        chartData: swingAnalysisViewModel.swingAngleData,
+                        yAxisUnit: "rad"
+                    )
                     
                 case .velocities:
                     // Double Chart View
-                    ChartsView(
+                    Charts2DView(
                         chartData: chartBuilderViewModel.velocityData.x,
                         yAxisUnit: "m/s"
                     )
-                    ChartsView(
+                    Charts2DView(
                         chartData: chartBuilderViewModel.velocityData.y,
                         yAxisUnit: "m/s"
                     )
@@ -77,11 +91,11 @@ struct PoseGraphView: View {
                     
                 case .accelerations:
                     // Double Chart View
-                    ChartsView(
+                    Charts2DView(
                         chartData: chartBuilderViewModel.accelerationData.x,
                         yAxisUnit: "m/s2"
                     )
-                    ChartsView(
+                    Charts2DView(
                         chartData: chartBuilderViewModel.accelerationData.y,
                         yAxisUnit: "m/s2"
                     )
@@ -92,12 +106,6 @@ struct PoseGraphView: View {
                     ChartsLegendView(chartData: chartBuilderViewModel.accelerationData.x)
                     
                     Spacer()
-                    
-                case .comparison:
-                    Text("Comparison with Reference Motion")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(8)
                 }
             }
         }

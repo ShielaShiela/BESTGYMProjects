@@ -12,6 +12,7 @@ struct PoseMetricsView: View {
     let analysisType: PoseAnalysisView.AnalysisType
     let selectedJoints: [String]
     @ObservedObject var chartBuilderViewModel: ChartBuilderVM
+    @ObservedObject var swingAnalysisViewModel: SwingDataVM
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -19,6 +20,47 @@ struct PoseMetricsView: View {
                 Text("Metrics")
                     .font(.headline)
             }
+            
+            if analysisType == .swingMotion {
+                VStack {
+                    HStack {
+                        Text("Turn Attempts: ")
+                            .font(.system(.body, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                        
+                        Spacer()
+                        
+                        Text("\(String(format: "%.1f", swingAnalysisViewModel.swingTurns))")
+                            .font(.system(.body, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                    
+                    HStack {
+                        Text("Max Perfect Turns: ")
+                            .font(.system(.body, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                        
+                        Spacer()
+                        
+                        Text("\(Int(floor(swingAnalysisViewModel.swingTurns)))")
+                            .font(.system(.body, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                }
+            }
+            
             ForEach(selectedJoints, id: \.self) { joint in
                 if (analysisType == .jointAngles && (joint == "L Ankle" || joint == "R Ankle" || joint == "L Wrist" || joint == "R Wrist")) {
                     EmptyView()
@@ -39,7 +81,7 @@ struct PoseMetricsView: View {
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.5)
                         
-                        case .trajectories:
+                        case .trajectories2D:
                             VStack {
                                 Text("X -> Min: \(String(format: "%.1f", dataMetrics.minX))cm Max: \(String(format: "%.1f", dataMetrics.maxX))cm")
                                     .font(.system(.body, design: .monospaced))
@@ -51,6 +93,9 @@ struct PoseMetricsView: View {
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.5)
                             }
+
+                        case .swingMotion:
+                            EmptyView()
                             
                         case .velocities:
                             VStack {
@@ -76,9 +121,6 @@ struct PoseMetricsView: View {
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.3)
                             }
-                        case .comparison:
-                            Text("Diff: \(String(format: "%.1f", Double.random(in: 0...15)))%")
-                                .font(.system(.body, design: .monospaced))
                         }
                     }
                     .padding(.vertical, 4)
@@ -94,14 +136,14 @@ struct PoseMetricsView: View {
         switch analysisType {
         case .jointAngles:
             return chartBuilderViewModel.fetchJointMetrics(joint: joint, using: chartBuilderViewModel.angleData)
-        case .trajectories:
+        case .trajectories2D:
+            return chartBuilderViewModel.fetchJointMetrics(joint: joint, using: chartBuilderViewModel.positionData)
+        case .swingMotion:
             return chartBuilderViewModel.fetchJointMetrics(joint: joint, using: chartBuilderViewModel.positionData)
         case .velocities:
             return chartBuilderViewModel.fetchJointMetrics(joint: joint, using: chartBuilderViewModel.velocityData.x)
         case .accelerations:
             return chartBuilderViewModel.fetchJointMetrics(joint: joint, using: chartBuilderViewModel.accelerationData.x)
-        case .comparison:
-            return dataMetrics()
         }
     }
 }

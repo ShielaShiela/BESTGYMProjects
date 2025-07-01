@@ -24,7 +24,7 @@ class FrameDataModel: NSObject{
     init(depth: MTLTexture? = nil,
          colorY: MTLTexture? = nil,
          colorCbCr: MTLTexture? = nil,
-         cameraIntrinsics: matrix_float3x3 = matrix_float3x3(),
+         cameraIntrinsics: matrix_float3x3 = matrix_identity_float3x3,
          cameraReferenceDimensions: CGSize = .zero,
          depthCenter: Float16 = 0,
          originalDepth: AVDepthData? = nil,

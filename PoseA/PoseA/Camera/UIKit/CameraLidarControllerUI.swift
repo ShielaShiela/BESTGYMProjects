@@ -24,8 +24,8 @@ import Metal
 import os.log
 
 protocol CaptureDataReceiver: AnyObject {
-    func onNewData(capturedData: CameraCapturedData)
-    func onNewPhotoData(capturedData: CameraCapturedData)
+    func onNewData(capturedData: FrameDataModel)
+    func onNewPhotoData(capturedData: FrameDataModel)
 }
 
 class CameraLiDARDepthControllerUI: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -160,7 +160,6 @@ class CameraLiDARDepthControllerUI: NSObject, ObservableObject, AVCaptureVideoDa
         
         // Create an object to output video sample buffers.
         videoDataOutput = AVCaptureVideoDataOutput()
-//        captureSession.addOutput(videoDataOutput)
         
         if captureSession.canAddOutput(videoDataOutput) {
             captureSession.addOutput(videoDataOutput)
@@ -309,8 +308,6 @@ extension CameraLiDARDepthControllerUI: AVCaptureDataOutputSynchronizerDelegate 
         guard hasLiDARSupport,
               let syncedDepthData = synchronizedDataCollection.synchronizedData(for: depthDataOutput!) as? AVCaptureSynchronizedDepthData,
               let syncedVideoData = synchronizedDataCollection.synchronizedData(for: videoDataOutput) as? AVCaptureSynchronizedSampleBufferData else { return }
-//        print("Received data from synchronizer")
-        
         
         guard let pixelBuffer = syncedVideoData.sampleBuffer.imageBuffer,
               let cameraCalibrationData = syncedDepthData.depthData.cameraCalibrationData else { return }
@@ -321,7 +318,7 @@ extension CameraLiDARDepthControllerUI: AVCaptureDataOutputSynchronizerDelegate 
        let convertedDepth = syncedDepthData.depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat16)
        
        // Package the captured data.
-       let data = CameraCapturedData(depth: convertedDepth.depthDataMap.texture(withFormat: .r16Float, planeIndex: 0, addToCache: textureCache),
+       let data = FrameDataModel(depth: convertedDepth.depthDataMap.texture(withFormat: .r16Float, planeIndex: 0, addToCache: textureCache),
                                      colorY: pixelBuffer.texture(withFormat: .r8Unorm, planeIndex: 0, addToCache: textureCache),
                                      colorCbCr: pixelBuffer.texture(withFormat: .rg8Unorm, planeIndex: 1, addToCache: textureCache),
                                      cameraIntrinsics: cameraCalibrationData.intrinsicMatrix,
@@ -480,7 +477,7 @@ extension CameraLiDARDepthControllerUI: AVCapturePhotoCaptureDelegate {
         CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: 0))
          
         // Package the captured data.
-        let data = CameraCapturedData(depth: convertedDepth.depthDataMap.texture(withFormat: .r16Float, planeIndex: 0, addToCache: textureCache),
+        let data = FrameDataModel(depth: convertedDepth.depthDataMap.texture(withFormat: .r16Float, planeIndex: 0, addToCache: textureCache),
                                       colorY: pixelBuffer.texture(withFormat: .r8Unorm, planeIndex: 0, addToCache: textureCache),
                                       colorCbCr: pixelBuffer.texture(withFormat: .rg8Unorm, planeIndex: 1, addToCache: textureCache),
                                       cameraIntrinsics: cameraCalibrationData.intrinsicMatrix,
@@ -490,7 +487,6 @@ extension CameraLiDARDepthControllerUI: AVCapturePhotoCaptureDelegate {
                                       colorImage: colorImage)
         
         delegate?.onNewPhotoData(capturedData: data)
-        //detectCaptureContours(photo, depthData: depthData)
     }
     
     

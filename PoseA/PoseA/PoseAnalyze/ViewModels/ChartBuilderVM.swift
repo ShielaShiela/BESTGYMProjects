@@ -11,6 +11,7 @@ import SwiftUI
 class ChartBuilderVM: ObservableObject {
     @Published private(set) var angleData: [JointData] = []
     @Published private(set) var positionData: [JointData] = []
+    @Published private(set) var positionDataFrames: [JointData] = []
     @Published private(set) var velocityData: (x: [JointData], y: [JointData]) = ([], [])
     @Published private(set) var accelerationData: (x: [JointData], y: [JointData]) = ([], [])
     
@@ -36,7 +37,9 @@ class ChartBuilderVM: ObservableObject {
             switch type {
             case .jointAngles:
                 self.angleData.removeAll { joints.contains($0.joint) }
-            case .trajectories:
+            case .trajectories2D:
+                self.positionData.removeAll { joints.contains($0.joint) }
+            case .swingMotion:
                 self.positionData.removeAll { joints.contains($0.joint) }
             case .velocities:
                 self.velocityData.x.removeAll { joints.contains($0.joint) }
@@ -44,8 +47,6 @@ class ChartBuilderVM: ObservableObject {
             case .accelerations:
                 self.accelerationData.x.removeAll { joints.contains($0.joint) }
                 self.accelerationData.y.removeAll { joints.contains($0.joint) }
-            case .comparison:
-                break
             }
         }
     }
@@ -78,7 +79,7 @@ class ChartBuilderVM: ObservableObject {
         }
     }
 
-    func buildPositionData(joints: [String], completion: @escaping () -> Void) {
+    func buildPositionData(joints: [String], useDepth: Bool, completion: @escaping () -> Void) {
         processingQueue.async { [weak self] in
             guard let self = self else { return }
             var newData: [JointData] = []
@@ -87,12 +88,12 @@ class ChartBuilderVM: ObservableObject {
             for joint in joints {
                 group.enter()
                 DispatchQueue.main.async {
-                    self.poseJointViewModel.fetchPositionData(for: joint) { JointData in
+                    self.poseJointViewModel.fetchPositionData(for: joint, useDepth: useDepth) { JointData in
                         if !JointData.dataPoints.isEmpty {
                             newData.append(JointData)
                         }
+                        group.leave()
                     }
-                    group.leave()
                 }
             }
 
@@ -102,8 +103,7 @@ class ChartBuilderVM: ObservableObject {
             }
         }
     }
-
-
+    
     func buildVelocityData(joints: [String], completion: @escaping () -> Void) {
         processingQueue.async { [weak self] in
             guard let self = self else { return }
@@ -171,5 +171,26 @@ class ChartBuilderVM: ObservableObject {
         }
         return dataMetrics()
     }
+    
+    func convertToFrames(jointDataList: [JointData]) -> [[String: xyzChartData]] {
+        // 1. Determine frame count from longest joint sequence
+        guard let maxCount = jointDataList.map({ $0.dataPoints.count }).max(), maxCount > 0 else {
+            print("No valid data points.")
+            return []
+        }
+
+        // 2. Initialize empty frame array
+        var frames: [[String: xyzChartData]] = Array(repeating: [:], count: maxCount)
+
+        // 3. Populate each frame with joint position (if available)
+        for jointData in jointDataList {
+            for (i, point) in jointData.dataPoints.enumerated() {
+                frames[i][jointData.joint] = point
+            }
+        }
+
+        return frames
+    }
+
 }
 

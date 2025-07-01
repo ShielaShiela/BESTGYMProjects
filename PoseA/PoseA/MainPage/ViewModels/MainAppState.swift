@@ -18,13 +18,13 @@ class MainAppState: ObservableObject {
     @Published var isVideoSource = false
     @Published var hasImportedKeypoints = false
     @Published var isRecordMode = false
-
+    
     // Pickers Status
     @Published var isFilePickerPresented = false
     @Published var isVideoPickerPresented = false
     @Published var isPhotoLibraryPresented = false
     @Published var isKeypointImportPresented = false
-
+    
     // View Status
     @Published var showAnalysisView = false
     @Published var showSettingsView = false
@@ -43,25 +43,27 @@ class MainAppState: ObservableObject {
     @Published var sourceURL: URL? = nil
     @Published var originalKeypointFileURL: URL? = nil
     @Published var recordingDate: Date? = nil
-
+    
     // Pose processing
     let poseProcessor = VitPoseProcessor()
-
+    
     // Editing state
     @Published var didEditKeypoints = false
     @Published var selectedKeypointIndex: Int? = nil
-
+    
     @Published var athleteName: String = "Test"
     @Published var actionType: String = "Test"
     @Published var distanceValue: String? = "Test"
     @Published var videoSettings = VideoSettings.defaultSettings
-
+    
     // LiDAR toggle state
     @Published var useLiDAR: Bool = false
     @Published var imageRotation: Int = 0
-
-    @Published var autoDetectKeypoints: Bool = false
     
+    @Published var autoDetectKeypoints: Bool = false
+}
+
+extension MainAppState {
     func resetFileAndKeypointState() {
         
         print("🔄 Resetting file and keypoint state...")

@@ -23,18 +23,10 @@ final class FrameDataCache {
         }
         
         // Load and cache
-        let frameLoader = CameraCapturedData()
-        try frameLoader.load(from: frameDir, device: device)
+        let frameLoader = FrameDataVM()
+        frameLoader.loadData(from: frameDir, device: device)
         
-        let model = FrameDataModel(
-            depth: frameLoader.depth,
-            colorY: frameLoader.colorY,
-            colorCbCr: frameLoader.colorCbCr,
-            cameraIntrinsics: frameLoader.cameraIntrinsics,
-            cameraReferenceDimensions: frameLoader.cameraReferenceDimensions,
-            depthCenter: frameLoader.depthCenter,
-            colorImage: frameLoader.colorImage
-        )
+        let model = frameLoader.database
         
         cache.setObject(model, forKey: NSNumber(value: index))
         return model
@@ -46,14 +38,10 @@ final class FrameDataCache {
         }
         
         // Load and cache
-        let frameLoader = CameraCapturedData()
-        try frameLoader.loadMetadata(from: frameDir)
+        let frameLoader = FrameDataVM()
+        frameLoader.loadMetadata(from: frameDir.appendingPathComponent("metadata.plist"))
         
-        let model = FrameDataModel(
-            cameraIntrinsics: frameLoader.cameraIntrinsics,
-            cameraReferenceDimensions: frameLoader.cameraReferenceDimensions,
-            depthCenter: frameLoader.depthCenter
-        )
+        let model = frameLoader.database
         
         cache.setObject(model, forKey: NSNumber(value: index))
         return model
@@ -64,14 +52,6 @@ final class FrameDataCache {
 // MARK: ----------------------------- Pose Joint Dataase Class BEGIN -----------------------------
 
 class PoseJointVM: ObservableObject {
-    // Published Joint Data
-    @Published private(set) var positionData: JointData = .init(joint: "", dataPoints: [], dataMetrics: dataMetrics())
-    @Published private(set) var angleData: JointData = .init(joint: "", dataPoints: [], dataMetrics: dataMetrics())
-    @Published private(set) var velocityDataX: JointData = .init(joint: "", dataPoints: [], dataMetrics: dataMetrics())
-    @Published private(set) var velocityDataY: JointData = .init(joint: "", dataPoints: [], dataMetrics: dataMetrics())
-    @Published private(set) var accelerationDataX: JointData = .init(joint: "", dataPoints: [], dataMetrics: dataMetrics())
-    @Published private(set) var accelerationDataY: JointData = .init(joint: "", dataPoints: [], dataMetrics: dataMetrics())
-
     private let poseProcessor: VitPoseProcessor
     private let cameraManager: CameraLiDARManager
     private let fps: Float = 30.0
@@ -80,6 +60,17 @@ class PoseJointVM: ObservableObject {
     var totalFrames: Int {
         poseProcessor.getTotalFrames()
     }
+    
+    let jointAngleLimits: [String: ClosedRange<Float>] = [
+        "L Elbow": 30...180,
+        "R Elbow": 30...180,
+        "L Knee": 40...180,
+        "R Knee": 40...180,
+        "L Shoulder": 20...240,
+        "R Shoulder": 20...240,
+        "L Hip": 45...250,
+        "R Hip": 45...250
+    ]
     
     init(poseProcessor: VitPoseProcessor, cameraManager: CameraLiDARManager) {
         self.poseProcessor = poseProcessor
@@ -90,78 +81,12 @@ class PoseJointVM: ObservableObject {
         let frameDir = cameraManager._lidarFrameURLs[frameIndex]
         
         do {
-            let device = MTLCreateSystemDefaultDevice()!
             let frameData = try FrameDataCache.shared.getMetadata(at: frameIndex, from: frameDir)
             return frameData
         } catch {
             log("Error fetching frame data at frame \(frameIndex): \(error)")
             return nil
         }
-    }
-    
-    func averageDepth(at imagePoint: CGPoint, from: FrameDataModel, patchSize: Int = 7) -> Float? {
-        guard let depthTexture = from.depth else { return nil }
-
-        let depthWidth = depthTexture.width
-        let depthHeight = depthTexture.height
-        let imageSize = from.colorImage?.size ?? CGSize(width: depthWidth, height: depthHeight)
-
-        let scaleX = CGFloat(depthWidth) / imageSize.width
-        let scaleY = CGFloat(depthHeight) / imageSize.height
-
-        let centerX = Int(imagePoint.x * scaleX)
-        let centerY = Int(imagePoint.y * scaleY)
-
-        var total: Float = 0
-        var count: Int = 0
-
-        for dy in -patchSize...patchSize {
-            for dx in -patchSize...patchSize {
-                let x = centerX + dx
-                let y = centerY + dy
-
-                if x < 0 || x >= depthWidth || y < 0 || y >= depthHeight { continue }
-
-                var depthValue: Float16 = 0.0
-                let region = MTLRegionMake2D(x, y, 1, 1)
-                depthTexture.getBytes(&depthValue, bytesPerRow: MemoryLayout<Float16>.size, from: region, mipmapLevel: 0)
-
-                let value = Float(depthValue)
-                if value > 0.1 && value < 20 {  // filter out NaNs and noise
-                    total += value
-                    count += 1
-                }
-            }
-        }
-
-        return count > 0 ? total / Float(count) : nil
-    }
-
-    func getDepth(at imagePoint: CGPoint, from: FrameDataModel) -> Float? {
-        guard let depthTexture = from.depth else {
-            return nil
-        }
-
-        assert(depthTexture.pixelFormat == .r16Float, "Expected r16Float pixel format")
-
-        let depthWidth = depthTexture.width
-        let depthHeight = depthTexture.height
-        let imageSize = from.colorImage?.size ?? CGSize(width: depthWidth, height: depthHeight)
-
-        // Map image point to depth coordinates
-        let depthX = Int(imagePoint.x / imageSize.width * CGFloat(depthWidth))
-        let depthY = Int(imagePoint.y / imageSize.height * CGFloat(depthHeight))
-
-        guard depthX >= 0, depthX < depthWidth, depthY >= 0, depthY < depthHeight else {
-            return nil
-        }
-
-        var depthValue = Float16(0)
-        let region = MTLRegionMake2D(depthX, depthY, 1, 1)
-
-        depthTexture.getBytes(&depthValue, bytesPerRow: 0, from: region, mipmapLevel: 0)
-
-        return Float(depthValue)
     }
     
     func getCameraSpacePose(at: [KeypointData], joints: Int, indices: Int) -> SIMD3<Float>?{
@@ -183,26 +108,31 @@ class PoseJointVM: ObservableObject {
         return SIMD3<Float>(pointX, pointY, pointZ)
     }
     
-    func fetchPositionData(for joint: String, completion: @escaping (JointData) -> Void) {
+    func fetchPositionData(for joint: String, useDepth: Bool, completion: @escaping (JointData) -> Void) {
         var data: [xyzChartData] = []
         var _dataMetrics: dataMetrics = .init()
         
         processingQueue.sync { [weak self] in
             guard let self = self else { return }
-            
+
             for i in 0..<self.totalFrames {
                 guard let keypoints = self.poseProcessor.getKeypoints(for: i), keypoints.count == 17 else {
                     log("No keypoint found at frame \(i)", level: .warn)
                     continue
                 }
                 let index = self.jointIndex(for: joint)
-//                let kp = keypoints[index]
+                let kp = keypoints[index]
                 
-                guard let _points = self.getCameraSpacePose(at: keypoints, joints: index, indices: i) else {
-                    continue
+                if useDepth {
+                    guard let _points = self.getCameraSpacePose(at: keypoints, joints: index, indices: i) else {
+                        continue
+                    }
+                    // Convert to Centimeter
+                    data.append(xyzChartData(x: _points.x * 100, y: _points.y * 100, z: _points.z * 100))
+                } else {
+                    data.append(xyzChartData(x: Float(kp.x), y: Float(kp.y), z: Float(kp.depth)))
+
                 }
-                // Convert to Centimeter
-                data.append(xyzChartData(x: _points.x * 100, y: _points.y * 100, z: _points.z * 100))
             }
             
             // Compute Metrics Value
@@ -210,12 +140,13 @@ class PoseJointVM: ObservableObject {
                 minX: data.map { $0.x }.min() ?? 0.0,
                 maxX: data.map { $0.x }.max() ?? 0.0,
                 minY: data.map { $0.y }.min() ?? 0.0,
-                maxY: data.map { $0.y }.max() ?? 0.0
+                maxY: data.map { $0.y }.max() ?? 0.0,
+                minZ: data.map { $0.z }.min() ?? 0.0,
+                maxZ: data.map { $0.z }.max() ?? 0.0
             )
         }
         
-        DispatchQueue.main.async { [self] in
-            self.positionData = JointData(joint: joint, dataPoints: data, dataMetrics: _dataMetrics)
+        DispatchQueue.main.async {
             completion(JointData(joint: joint, dataPoints: data, dataMetrics: _dataMetrics))
         }
     }
@@ -223,29 +154,48 @@ class PoseJointVM: ObservableObject {
     func fetchAngleData(for joint: String, completion: @escaping (JointData) -> Void) {
         processingQueue.sync { [weak self] in
             guard let self = self else { return }
+            let filter = Kalman1DAngleFilter(dt: 1.0 / fps)
             var data: [xyzChartData] = []
-            
+
+            var initialized = false
+
             for i in 0..<self.totalFrames {
-                guard let keypoints = self.poseProcessor.getKeypoints(for: i), keypoints.count == 17 else {
-                    log("No keypoint found at frame \(i)", level: .warn)
-                    continue
+                let keypoints = self.poseProcessor.getKeypoints(for: i)
+                var angle: Float? = nil
+
+                if let kp = keypoints, kp.count == 17 {
+                    let rawAngle = self.calculateAngle(for: joint, keypoints: kp)
+                    let range = jointAngleLimits[joint] ?? 0...360
+                    if range.contains(rawAngle) {
+                        angle = rawAngle
+                    }
                 }
-                let angle = self.calculateAngle(for: joint, keypoints: keypoints)
-                data.append(xyzChartData(x: i, y: angle, z: 0.0))
+
+                // Initialize filter with first valid measurement
+                if !initialized, let angle = angle {
+                    filter.reset(angle: angle)
+                    initialized = true
+                }
+
+                // Feed into Kalman filter
+                let filtered = filter.update(measurement: initialized ? angle : nil)
+                if initialized {
+                    data.append(xyzChartData(x: i, y: filtered, z: 0.0))
+                }
             }
-            
+
             // Compute Metrics Value
             let dataMetrics = dataMetrics(
                 minY: data.map { $0.y }.min() ?? 0.0,
                 maxY: data.map { $0.y }.max() ?? 0.0
             )
-            
-            DispatchQueue.main.async { [self] in
-                self.angleData = JointData(joint: joint, dataPoints: data, dataMetrics: dataMetrics)
+
+            DispatchQueue.main.async {
                 completion(JointData(joint: joint, dataPoints: data, dataMetrics: dataMetrics))
             }
         }
     }
+
 
     func fetchVelocityData(for joint: String, completion: @escaping (JointData, JointData) -> Void) {
         processingQueue.sync { [weak self] in
@@ -285,10 +235,9 @@ class PoseJointVM: ObservableObject {
                 maxY: dataY.map { $0.y }.max() ?? 0.0
             )
             
-            DispatchQueue.main.async { [self] in
-                self.velocityDataX = JointData(joint: joint, dataPoints: dataX, dataMetrics: dataMetrics)
-                self.velocityDataY = JointData(joint: joint, dataPoints: dataY, dataMetrics: dataMetrics)
-                completion(self.velocityDataX, self.velocityDataY)
+            DispatchQueue.main.async {
+                completion(JointData(joint: joint, dataPoints: dataX, dataMetrics: dataMetrics),
+                           JointData(joint: joint, dataPoints: dataY, dataMetrics: dataMetrics))
             }
         }
     }
@@ -378,10 +327,9 @@ class PoseJointVM: ObservableObject {
                 maxY: dataY.map { $0.y }.max() ?? 0.0
             )
             
-            DispatchQueue.main.async { [self] in
-                self.accelerationDataX = JointData(joint: joint, dataPoints: dataX, dataMetrics: dataMetrics)
-                self.accelerationDataY = JointData(joint: joint, dataPoints: dataY, dataMetrics: dataMetrics)
-                completion(self.accelerationDataX, self.accelerationDataY)
+            DispatchQueue.main.async {
+                completion(JointData(joint: joint, dataPoints: dataX, dataMetrics: dataMetrics),
+                           JointData(joint: joint, dataPoints: dataY, dataMetrics: dataMetrics))
             }
         }
     }

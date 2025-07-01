@@ -11,22 +11,33 @@ import Charts
 // TODO: SIMPLIFIED THE STRUCTURE WITHOUT KNTL
 
 // Joint Angle Graph
-struct ChartsView: View {
+struct ChartsPoseView: View {
     // Define Variable
     let chartData: [JointData]
+    let BarPoint: [PointData]
     let yAxisUnit: String
     
     @State private var baseXScale: ClosedRange<Double> = 0...0
     @State private var baseYScale: ClosedRange<Double> = 0...190
     
-    init(chartData: [JointData], yAxisUnit: String = "") {
+    init(chartData: [JointData], BarPoint: [PointData], yAxisUnit: String = "") {
         self.chartData = chartData
+        self.BarPoint = BarPoint
         self.yAxisUnit = yAxisUnit
     }
     
     var body: some View {
         VStack(spacing: 0) {
             Chart {
+                ForEach(BarPoint) { point in
+                    PointMark(
+                        x: .value("Bar_X", point.x),
+                        y: .value("Bar_Y", point.y)
+                    )
+                    .foregroundStyle(.green)
+                    .symbolSize(200)
+                }
+
                 ForEach(chartData, id: \.joint) { jointData in
                     ForEach(jointData.dataPoints) { point in
                         LineMark(

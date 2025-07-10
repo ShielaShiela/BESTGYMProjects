@@ -1,0 +1,2877 @@
+//
+//  CameraLiDARManager.swift
+//  DataCaptureTest
+//
+//  Created by Shiela Cabahug on 2024/7/4.
+//
+
+import Foundation
+import SwiftUI
+import Combine
+import simd
+import AVFoundation
+import Photos
+import Metal
+import MetalKit
+import CoreGraphics
+
+
+private enum DataType {
+    case none
+    case video           // Regular video file
+    case videoFromFolder // Video loaded from folder
+    case lidarFrames     // LiDAR frame directories
+    case lidarDepthData  // Direct LiDAR depth data
+}
+
+class CameraLiDARManager: ObservableObject, CaptureDataReceiver {
+    
+    var filter = true
+    var capturedData: CameraCapturedData
+    @Published var isFilteringDepth: Bool {
+        didSet {
+            controller.isFilteringEnabled = isFilteringDepth
+            filter = isFilteringDepth
+        }
+    }
+    
+    @Published var isLiveCapture: Bool = true {
+        didSet {
+            if isLiveCapture {
+                resumeStream()
+            } else {
+                controller.stopStream()
+            }
+        }
+    }
+        
+        
+    @Published var orientation = UIDevice.current.orientation
+    @Published var waitingForCapture = false
+    @Published var processingCapturedResult = false
+    @Published var dataAvailable = false
+    @Published var isDataLoaded = false
+    
+    @Published var isRecording = false
+    
+    @Published var tappedPoint: CGPoint?
+    @Published var depthValue: Float?
+    @Published var depthAtTappedPoint: Float16?
+    
+    @Published var currentViewMode: ViewMode = .color
+    
+    enum ViewMode {
+        case color
+        case depth
+        case image
+        case pointcloud
+    }
+    
+    let controller: CameraLiDARDepthControllerUI
+    var cancellables = Set<AnyCancellable>()
+    var session: AVCaptureSession { controller.captureSession }
+    
+    
+    private var assetWriter: AVAssetWriter?
+    private var colorWriterInput: AVAssetWriterInput?
+    private var depthWriterInput: AVAssetWriterInput?
+    private var colorPixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
+    private var depthPixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
+    // Add these properties to your CameraLiDARManager class
+    private var videoWriter: AVAssetWriter?
+    private var videoWriterInput: AVAssetWriterInput?
+    private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
+
+    private let frameInterval: TimeInterval = 1.0 / 30.0 // 30 fps
+    
+
+    private var recordingStartTime: Date?
+    private var recordingFolder: URL?
+    private var frameCount: Int = 0
+    @Published var currentFrameIndex: Int = 0
+    @Published var totalFrames: Int = 0
+    private var frameURLs: [URL] = []
+    private var preloadedFrames: [Int: CameraCapturedData] = [:]
+    private let preloadRange = 5 // Preload 5 frames ahead and behind
+    @Published var isPlaying: Bool = false
+    @Published var playbackTimer: Timer?
+    @Published var sliderPosition: Double = 0
+    
+    
+    private let recordingQueue = DispatchQueue(label: "com.yourapp.recordingQueue", qos: .userInitiated)
+    private let processingQueue = DispatchQueue(label: "com.yourapp.processingQueue", qos: .userInteractive)
+    private let sessionQueue = DispatchQueue(label: "com.bestgym.sessionQueue", qos: .userInitiated)
+    
+    
+    // Stores the 2D image points where the user taps
+    @Published var selectedImagePoints: [CGPoint] = []
+
+    // Stores the computed 3D world coordinates corresponding to the selected image points
+    @Published var selectedWorldPoints: [SIMD3<Float>] = []
+    
+    @Published var distanceMeasured: Float? = nil
+
+//    @Published var annotatedPoints: [AnnotatedPoint] = []
+    @Published var measuredDistance: Float?
+    
+    @Published var selectedPoints: [CGPoint] = []
+    // Internal variables to store 3D points
+    private var firstWorldPoint: SIMD3<Float>?
+    private var secondWorldPoint: SIMD3<Float>?
+    
+
+    private var keypointData: [Int: [[String: Any]]] = [:] // Frame index -> keypoints
+    private var keypointDataByFrame: [Int: [KeypointData]] = [:]
+    private var processedImage: UIImage?
+    
+    private var processedImages: [Int: UIImage] = [:]
+    
+//    private var preloadedFrames: [Int: UIImage] = [:]
+    private let preloadWindowSize = 30 // How many frames to keep ahead and behind
+    private var preloadedFrameIndices = Set<Int>() // Track which frames are preloaded
+    var onFrameChange: ((Int) -> Void)?
+    
+    @Published var centerDepthValue: Float?
+    private var centerDepthTimer: Timer?
+    private var recordingOrientation: UIDeviceOrientation = .portrait
+    
+    var useLiDAR: Bool = false
+    
+    // --- Loaded Data Properties ---
+    private var loadedRecordingMetadata: RecordingMetadata? // Store parsed metadata
+    private var loadedDataURL: URL? // Store the root URL of the loaded data
+    private var isLoadedDataLiDAR: Bool = false // Flag to know the type of loaded data
+    
+    @Published var currentFrameImage: UIImage? = nil
+    @Published var lidarFrameImageURLs:[URL] = []
+    @Published var _lidarFrameURLs: [URL] = []
+    @Published var DataLiDARAvailable: Bool = false
+    
+    // --- Data Storage for Playback ---
+    private var lidarFrameURLs: [URL] = []        // Stores URLs for LiDAR frame folders/images
+    private var videoFrames: [UIImage] = []     // Stores extracted frames for video files (Your approach)
+
+
+    //for video file
+    private var videoAsset: AVURLAsset?
+    private var imageGenerator: AVAssetImageGenerator?
+    private var videoFrameCache: NSCache<NSNumber, UIImage> = NSCache()
+    private var videoFrameTimes: [CMTime] = []
+    private var frameLoadingQueue = DispatchQueue(label: "frame.loading", qos: .userInitiated)
+    private var currentFrameLoadingTask: Task<Void, Never>?
+    private var lastRequestedFrameIndex: Int = -1
+    private var currentDataType: DataType = .none
+    private var frameDebounceTimer: Timer?
+    private var isUsingLazyLoading: Bool = false
+    // Public accessor property
+    
+    public var recordingMetadata: RecordingMetadata? {
+        return loadedRecordingMetadata
+    }
+//    var videoFrames: [UIImage] = []
+    init() {
+        // Create an object to store the captured data for the views to present.
+        capturedData = CameraCapturedData()
+        
+        // Check if LiDAR is available
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInLiDARDepthCamera],
+            mediaType: .video,
+            position: .back
+        )
+        useLiDAR = !discoverySession.devices.isEmpty
+        
+        // Initialize controller with appropriate configuration
+        controller = CameraLiDARDepthControllerUI()
+        controller.isFilteringEnabled = true
+        
+        if useLiDAR {
+            controller.startStream()
+        } else {
+            // Initialize with basic camera functionality
+            controller.setupBasicCamera()
+        }
+        
+        isFilteringDepth = controller.isFilteringEnabled
+        
+        NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification).sink { _ in
+            self.orientation = UIDevice.current.orientation
+        }.store(in: &cancellables)
+        controller.delegate = self
+    }
+    
+    
+    
+    func startPhotoCapture() {
+        controller.capturePhoto()
+        waitingForCapture = true
+    }
+    
+    func onNewPhotoData(capturedData: CameraCapturedData) {
+        // Because the views hold a reference to `capturedData`, the app updates each texture separately.
+        self.capturedData.depth = capturedData.depth
+        self.capturedData.colorY = capturedData.colorY
+        self.capturedData.colorCbCr = capturedData.colorCbCr
+        self.capturedData.cameraIntrinsics = capturedData.cameraIntrinsics
+        self.capturedData.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
+        waitingForCapture = false
+        processingCapturedResult = true
+        self.capturedData.depthCenter = capturedData.depthCenter
+        self.capturedData.originalDepth = capturedData.originalDepth
+        self.capturedData.colorImage = capturedData.colorImage
+    }
+    
+    // MARK: - Fix for the CameraLiDARManager onNewData method
+
+    func onNewData(capturedData: CameraCapturedData) {
+        // Always ensure we're on the main thread for @Published property updates
+        if !Thread.isMainThread {
+            DispatchQueue.main.async {
+                self.onNewData(capturedData: capturedData)
+            }
+            return
+        }
+        
+        // Update basic camera data
+        self.capturedData.colorY = capturedData.colorY
+        self.capturedData.colorCbCr = capturedData.colorCbCr
+        self.capturedData.cameraIntrinsics = capturedData.cameraIntrinsics
+        self.capturedData.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
+        self.capturedData.colorImage = capturedData.colorImage
+        
+        // Only update LiDAR-specific data if LiDAR is available
+        if useLiDAR {
+            self.capturedData.depth = capturedData.depth
+            self.capturedData.depthCenter = capturedData.depthCenter
+            self.capturedData.originalDepth = capturedData.originalDepth
+        }
+        
+        dataAvailable = true
+    }
+    
+    // MARK: - Improved setupVideoWriter method
+    private func setupVideoWriter(at folder: URL) {
+        print("🎬 Setting up video writer...")
+        
+        // Create a file URL for the video
+        let fileURL = folder.appendingPathComponent("recording.mp4")
+        
+        // Clean up any existing file
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        
+        do {
+            // Create the asset writer
+            let videoWriter = try AVAssetWriter(outputURL: fileURL, fileType: .mp4)
+            
+            // Get dimensions from capturedData
+            let width = Int(self.capturedData.cameraReferenceDimensions.width)
+            let height = Int(self.capturedData.cameraReferenceDimensions.height)
+            
+            print("Setting up video writer with dimensions: \(width)x\(height)")
+            
+            // Create video settings
+            let videoSettings: [String: Any] = [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: width,
+                AVVideoHeightKey: height,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: 8000000,
+                    AVVideoMaxKeyFrameIntervalKey: 30,
+                    AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
+                ]
+            ]
+            
+            // Create writer input
+            let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
+            writerInput.expectsMediaDataInRealTime = true
+            
+            // Create pixel buffer adaptor
+            let sourcePixelBufferAttributes: [String: Any] = [
+                kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32ARGB),
+                kCVPixelBufferWidthKey as String: width,
+                kCVPixelBufferHeightKey as String: height,
+                kCVPixelBufferCGImageCompatibilityKey as String: true,
+                kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+            ]
+            
+            let pixelBufferAdaptor = AVAssetWriterInputPixelBufferAdaptor(
+                assetWriterInput: writerInput,
+                sourcePixelBufferAttributes: sourcePixelBufferAttributes
+            )
+            
+            if videoWriter.canAdd(writerInput) {
+                videoWriter.add(writerInput)
+                videoWriter.startWriting()
+                videoWriter.startSession(atSourceTime: CMTime.zero)
+                
+                // Update properties on main thread
+                DispatchQueue.main.async {
+                    self.videoWriter = videoWriter
+                    self.videoWriterInput = writerInput
+                    self.pixelBufferAdaptor = pixelBufferAdaptor
+                    print("✅ Video writer set up successfully")
+                }
+            } else {
+                print("❌ Failed to add writer input")
+            }
+        } catch {
+            print("❌ Failed to setup video writer: \(error)")
+        }
+    }
+    // MARK: - Improved pixelBufferFromImage method
+    func pixelBufferFromImage(_ image: UIImage) -> CVPixelBuffer? {
+        let width = Int(capturedData.cameraReferenceDimensions.width)
+        let height = Int(capturedData.cameraReferenceDimensions.height)
+        
+        // Make sure we have valid dimensions
+        guard width > 0 && height > 0 else {
+            print("❌ Invalid dimensions for pixel buffer")
+            return nil
+        }
+        
+        // Create pixel buffer
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width,
+            height,
+            kCVPixelFormatType_32BGRA, // Try BGRA instead of ARGB
+            [
+                kCVPixelBufferCGImageCompatibilityKey: kCFBooleanTrue,
+                kCVPixelBufferCGBitmapContextCompatibilityKey: kCFBooleanTrue
+            ] as CFDictionary,
+            &pixelBuffer
+        )
+        
+        guard status == kCVReturnSuccess, let buffer = pixelBuffer else {
+            print("❌ Failed to create pixel buffer: \(status)")
+            return nil
+        }
+        
+        // Lock buffer and get base address
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+        
+        let baseAddress = CVPixelBufferGetBaseAddress(buffer)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
+        
+        // Create a CG context
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: baseAddress,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        ) else {
+            print("❌ Failed to create context")
+            return nil
+        }
+        
+        // Draw the image
+        context.clear(CGRect(x: 0, y: 0, width: width, height: height))
+        
+        // Scale the image to fit the context
+        let drawRect = CGRect(x: 0, y: 0, width: width, height: height)
+        
+        if let cgImage = image.cgImage {
+            // Draw using CGImage
+            context.draw(cgImage, in: drawRect)
+        } else {
+            // Fallback to UIImage drawing
+            UIGraphicsPushContext(context)
+            image.draw(in: drawRect)
+            UIGraphicsPopContext()
+        }
+        
+        return buffer
+    }
+
+    
+    
+
+    func saveCapturedData(completion: @escaping (Bool) -> Void) {
+        do {
+            
+            let documentDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            try capturedData.saveCaptureData(to: documentDirectory,filter: controller.isFilteringEnabled)
+            completion(true)
+        } catch {
+            print("Error saving capture data: \(error)")
+            if let nsError = error as NSError? {
+                print("Error domain: \(nsError.domain)")
+                print("Error code: \(nsError.code)")
+                print("Error user info: \(nsError.userInfo)")
+                print("Error saving capture data: \(error.localizedDescription)")
+            }
+            completion(false)
+        }
+    }
+    
+    func loadCapturedData(from url: URL, device: MTLDevice) {
+        
+        controller.stopStream()
+        waitingForCapture = true
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try self.capturedData.load(from: url, device: device)
+                DispatchQueue.main.async {
+                    self.dataAvailable = true
+                    
+//                    self.currentViewMode = .color  // Set default view mode
+                    print("Data loaded successfully and view updated")
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    print("Failed to load data: \(error)")
+                    self.dataAvailable = false
+                }
+            }
+        }
+    }
+    
+    func checkImageOrientation(_ image: UIImage) -> UIImage.Orientation {
+        return image.imageOrientation
+    }
+    
+    func alignDepth(coor: (x: Int, y: Int), scaleX: CGFloat, scaleY: CGFloat) -> (depthX: Int, depthY: Int) {
+        let depthX = Int(CGFloat(coor.x) * scaleX)
+        let depthY = Int(CGFloat(coor.y) * scaleY)
+        // Assuming you want to return these values for now
+        return (depthX, depthY)
+    }
+    
+    
+    func getDepthFromLoadedData(depthData: [Float16], width: Int, x: Int, y: Int) -> Float16 {
+        let index = y * width + x
+        guard index >= 0 && index < depthData.count else {
+            print("Warning: Depth index out of bounds")
+            return 0
+        }
+        return depthData[index]
+    }
+    
+    func orientImage(_ image: UIImage, orientation: UIImage.Orientation) -> UIImage {
+        if orientation == .up {
+            return image
+        }
+        
+        UIGraphicsBeginImageContextWithOptions(image.size, false, image.scale)
+        defer { UIGraphicsEndImageContext() }
+        
+        let context = UIGraphicsGetCurrentContext()!
+        context.translateBy(x: image.size.width / 2, y: image.size.height / 2)
+        
+        switch orientation {
+        case .right, .rightMirrored:
+            context.rotate(by: .pi / 2)
+        case .left, .leftMirrored:
+            context.rotate(by: -.pi / 2)
+        case .down, .downMirrored:
+            context.rotate(by: .pi)
+        default:
+            break
+        }
+        
+        context.translateBy(x: -image.size.width / 2, y: -image.size.height / 2)
+        image.draw(at: .zero)
+        
+        return UIGraphicsGetImageFromCurrentImageContext()!
+    }
+    
+    func getDepthAdjustedForOrientation(depthMap: AVDepthData, x: Int, y: Int, orientation: UIImage.Orientation) -> Float16 {
+        let depthWidth = CVPixelBufferGetWidth(depthMap.depthDataMap)
+        let depthHeight = CVPixelBufferGetHeight(depthMap.depthDataMap)
+        
+        var adjustedX = x
+        var adjustedY = y
+        
+        switch orientation {
+        case .right, .rightMirrored:
+            adjustedX = y
+            adjustedY = depthWidth - 1 - x
+        case .left, .leftMirrored:
+            adjustedX = depthHeight - 1 - y
+            adjustedY = x
+        case .down, .downMirrored:
+            adjustedX = depthWidth - 1 - x
+            adjustedY = depthHeight - 1 - y
+        default:
+            break
+        }
+        
+        return getDepth(depthMap: depthMap, coor: (adjustedX, adjustedY), depthX: adjustedX, depthY: adjustedY)
+    }
+    
+    func getDepth(depthMap: AVDepthData,coor: (x: Int, y: Int), depthX : Int, depthY: Int ) -> (Float16){
+        
+        let depthMap = depthMap.depthDataMap
+        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+        let rowData = CVPixelBufferGetBaseAddress(depthMap)! + depthY * CVPixelBufferGetBytesPerRow(depthMap)
+        let depthValue = rowData.assumingMemoryBound(to: Float16.self)[depthX]
+        CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
+        
+        
+        return depthValue
+        
+    }
+   
+    private func createUIImage(fromY yTexture: MTLTexture, CbCr cbcrTexture: MTLTexture) -> UIImage? {
+        let width = yTexture.width
+        let height = yTexture.height
+        
+        // Create a color space
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        
+        // Create a CIImage from the Y texture
+        guard let ciImageY = CIImage(mtlTexture: yTexture, options: [CIImageOption.colorSpace: colorSpace]) else {
+            print("Failed to create CIImage from Y texture")
+            return nil
+        }
+        
+        // Create a CIImage from the CbCr texture
+        guard let ciImageCbCr = CIImage(mtlTexture: cbcrTexture, options: [CIImageOption.colorSpace: colorSpace]) else {
+            print("Failed to create CIImage from CbCr texture")
+            return nil
+        }
+        
+        // Create a CIFilter to combine Y and CbCr
+        guard let filter = CIFilter(name: "CIColorCubesMixedWithMask") else {
+            print("Failed to create CIColorCubesMixedWithMask filter")
+            return nil
+        }
+        
+        filter.setValue(ciImageY, forKey: "inputImage")
+        filter.setValue(ciImageCbCr, forKey: "inputMask")
+        
+        // Get the output CIImage
+        guard let outputImage = filter.outputImage else {
+            print("Failed to get output image from filter")
+            return nil
+        }
+        
+        // Create a CIContext
+        let context = CIContext(options: nil)
+        
+        // Create a CGImage from the CIImage
+        guard let cgImage = context.createCGImage(outputImage, from: outputImage.extent) else {
+            print("Failed to create CGImage from CIImage")
+            return nil
+        }
+        
+        // Create and return a UIImage
+        return UIImage(cgImage: cgImage)
+    }
+    
+    private func createTexture(from data: Data, pixelFormat: MTLPixelFormat, device: MTLDevice) throws -> MTLTexture {
+        let width = Int(sqrt(Double(data.count / MemoryLayout<Float16>.size)))
+        let height = width
+        
+        let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: pixelFormat, width: width, height: height, mipmapped: false)
+        textureDescriptor.usage = [.shaderRead, .shaderWrite]
+        
+        guard let texture = device.makeTexture(descriptor: textureDescriptor) else {
+            throw NSError(domain: "CameraLiDARManager", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create texture"])
+        }
+        
+        let region = MTLRegionMake2D(0, 0, width, height)
+        texture.replace(region: region, mipmapLevel: 0, withBytes: [UInt8](data), bytesPerRow: width * MemoryLayout<Float16>.size)
+        
+        return texture
+    }
+
+    private func arrayToMatrix(_ array: [[Double]]) -> matrix_float3x3 {
+        return matrix_float3x3(columns: (
+            SIMD3<Float>(Float(array[0][0]), Float(array[0][1]), Float(array[0][2])),
+            SIMD3<Float>(Float(array[1][0]), Float(array[1][1]), Float(array[1][2])),
+            SIMD3<Float>(Float(array[2][0]), Float(array[2][1]), Float(array[2][2]))
+        ))
+    }
+    
+    func loadFrame(at index: Int) {
+        guard index >= 0 && index < frameURLs.count else {
+            print("Invalid frame index: \(index)")
+            return
+        }
+        
+        let frameURL = frameURLs[index]
+        print("Loading frame at index \(index): \(frameURL.lastPathComponent)")
+        
+        do {
+            // Load the frame data
+            try self.capturedData.load(from: frameURL, device: MTLCreateSystemDefaultDevice()!)
+            currentFrameIndex = index
+            isDataLoaded = true
+            
+            // Load processed image if available
+            if let processedImage = processedImages[index] {
+                capturedData.processedImage = processedImage
+                print("Loaded processed image for frame \(index)")
+            } else {
+                // Only clear processed image if we're not retaining them
+                capturedData.processedImage = nil
+            }
+            
+            // Apply orientation correction to the colorImage if available
+            if let colorImage = capturedData.colorImage {
+                capturedData.colorImage = applyCorrectOrientation(to: colorImage)
+                print("Applied orientation correction to frame \(index)")
+            }
+            
+            print("Successfully loaded frame \(index)")
+        } catch {
+            print("Error loading frame at index \(index): \(error)")
+            isDataLoaded = false
+        }
+    }
+    
+    func reloadCurrentFrame() {
+            // Only proceed if we have valid frame URLs
+            guard !frameURLs.isEmpty && currentFrameIndex < frameURLs.count else {
+                print("Cannot reload frame: No valid frame URLs available")
+                return
+            }
+            
+            // Force reload the current frame using the existing loadFrame method
+            loadFrame(at: currentFrameIndex)
+            print("Explicitly reloaded frame at index \(currentFrameIndex)")
+        }
+    
+    func getDepth(at imagePoint: CGPoint) -> Float? {
+        guard let depthTexture = self.capturedData.depth else {
+            return nil
+        }
+
+        let depthWidth = depthTexture.width
+        let depthHeight = depthTexture.height
+        let imageSize = self.capturedData.colorImage?.size ?? CGSize(width: depthWidth, height: depthHeight)
+
+        // Map imagePoint to depth data coordinates
+        let depthX = Int(imagePoint.x / imageSize.width * CGFloat(depthWidth))
+        let depthY = Int(imagePoint.y / imageSize.height * CGFloat(depthHeight))
+
+        if depthX < 0 || depthX >= depthWidth || depthY < 0 || depthY >= depthHeight {
+            return nil
+        }
+
+        var depthValue: Float16 = 0.0
+        let region = MTLRegionMake2D(depthX, depthY, 1, 1)
+        depthTexture.getBytes(&depthValue, bytesPerRow: MemoryLayout<Float16>.size, from: region, mipmapLevel: 0)
+
+        return Float(depthValue)
+    }
+
+    func calculate3DPoint(from imagePoint: CGPoint, depthValue: Float) -> SIMD3<Float>? {
+        let intrinsics = self.capturedData.cameraIntrinsics
+        print(intrinsics)
+        // Adjust intrinsics for image size differences
+        let referenceSize = self.capturedData.cameraReferenceDimensions
+        let imageSize = self.capturedData.colorImage?.size ?? referenceSize
+
+        let scaleX = Float(imageSize.width / referenceSize.width)
+        let scaleY = Float(imageSize.height / referenceSize.height)
+        print("ScaleX: \(scaleX), ScaleY: \(scaleY)")
+        let fx = intrinsics.columns.0.x * scaleX
+        let fy = intrinsics.columns.1.y * scaleY
+        let cx = intrinsics.columns.2.x * scaleX
+        let cy = intrinsics.columns.2.y * scaleY
+        
+        let x = Float(imagePoint.x)
+        let y = Float(imagePoint.y)
+
+        // Compute normalized image coordinates
+        let X = (x - cx) * depthValue / fx
+        let Y = (y - cy) * depthValue / fy
+        let Z = depthValue
+
+        return SIMD3<Float>(X, Y, Z)
+    }
+    
+    // Helper to load raw image from file (used in LiDAR playback)
+    private func loadImageFromFile(url: URL) -> UIImage? {
+        guard let data = try? Data(contentsOf: url), let image = UIImage(data: data) else {
+            print("❌ Failed to load image from \(url.path)")
+            return nil
+        }
+        return image
+    }
+
+    // MARK: - Metadata Handling
+
+   
+
+    
+    // In CameraLiDARManager
+
+    func calculateDistanceBetweenPoints(point1: SIMD3<Float>, point2: SIMD3<Float>) -> Float {
+        return length(point1 - point2)
+    }
+
+    func storeKeypointData(_ data: [[String: Any]]) {
+        keypointData[currentFrameIndex] = data
+        print("Stored keypoint data for frame \(currentFrameIndex): \(data.count) keypoints")
+    }
+
+    func updateDisplayImage(_ image: UIImage) {
+        capturedData.processedImage = image
+    }
+
+
+    func stopCameraCapture() {
+        controller.stopStream()
+    }
+}
+
+
+extension CameraLiDARManager {
+    func addSelectedPoint(_ imagePoint: CGPoint) {
+        print("addSelectedPoint called with imagePoint: \(imagePoint)")
+
+        // Compute the 3D point
+        guard let depthValue = getDepth(at: imagePoint) else {
+            print("Depth data unavailable at this point.")
+            return
+        }
+
+        guard let worldPoint = calculate3DPoint(from: imagePoint, depthValue: depthValue) else {
+            print("Failed to compute 3D point.")
+            return
+        }
+
+        DispatchQueue.main.async {
+            if self.selectedPoints.count < 2 {
+                self.selectedPoints.append(imagePoint)
+            } else {
+                // Reset if two points are already selected
+                self.selectedPoints = [imagePoint]
+                self.measuredDistance = nil
+                self.firstWorldPoint = nil
+                self.secondWorldPoint = nil
+            }
+            print("selectedPoints updated: \(self.selectedPoints)")
+
+            // Store world points internally
+            if self.selectedPoints.count == 1 {
+                self.firstWorldPoint = worldPoint
+            } else if self.selectedPoints.count == 2 {
+                self.secondWorldPoint = worldPoint
+
+                if let distance = self.computeDistanceBetween(self.firstWorldPoint, and: self.secondWorldPoint) {
+                    self.measuredDistance = distance
+                    print("Measured distance: \(distance)")
+                }
+            }
+        }
+    }
+
+    private func computeDistanceBetween(_ point1: SIMD3<Float>?, and point2: SIMD3<Float>?) -> Float? {
+            guard let p1 = point1, let p2 = point2 else { return nil }
+            return simd_distance(p1, p2)
+        }
+}
+
+
+extension CameraLiDARManager {
+    // Function to preload frames in a sliding window
+    func preloadFramesAroundIndex(_ currentIndex: Int) {
+        // Define the window of frames to keep loaded
+        let framesToKeep = (currentIndex - preloadWindowSize)...(currentIndex + preloadWindowSize)
+        
+        // Convert to Set for easier operations
+        let framesToKeepSet = Set(framesToKeep.filter { $0 >= 0 && $0 < totalFrames })
+        
+        // Find frames that need to be preloaded (in window but not yet loaded)
+        let framesToPreload = framesToKeepSet.subtracting(preloadedFrameIndices)
+        
+        // Preload frames we don't already have
+        for frameIndex in framesToPreload {
+            // Preload this frame in the background
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                guard let self = self else { return }
+                
+                // Only proceed if this frame is still within our window
+                // (in case user has moved far away by now)
+                if abs(frameIndex - self.currentFrameIndex) <= self.preloadWindowSize {
+                    // Temporary CameraCapturedData instance for preloading
+                    let tempData = CameraCapturedData()
+                    
+                    if frameIndex < self.frameURLs.count {
+                        let frameURL = self.frameURLs[frameIndex]
+                        
+                        do {
+                            // Load frame data into temporary object
+                            if let device = MTLCreateSystemDefaultDevice() {
+                                try tempData.load(from: frameURL, device: device)
+                                
+                                // Store in cache (could use a dictionary if you need the actual data)
+                                DispatchQueue.main.async {
+                                    self.preloadedFrameIndices.insert(frameIndex)
+                                    print("✅ Preloaded frame \(frameIndex)")
+                                }
+                            }
+                        } catch {
+                            print("❌ Error preloading frame \(frameIndex): \(error)")
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Optionally, clear frames far outside our window to save memory
+        // This could be implemented if memory usage becomes an issue
+    }
+}
+
+// MARK: - Thread-Safe Camera Operations
+extension CameraLiDARManager {
+    func startStream() {
+        controller.startStream()
+        isLiveCapture = true
+    }
+
+    // Thread-safe version of resumeStream
+    func resumeStream() {
+        // Use session queue for thread safety
+        sessionQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Start capture session on background thread
+            self.controller.startStream()
+            
+            // Update UI state on main thread
+            DispatchQueue.main.async {
+                self.isLiveCapture = true
+            }
+        }
+    }
+}
+
+
+// MARK: - Debug Helpers
+extension CameraLiDARManager {
+    // Call this method when you're having camera display issues
+    func debugCameraSetup() {
+        print("===== Camera Debug Information =====")
+        print("Is live capture: \(isLiveCapture)")
+        print("Is recording: \(isRecording)")
+        print("Total frames: \(totalFrames)")
+        print("Current frame index: \(currentFrameIndex)")
+        
+        // Check controller
+        print("Controller capture session exists: \(controller.captureSession != nil)")
+        print("Controller capture session running: \(controller.captureSession.isRunning)")
+        
+        // Check for camera authorization
+        let authStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        print("Camera authorization status: \(authStatus.rawValue)")
+        
+        // Check if camera device exists
+        if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
+            print("Camera device found: \(device.localizedName)")
+        } else {
+            print("ERROR: No camera device found!")
+        }
+        
+        // Check capture session configuration
+        if let session = controller.captureSession as? AVCaptureSession {
+            print("Session preset: \(session.sessionPreset.rawValue)")
+            print("Number of inputs: \(session.inputs.count)")
+            print("Number of outputs: \(session.outputs.count)")
+        }
+        
+        // Check current view state
+        if let colorImage = capturedData.colorImage {
+            print("Color image available: \(colorImage.size)")
+        } else {
+            print("No color image available")
+        }
+        
+        print("===================================")
+    }
+    
+}
+
+
+// Add these methods to CameraLiDARManager
+extension CameraLiDARManager {
+    // Start measuring depth at the center of the frame
+    func startCenterDepthDetection() {
+        // Stop any existing timer
+        centerDepthTimer?.invalidate()
+        
+        // Create a new timer that updates depth at regular intervals
+        centerDepthTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.updateCenterDepthValue()
+        }
+        
+        // Run immediately once
+        updateCenterDepthValue()
+    }
+    
+    // Stop depth detection
+    func stopCenterDepthDetection() {
+        centerDepthTimer?.invalidate()
+        centerDepthTimer = nil
+        
+        // Clear the displayed value
+        DispatchQueue.main.async {
+            self.centerDepthValue = nil
+        }
+    }
+    
+    // Calculate the depth at the center of the frame
+    private func updateCenterDepthValue() {
+        // Only proceed if we're in live capture mode with available depth data
+        guard isLiveCapture,
+              !isRecording,
+              let depthTexture = self.capturedData.depth else {
+            // Clear the depth value if conditions aren't met
+            DispatchQueue.main.async {
+                self.centerDepthValue = nil
+            }
+            return
+        }
+        
+        // Calculate center point of the depth texture
+        let centerX = depthTexture.width / 2
+        let centerY = depthTexture.height / 2
+        
+        // Create a small region around the center point
+        let region = MTLRegionMake2D(centerX, centerY, 1, 1)
+        
+        // Get the depth value at that point
+        var depthValue: Float16 = 0.0
+        depthTexture.getBytes(&depthValue, bytesPerRow: MemoryLayout<Float16>.size, from: region, mipmapLevel: 0)
+        
+        // Convert to Float and update the published property
+        DispatchQueue.main.async {
+            let floatValue = Float(depthValue)
+            
+            // Filter out invalid or unreasonable depth values
+            if floatValue > 0.05 && floatValue < 10.0 { // Only show depths between 5cm and 10m
+                self.centerDepthValue = floatValue
+            } else {
+                self.centerDepthValue = nil
+            }
+        }
+    }
+}
+
+// MARK: ALL ABOUT File Handling
+extension CameraLiDARManager {
+    func loadVideoFromPhotoLibrary(asset: PHAsset, completion: @escaping (Bool, Int, Error?) -> Void) {
+        // Reset state
+        pauseStream()
+        resetPlaybackState()
+        isLiveCapture = false
+        isLoadedDataLiDAR = false
+        
+        let options = PHVideoRequestOptions()
+        options.version = .original
+        options.deliveryMode = .highQualityFormat
+        
+        PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { [weak self] (avAsset, _, _) in
+            guard let self = self, let avAsset = avAsset else {
+                DispatchQueue.main.async {
+                    completion(false, 0, NSError(domain: "CameraLiDARManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to load video asset"]))
+                }
+                return
+            }
+            
+            // Now process the video asset to extract frames
+            Task {
+                do {
+                    let extractedFrames = try await self.extractFramesFromAVAsset(avAsset)
+                    
+                    await MainActor.run {
+                        self.videoFrames = extractedFrames
+                        self.totalFrames = extractedFrames.count
+                        self.isDataLoaded = self.totalFrames > 0
+                        self.dataAvailable = self.isDataLoaded
+                        
+                        if self.isDataLoaded {
+                            self.currentFrameIndex = 0
+                            self.setFrame(to: 0)
+                            print("✅ Photo library video loaded with \(self.totalFrames) frames")
+                            completion(true, self.totalFrames, nil)
+                        } else {
+                            print("⚠️ No frames extracted from photo library video")
+                            completion(false, 0, NSError(domain: "CameraLiDARManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "No frames extracted"]))
+                        }
+                    }
+                } catch {
+                    await MainActor.run {
+                        print("❌ Failed to extract frames from photo library video: \(error)")
+                        completion(false, 0, error)
+                    }
+                }
+            }
+        }
+    }
+
+    // Helper method for extracting frames from an AVAsset
+    private func extractFramesFromAVAsset(_ asset: AVAsset) async throws -> [UIImage] {
+        // Similar to extractFramesFromVideo but works with an AVAsset directly
+        var frames: [UIImage] = []
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceBefore = CMTime(value: 1, timescale: 30)
+        generator.requestedTimeToleranceAfter = CMTime(value: 1, timescale: 30)
+        
+        let duration = try await asset.load(.duration)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        
+        guard let videoTrack = tracks.first else {
+            throw NSError(domain: "CameraLiDARManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "No video track found"])
+        }
+        
+        let frameRate = try await videoTrack.load(.nominalFrameRate)
+        let durationSeconds = CMTimeGetSeconds(duration)
+        let effectiveFrameRate = frameRate > 0 ? frameRate : 30.0
+        let timescale = Int32(effectiveFrameRate)
+        
+        // Extract a reasonable number of frames
+        let totalFramesEstimate = min(Int(durationSeconds * Double(effectiveFrameRate)), 300)
+        
+        print("   Extracting frames from photo library - Duration: \(durationSeconds)s, Rate: \(effectiveFrameRate)fps, Target Frames: \(totalFramesEstimate)")
+        
+        for i in 0..<totalFramesEstimate {
+            let time = CMTimeMake(value: Int64(i * Int(timescale) / totalFramesEstimate), timescale: timescale)
+            
+            do {
+                let cgImage = try generator.copyCGImage(at: time, actualTime: nil)
+                frames.append(UIImage(cgImage: cgImage))
+                
+                if i % 20 == 0 || i == totalFramesEstimate - 1 {
+                    print("   Progress: \(i+1)/\(totalFramesEstimate) frames extracted")
+                }
+            } catch {
+                print("   ⚠️ Skipping frame \(i): \(error.localizedDescription)")
+            }
+        }
+        
+        print("   Extracted \(frames.count) frames from photo library video")
+        return frames
+    }
+    func loadVideoFrames(frames: [UIImage]) {
+        // Clear existing data
+        self.capturedData = CameraCapturedData()
+        self.videoFrames = frames
+        
+        // Set the first frame
+        if !frames.isEmpty {
+            self.currentFrameIndex = 0
+            self.sliderPosition = 0
+            self.totalFrames = frames.count
+            self.capturedData.colorImage = frames[0]
+        }
+        
+        // Mark data as available
+        self.dataAvailable = true
+    }
+    
+    // Modified version of setFrame for video files without depth
+    func setVideoFrame(to index: Int) {
+        guard index >= 0 && index < videoFrames.count else {
+            print("Invalid frame index: \(index), total frames: \(videoFrames.count)")
+            return
+        }
+        
+        // Set current index
+        currentFrameIndex = index
+        sliderPosition = Double(index)
+        
+        // Immediately update the captured data with the current frame
+        capturedData.colorImage = videoFrames[index]
+        
+        // Don't clear processedImage here - let the caller decide
+        
+        // Notify observers
+        FrameUpdatePublisher.shared.notifyFrameChanged(frameIndex: currentFrameIndex)
+    }
+
+    func loadVideoFolder(from url: URL) {
+        log("Started load LiDAR video folder for URL: \(url.path)", level: .debug)
+
+        // Perform all heavy operations on background thread
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            // Reset state safely on main thread
+            DispatchQueue.main.sync {
+                self.pauseStream()
+                self.resetPlaybackState()
+                self.isLiveCapture = false
+                self.loadedDataURL = url
+                self.isLoadedDataLiDAR = true
+                
+                // Important: Set these flags immediately to prevent race conditions
+                self.isDataLoaded = true
+                self.dataAvailable = true
+            }
+
+            do {
+                // Get all direct children of the folder
+                let contents = try FileManager.default.contentsOfDirectory(
+                    at: url,
+                    includingPropertiesForKeys: [.isDirectoryKey],
+                    options: [.skipsHiddenFiles]
+                )
+                
+                // Filter for frame_X directories
+                var frameDirectories: [URL] = []
+                for item in contents {
+                    var isDir: ObjCBool = false
+                    if FileManager.default.fileExists(atPath: item.path, isDirectory: &isDir),
+                       isDir.boolValue,
+                       item.lastPathComponent.hasPrefix("frame_") {
+                        frameDirectories.append(item)
+                    }
+                }
+                
+                log("Found \(frameDirectories.count) frame directories.", level: .debug)
+                
+                // Sort by frame number
+                frameDirectories.sort { (url1, url2) -> Bool in
+                    let num1 = self.extractFrameNumber(from: url1.lastPathComponent)
+                    let num2 = self.extractFrameNumber(from: url2.lastPathComponent)
+                    return num1 < num2
+                }
+                
+                // Check for image files with multiple possible names
+                var imageURLs: [URL] = []
+                
+                for frameDir in frameDirectories {
+                    // Check multiple possible names with and without extensions
+                    let possibleImageNames = [
+                        "colorImage", // Your actual file name with no extension
+                        "colorImage.jpg",
+                        "color_image.jpg",
+                        "color.jpg"
+                    ]
+                    
+                    var foundImage = false
+                    for imageName in possibleImageNames {
+                        let imageURL = frameDir.appendingPathComponent(imageName)
+                        if FileManager.default.fileExists(atPath: imageURL.path) {
+                            imageURLs.append(imageURL)
+                            foundImage = true
+                            break
+                        }
+                    }
+                    
+                    if !foundImage {
+                        log("No image is found in \(frameDir.lastPathComponent).", level: .debug)
+                    }
+                }
+                
+                log("Found \(imageURLs.count) vaild frame images.", level: .debug)
+                
+                // Update state on main thread
+                DispatchQueue.main.async { [self] in
+                    self.lidarFrameImageURLs = imageURLs
+                    self.lidarFrameURLs = frameDirectories  // Store frame directories not image URLs
+                    self._lidarFrameURLs = frameDirectories // Published
+                    self.totalFrames = imageURLs.count
+                    self.DataLiDARAvailable = self.isLoadedDataLiDAR
+                    
+                    // Make sure we set these flags again
+                    self.isDataLoaded = !imageURLs.isEmpty
+                    self.dataAvailable = !imageURLs.isEmpty
+                    
+                    if !imageURLs.isEmpty {
+                        print("   ✅ Successfully found \(imageURLs.count) frames")
+                        self.currentFrameIndex = 0
+                        self.sliderPosition = 0.0
+                        
+                        // Give the UI a moment to update before loading the first frame
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            self.setFrame(to: 0)
+                        }
+                    } else {
+                        print("   ⚠️ No valid frames found")
+                        self.currentFrameImage = nil
+                    }
+                }
+            } catch {
+                print("   ❌ Error scanning directory: \(error)")
+                DispatchQueue.main.async {
+                    self.isDataLoaded = false
+                    self.dataAvailable = false
+                    self.currentFrameImage = nil
+                }
+            }
+        }
+    }
+
+    // MARK: - Required Helper Functions (Ensure these exist)
+
+    /// Resets all state related to playback and loaded analysis data.
+    private func resetPlaybackState() {
+        stopPlayback() // Stop timer if running
+        currentFrameIndex = 0
+        totalFrames = 0
+        sliderPosition = 0.0
+        currentFrameImage = nil // Clear displayed image
+        loadedDataURL = nil
+        loadedRecordingMetadata = nil
+        lidarFrameImageURLs.removeAll()
+        videoFrames.removeAll() // Clear video frames too
+        isLoadedDataLiDAR = false
+        isDataLoaded = false
+        dataAvailable = isLiveCapture // Reset based on expected mode
+        // Clear any other caches (preloadedFrames, keypointData, etc.)
+        // preloadedFrames.removeAll()
+        // keypointData.removeAll()
+        print("🔄 Playback state reset.")
+    }
+
+    /// Loads and parses the recording_metadata.json file.
+    private func loadMetadata(from folderURL: URL) -> RecordingMetadata? {
+        let metadataURL = folderURL.appendingPathComponent("recording_metadata.json")
+        guard FileManager.default.fileExists(atPath: metadataURL.path) else {
+            // It's okay if metadata doesn't exist, just return nil.
+            return nil
+        }
+        do {
+            let jsonData = try Data(contentsOf: metadataURL)
+            let decoder = JSONDecoder()
+            let metadata = try decoder.decode(RecordingMetadata.self, from: jsonData)
+            return metadata
+        } catch {
+            print("❌ Error loading/parsing metadata from \(metadataURL.path): \(error)")
+            return nil
+        }
+    }
+
+    /// Extracts the numeric part of a frame folder/file name (e.g., "frame_123" -> 123).
+    private func extractFrameNumber(from string: String) -> Int {
+        return Int(string.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) ?? 0
+    }
+
+    /// Stops the live camera stream.
+    func pauseStream() {
+        // Use your existing implementation, ensuring it stops the session
+        // sessionQueue.async { // If using a session queue
+             if self.controller.captureSession.isRunning {
+                 self.controller.stopStream()
+                 // Update UI state on main thread if needed
+                 DispatchQueue.main.async { self.isLiveCapture = false }
+             }
+        // }
+        print("⏸️ Stream paused.")
+    }
+
+ 
+    // Add this to your CameraLiDARManager class
+    func ensurePlaybackMode() {
+        if isLiveCapture {
+            print("⚠️ Forcing playback mode")
+            controller.stopStream()
+            isLiveCapture = false
+        }
+    }
+
+    // Update your startPlayback method
+    func startPlayback() {
+        // Make sure we're not in live capture mode
+        ensurePlaybackMode()
+        
+        // Stop any existing playback
+        stopPlayback()
+        
+        // Check if we have frames to play
+        if totalFrames <= 0 {
+            print("❌ Cannot start playback: no frames available")
+            return
+        }
+        
+        print("▶️ Starting playback from frame \(currentFrameIndex)")
+        isPlaying = true
+        
+        // Create a timer for playback
+        playbackTimer = Timer.scheduledTimer(withTimeInterval: 1.0/30.0, repeats: true) { [weak self] _ in
+            guard let self = self, self.isPlaying else { return }
+            
+            // Make sure we're in playback mode before trying to set frames
+            self.ensurePlaybackMode()
+            
+            // Move to next frame
+            let nextIndex = self.currentFrameIndex + 1
+            if nextIndex >= self.totalFrames {
+                // We've reached the end, stop playback
+                self.stopPlayback()
+                return
+            }
+            
+            // Update frame
+            self.currentFrameIndex = nextIndex
+            self.setFrame(to: nextIndex)
+            
+            // Log occasional progress
+            if nextIndex % 10 == 0 {
+                print("▶️ Playing frame \(nextIndex)/\(self.totalFrames)")
+            }
+        }
+        
+        // Make sure timer fires during scrolling or other interactions
+        RunLoop.main.add(playbackTimer!, forMode: .common)
+    }
+
+    func loadVideoFile(_ url: URL, completion: @escaping (Bool, Int, Error?) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else {
+                completion(false, 0, NSError(domain: "CameraLiDARManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Self deallocated"]))
+                return
+            }
+            
+            // Set state flags immediately
+            DispatchQueue.main.async {
+                self.pauseStream()
+                self.resetPlaybackState()
+                self.isLiveCapture = false
+                print("📢 Live capture mode disabled for video loading")
+            }
+            
+            // Check if file exists
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                print("❌ Video file not found at path: \(url.path)")
+                completion(false, 0, NSError(domain: "CameraLiDARManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Video file not found"]))
+                return
+            }
+            
+            // Check for metadata in same folder
+            let folderURL = url.deletingLastPathComponent()
+            let metadataURL = folderURL.appendingPathComponent("recording_metadata.json")
+            
+            // Try to load metadata if it exists
+            if FileManager.default.fileExists(atPath: metadataURL.path) {
+                do {
+                    let data = try Data(contentsOf: metadataURL)
+                    let metadata = try JSONDecoder().decode(RecordingMetadata.self, from: data)
+                    
+                    // Store metadata on main thread
+                    DispatchQueue.main.async {
+                        self.loadedRecordingMetadata = metadata
+                        print("✅ Loaded video metadata with orientation: \(metadata.deviceOrientation?.name ?? "unknown")")
+                    }
+                } catch {
+                    print("⚠️ Found metadata but failed to parse: \(error.localizedDescription)")
+                }
+            } else {
+                print("⚠️ No metadata found for video, will use dimensions for orientation")
+            }
+            
+            print("🎬 Setting up lazy frame loading for: \(url.lastPathComponent)")
+            
+            // Setup lazy loading instead of extracting all frames
+            Task {
+                do {
+                    let frameCount = try await self.setupLazyVideoLoading(url: url)
+                    
+                    DispatchQueue.main.async {
+                        // Clear the old videoFrames array since we're not using it anymore
+                        self.videoFrames.removeAll()
+                        
+                        self.totalFrames = frameCount
+                        self.isDataLoaded = frameCount > 0
+                        self.dataAvailable = frameCount > 0
+                        self.loadedDataURL = url
+                        
+                        if frameCount > 0 {
+                            self.currentFrameIndex = 0
+                            
+                            // Set the first frame after a short delay
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                self.setFrame(to: 0)
+                            }
+                            
+                            print("✅ Successfully setup lazy loading for video with \(frameCount) frames")
+                            completion(true, frameCount, nil)
+                        } else {
+                            print("❌ Failed to setup video loading")
+                            self.currentFrameImage = nil
+                            completion(false, 0, NSError(domain: "CameraLiDARManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to setup video loading"]))
+                        }
+                    }
+                } catch {
+                    print("❌ Error setting up video loading: \(error)")
+                    DispatchQueue.main.async {
+                        completion(false, 0, error)
+                    }
+                }
+            }
+        }
+    }
+
+    // New method to setup lazy video loading
+    private func setupLazyVideoLoading(url: URL) async throws -> Int {
+        // Clean up previous resources
+        cleanupVideoResources()
+        
+        // Create new asset and generator
+        let asset = AVURLAsset(url: url)
+        self.videoAsset = asset
+        
+        // Configure the generator
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceBefore = CMTime(value: 1, timescale: 30)
+        generator.requestedTimeToleranceAfter = CMTime(value: 1, timescale: 30)
+        self.imageGenerator = generator
+        
+        // Configure cache
+        videoFrameCache.countLimit = 20 // Keep only 20 frames in memory at once
+        videoFrameCache.totalCostLimit = 50 * 1024 * 1024 // 50MB limit
+        
+        // Get video details
+        let duration = try await asset.load(.duration)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        
+        guard let videoTrack = tracks.first else {
+            throw NSError(domain: "CameraLiDARManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "No video track found"])
+        }
+        
+        let frameRate = try await videoTrack.load(.nominalFrameRate)
+        let durationSeconds = CMTimeGetSeconds(duration)
+        
+        // Use a reasonable frame rate if we can't determine it
+        let effectiveFrameRate = frameRate > 0 ? frameRate : 30.0
+        let timescale = Int32(effectiveFrameRate)
+        
+        // Calculate frame count, but limit to a reasonable number for UI performance
+        let maxFrames = min(Int(durationSeconds * Double(effectiveFrameRate)), 1000)
+        
+        // Pre-calculate all frame times
+        videoFrameTimes.removeAll()
+        for i in 0..<maxFrames {
+            let time = CMTimeMake(value: Int64(i), timescale: timescale)
+            videoFrameTimes.append(time)
+        }
+        
+        print("🎬 Setup complete - Duration: \(durationSeconds)s, Rate: \(effectiveFrameRate)fps, Total Frames: \(maxFrames)")
+        
+        return maxFrames
+    }
+
+
+//    // COMPLETE: Add this loadVideoFrameSync method to your CameraLiDARManager class
+    private func loadVideoFrameSync(at index: Int) -> UIImage? {
+        // Check cache first
+        if let cachedImage = videoFrameCache.object(forKey: NSNumber(value: index)) {
+            print("💾 Using cached frame \(index)")
+            return cachedImage
+        }
+        
+        // Validate index
+        guard index >= 0 && index < videoFrameTimes.count else {
+            print("❌ Invalid frame index: \(index), valid range: 0-\(videoFrameTimes.count-1)")
+            return nil
+        }
+        
+        guard let generator = imageGenerator else {
+            print("❌ Image generator not available")
+            return nil
+        }
+        
+        do {
+            let time = videoFrameTimes[index]
+            print("🎬 Loading frame \(index) synchronously at time \(CMTimeGetSeconds(time))s")
+            
+            let cgImage = try generator.copyCGImage(at: time, actualTime: nil)
+            let uiImage = UIImage(cgImage: cgImage)
+            
+            // Cache the image
+            let cost = Int(uiImage.size.width * uiImage.size.height * 4) // 4 bytes per pixel for RGBA
+            videoFrameCache.setObject(uiImage, forKey: NSNumber(value: index), cost: cost)
+            
+            print("✅ Frame \(index) loaded synchronously and cached")
+            return uiImage
+        } catch {
+            print("❌ Failed to load frame \(index): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    // COMPLETE: Updated setFrame method with the sync loading
+    func setFrame(to index: Int) {
+        // Main thread check
+        if !Thread.isMainThread {
+            DispatchQueue.main.async {
+                self.setFrame(to: index)
+            }
+            return
+        }
+
+        // Validate conditions
+        if isLiveCapture {
+            print("⚠️ setFrame: isLiveCapture was true, disabling it")
+            controller.stopStream()
+            isLiveCapture = false
+        }
+        
+        if !isDataLoaded || !dataAvailable {
+            print("⚠️ setFrame: No data loaded")
+            return
+        }
+        
+        if index < 0 || index >= totalFrames {
+            print("⚠️ setFrame: Invalid index \(index) (total frames: \(totalFrames))")
+            return
+        }
+
+        // Update state immediately for responsive UI
+        currentFrameIndex = index
+        sliderPosition = Double(index)
+        print("🎯 Setting frame to index: \(index)")
+
+        var resultImage: UIImage?
+        
+        if isLoadedDataLiDAR {
+            // Handle LiDAR data frames
+            if index < lidarFrameURLs.count {
+                let frameDir = lidarFrameURLs[index]
+                resultImage = loadLiDARFrameWithOrientation(from: frameDir)
+                if resultImage == nil {
+                    print("❌ Failed to load LiDAR oriented image")
+                }
+            } else {
+                print("❌ LiDAR frame index out of bounds")
+            }
+        } else {
+            // Handle video frames - use pre-extracted frames if available
+            if !videoFrames.isEmpty && index < videoFrames.count {
+                // Use pre-extracted frames (fast path)
+                let videoFrame = videoFrames[index]
+                resultImage = applyCorrectOrientation(to: videoFrame)
+                print("✅ Using pre-extracted frame \(index)")
+            } else {
+                // Use lazy loading with the sync method
+                print("📱 Loading frame \(index) via lazy loading...")
+                resultImage = loadVideoFrameSync(at: index)
+                if let image = resultImage {
+                    resultImage = applyCorrectOrientation(to: image)
+                    print("✅ Lazy loaded frame \(index)")
+                } else {
+                    print("❌ Failed to lazy load frame \(index)")
+                }
+            }
+        }
+        
+        // CRITICAL: Set the image immediately and verify it's set
+        currentFrameImage = resultImage
+        
+        // Debug: Verify the image is actually set
+        if let image = currentFrameImage {
+            print("✅ Frame \(index) image set successfully - Size: \(image.size)")
+        } else {
+            print("❌ Frame \(index) - currentFrameImage is nil!")
+            return // Don't trigger notifications if no image
+        }
+        
+        // Only trigger notifications if we have a valid image
+        onFrameChange?(index)
+        FrameUpdatePublisher.shared.notifyFrameChanged(frameIndex: index)
+        print("📢 Frame \(index) notifications sent")
+    }
+
+    // ALSO: Add this debugging method to your CameraLiDARManager class
+    func debugImageState() {
+        print("🔍 DEBUG: Current image state:")
+        print("   - currentFrameImage: \(currentFrameImage != nil ? "✅ Present" : "❌ Nil")")
+        print("   - currentFrameIndex: \(currentFrameIndex)")
+        print("   - totalFrames: \(totalFrames)")
+        print("   - isDataLoaded: \(isDataLoaded)")
+        print("   - dataAvailable: \(dataAvailable)")
+        print("   - isLoadedDataLiDAR: \(isLoadedDataLiDAR)")
+        print("   - videoFrames.count: \(videoFrames.count)")
+        print("   - videoFrameTimes.count: \(videoFrameTimes.count)")
+        
+        if let image = currentFrameImage {
+            print("   - Image size: \(image.size)")
+            print("   - Image scale: \(image.scale)")
+        }
+        
+        if let generator = imageGenerator {
+            print("   - Image generator: ✅ Available")
+        } else {
+            print("   - Image generator: ❌ Nil")
+        }
+    }
+    // Alternative approach: Add a dedicated method for batch frame updates with better control
+    func setFrameWithDebounce(to index: Int, debounceTime: TimeInterval = 0.1) {
+        // Cancel previous debounce timer if it exists
+        frameDebounceTimer?.invalidate()
+        
+        // Create new timer for debouncing
+        frameDebounceTimer = Timer.scheduledTimer(withTimeInterval: debounceTime, repeats: false) { [weak self] _ in
+            self?.setFrame(to: index)
+        }
+    }
+
+
+
+    // Updated loadVideoFrame method with better error handling
+    private func loadVideoFrame(at index: Int) -> UIImage? {
+        // Check cache first
+        if let cachedImage = videoFrameCache.object(forKey: NSNumber(value: index)) {
+            print("💾 Using cached frame \(index)")
+            return cachedImage
+        }
+        
+        // Validate index
+        guard index >= 0 && index < videoFrameTimes.count else {
+            print("❌ Invalid frame index: \(index), valid range: 0-\(videoFrameTimes.count-1)")
+            return nil
+        }
+        
+        guard let generator = imageGenerator else {
+            print("❌ Image generator not available")
+            return nil
+        }
+        
+        do {
+            let time = videoFrameTimes[index]
+            print("🎬 Loading frame \(index) at time \(CMTimeGetSeconds(time))s")
+            
+            // Add timeout for frame loading
+            let startTime = CFAbsoluteTimeGetCurrent()
+            let cgImage = try generator.copyCGImage(at: time, actualTime: nil)
+            let loadTime = CFAbsoluteTimeGetCurrent() - startTime
+            
+            let uiImage = UIImage(cgImage: cgImage)
+            
+            // Cache the image with cost (rough estimate of memory usage)
+            let cost = Int(uiImage.size.width * uiImage.size.height * 4) // 4 bytes per pixel for RGBA
+            videoFrameCache.setObject(uiImage, forKey: NSNumber(value: index), cost: cost)
+            
+            print("✅ Frame \(index) loaded and cached in \(String(format: "%.3f", loadTime))s")
+            return uiImage
+        } catch {
+            print("❌ Failed to load frame \(index): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+
+    // Add this cleanup method
+    private func cleanupVideoResources() {
+        videoAsset = nil
+        imageGenerator = nil
+        videoFrameCache.removeAllObjects()
+        videoFrameTimes.removeAll()
+        videoFrames.removeAll() // Clear the old array
+    }
+
+        // Add your frame extraction helper (ensure it exists and returns [UIImage])
+    private func extractFramesFromVideo(url: URL) async throws -> [UIImage] {
+        var frames: [UIImage] = []
+        
+        // Make sure the file exists and is accessible
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw NSError(domain: "CameraLiDARManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Video file not found"])
+        }
+        
+        // Load the asset
+        let asset = AVURLAsset(url: url)
+        
+        // Debug info
+        print("   Video asset created for: \(url.lastPathComponent)")
+        
+        // Configure the generator with more forgiving settings
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        
+        // Use more tolerant time values to improve chances of frame extraction
+        generator.requestedTimeToleranceBefore = CMTime(value: 1, timescale: 30)
+        generator.requestedTimeToleranceAfter = CMTime(value: 1, timescale: 30)
+        
+        // Get video details
+        let duration = try await asset.load(.duration)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        
+        guard let videoTrack = tracks.first else {
+            throw NSError(domain: "CameraLiDARManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "No video track found"])
+        }
+        
+        let frameRate = try await videoTrack.load(.nominalFrameRate)
+        let durationSeconds = CMTimeGetSeconds(duration)
+        
+        // Use a reasonable frame rate if we can't determine it
+        let effectiveFrameRate = frameRate > 0 ? frameRate : 30.0
+        let timescale = Int32(effectiveFrameRate)
+        
+        // Calculate frame count, but limit to a reasonable number (e.g., 300)
+        let totalFramesEstimate = min(Int(durationSeconds * Double(effectiveFrameRate)), 300)
+        
+        print("   Extracting frames - Duration: \(durationSeconds)s, Rate: \(effectiveFrameRate)fps, Estimated Frames: \(totalFramesEstimate)")
+        
+        // Extract frames with more error handling
+        for i in 0..<totalFramesEstimate {
+            let time = CMTimeMake(value: Int64(i * Int(timescale) / totalFramesEstimate), timescale: timescale)
+            
+            do {
+                // Use a safer approach - extract into a buffer with a timeout
+                let cgImage = try generator.copyCGImage(at: time, actualTime: nil)
+                let uiImage = UIImage(cgImage: cgImage)
+                frames.append(uiImage)
+                
+                // Log progress occasionally
+                if i % 20 == 0 || i == totalFramesEstimate - 1 {
+                    print("   Progress: \(i+1)/\(totalFramesEstimate) frames extracted")
+                }
+            } catch {
+                print("   ⚠️ Skipping frame \(i): \(error.localizedDescription)")
+            }
+        }
+        
+        print("   Extracted \(frames.count) frames successfully.")
+        return frames
+    }
+    
+    
+    // NEW: Optimized setup method
+    private func setupOptimizedVideoLoading(url: URL) async throws -> Int {
+        // Clean up previous resources
+        cleanupVideoResources()
+        
+        // Create new asset and generator
+        let asset = AVURLAsset(url: url)
+        self.videoAsset = asset
+        
+        // Configure the generator for better performance
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceBefore = CMTime(value: 1, timescale: 60) // Tighter tolerance for smoother playback
+        generator.requestedTimeToleranceAfter = CMTime(value: 1, timescale: 60)
+        generator.maximumSize = CGSize(width: 1920, height: 1080) // Limit resolution for performance
+        self.imageGenerator = generator
+        
+        // Configure cache with better limits
+        videoFrameCache.countLimit = 30 // Increased cache size
+        videoFrameCache.totalCostLimit = 100 * 1024 * 1024 // 100MB limit
+        
+        // Get video details
+        let duration = try await asset.load(.duration)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        
+        guard let videoTrack = tracks.first else {
+            throw NSError(domain: "CameraLiDARManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "No video track found"])
+        }
+        
+        let frameRate = try await videoTrack.load(.nominalFrameRate)
+        let durationSeconds = CMTimeGetSeconds(duration)
+        
+        // Use a reasonable frame rate if we can't determine it
+        let effectiveFrameRate = frameRate > 0 ? frameRate : 30.0
+        let timescale = Int32(effectiveFrameRate)
+        
+        // Calculate frame count, but limit to a reasonable number for UI performance
+        let maxFrames = min(Int(durationSeconds * Double(effectiveFrameRate)), 1000)
+        
+        // Pre-calculate all frame times
+        videoFrameTimes.removeAll()
+        for i in 0..<maxFrames {
+            let time = CMTimeMake(value: Int64(i), timescale: timescale)
+            videoFrameTimes.append(time)
+        }
+        
+        print("🎬 Setup complete - Duration: \(durationSeconds)s, Rate: \(effectiveFrameRate)fps, Total Frames: \(maxFrames)")
+        
+        return maxFrames
+    }
+
+    // IMPROVED: Better frame loading with proper synchronization
+    private func loadAndSetFrame(to index: Int) {
+        // This method handles the complete flow of loading and setting a frame
+        guard index >= 0 && index < totalFrames else {
+            print("❌ Invalid frame index: \(index)")
+            return
+        }
+        
+        // Cancel any previous loading task
+        currentFrameLoadingTask?.cancel()
+        
+        // Update state immediately for responsive UI
+        currentFrameIndex = index
+        sliderPosition = Double(index)
+        
+        // Create new loading task
+        currentFrameLoadingTask = Task { [weak self] in
+            guard let self = self else { return }
+            
+            var resultImage: UIImage?
+            
+            if self.isLoadedDataLiDAR {
+                // Handle LiDAR data frames
+                if index < self.lidarFrameURLs.count {
+                    let frameDir = self.lidarFrameURLs[index]
+                    resultImage = self.loadLiDARFrameWithOrientation(from: frameDir)
+                }
+            } else if self.isUsingLazyLoading {
+                // Use optimized lazy loading
+                resultImage = await self.loadVideoFrameAsync(at: index)
+                if let image = resultImage {
+                    resultImage = self.applyCorrectOrientation(to: image)
+                }
+            } else {
+                // Use pre-extracted frames
+                if index < self.videoFrames.count {
+                    let videoFrame = self.videoFrames[index]
+                    resultImage = self.applyCorrectOrientation(to: videoFrame)
+                }
+            }
+            
+            // Update UI on main thread
+            await MainActor.run { [weak self] in
+                guard let self = self else { return }
+                guard !Task.isCancelled else { return }
+                
+                // Only update if this is still the current frame
+                if self.currentFrameIndex == index {
+                    self.currentFrameImage = resultImage
+                    self.onFrameChange?(index)
+                    FrameUpdatePublisher.shared.notifyFrameChanged(frameIndex: index)
+                    print("✅ Frame \(index) loaded and displayed")
+                }
+            }
+        }
+    }
+
+    // ASYNC: Better frame loading method
+    private func loadVideoFrameAsync(at index: Int) async -> UIImage? {
+        // Check cache first
+        if let cachedImage = videoFrameCache.object(forKey: NSNumber(value: index)) {
+            print("💾 Using cached frame \(index)")
+            return cachedImage
+        }
+        
+        // Validate index
+        guard index >= 0 && index < videoFrameTimes.count else {
+            print("❌ Invalid frame index: \(index)")
+            return nil
+        }
+        
+        guard let generator = imageGenerator else {
+            print("❌ Image generator not available")
+            return nil
+        }
+        
+        return await withCheckedContinuation { continuation in
+            let time = videoFrameTimes[index]
+            print("🎬 Loading frame \(index) at time \(CMTimeGetSeconds(time))s")
+            
+            generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: time)]) { [weak self] (requestedTime, cgImage, actualTime, result, error) in
+                guard let self = self else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                if let error = error {
+                    print("❌ Failed to load frame \(index): \(error.localizedDescription)")
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                guard let cgImage = cgImage else {
+                    print("❌ No image returned for frame \(index)")
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                let uiImage = UIImage(cgImage: cgImage)
+                
+                // Cache the image
+                let cost = Int(uiImage.size.width * uiImage.size.height * 4)
+                self.videoFrameCache.setObject(uiImage, forKey: NSNumber(value: index), cost: cost)
+                
+                print("✅ Frame \(index) loaded and cached")
+                continuation.resume(returning: uiImage)
+            }
+        }
+    }
+
+    // Add or update this method in your CameraLiDARManager class
+    func loadVideoWithMetadata(videoURL: URL, completion: @escaping (Bool, Int, Error?) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else {
+                DispatchQueue.main.async {
+                    completion(false, 0, NSError(domain: "CameraLiDARManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Self deallocated"]))
+                }
+                return
+            }
+            
+            // Reset state first
+            DispatchQueue.main.sync {
+                self.pauseStream()
+                self.resetPlaybackState()
+                self.isLiveCapture = false
+                self.loadedDataURL = videoURL
+                self.isLoadedDataLiDAR = false
+            }
+            
+            // First check for metadata in same folder
+            let folderURL = videoURL.deletingLastPathComponent()
+            let metadataURL = folderURL.appendingPathComponent("recording_metadata.json")
+            
+            print("Looking for metadata at: \(metadataURL.path)")
+            
+            if FileManager.default.fileExists(atPath: metadataURL.path) {
+                do {
+                    let data = try Data(contentsOf: metadataURL)
+                    let metadata = try JSONDecoder().decode(RecordingMetadata.self, from: data)
+                    
+                    // Update metadata on main thread
+                    DispatchQueue.main.async {
+                        self.loadedRecordingMetadata = metadata
+                        print("✅ Loaded recording metadata with orientation: \(metadata.deviceOrientation?.name ?? "unknown")")
+                    }
+                } catch {
+                    print("⚠️ Found metadata file but failed to parse: \(error.localizedDescription)")
+                    
+                    // Set a default metadata with portrait orientation as fallback
+                    DispatchQueue.main.async {
+                        self.loadedRecordingMetadata = RecordingMetadata.defaultMetadata()
+                    }
+                }
+            } else {
+                print("⚠️ No metadata file found, will use default orientation")
+                
+                // Set a default metadata with portrait orientation as fallback
+                DispatchQueue.main.async {
+                    self.loadedRecordingMetadata = RecordingMetadata.defaultMetadata()
+                }
+            }
+            
+            // Now load the video file
+            self.loadVideoFile(videoURL, completion: completion)
+        }
+    }
+
+    // Update or add the applyCorrectOrientation method
+    // This is a direct replacement for the applyCorrectOrientation method
+    // with special handling for your specific case
+
+    // Improved version of applyCorrectOrientation
+    func applyCorrectOrientation(to image: UIImage) -> UIImage {
+        // First check if this is a valid image
+        guard let cgImage = image.cgImage else { return image }
+        
+        // Log original image properties
+        print("Original image: \(image.size.width)x\(image.size.height), orientation: \(image.imageOrientation.rawValue)")
+        
+        // Try to use metadata if available
+        if let metadata = loadedRecordingMetadata,
+           let deviceOrientationInfo = metadata.deviceOrientation {
+            
+            // Get recorded device orientation
+            let recordedOrientation = deviceOrientationInfo.uiDeviceOrientation
+            
+            // Check if we have camera orientation info
+            let capturedIsLandscape = deviceOrientationInfo.cameraOrientation == "landscape" ||
+                                     (deviceOrientationInfo.capturedWidth ?? 0) > (deviceOrientationInfo.capturedHeight ?? 0)
+            
+            // Determine if the current image is landscape
+            let isLandscapeImage = image.size.width > image.size.height
+            
+            // Debug log
+            print("Orientation analysis:")
+            print("- Recorded orientation: \(deviceOrientationInfo.name) (rawValue: \(deviceOrientationInfo.rawValue))")
+            print("- Camera captured in: \(capturedIsLandscape ? "landscape" : "portrait")")
+            print("- Current image is: \(isLandscapeImage ? "landscape" : "portrait") (\(image.size.width)x\(image.size.height))")
+            
+            // DETERMINE CORRECT TRANSFORMATION
+            var targetOrientation: UIImage.Orientation
+            
+            // Special case: Handle the mismatch between device orientation and camera storage orientation
+            if recordedOrientation == .portrait || recordedOrientation == .portraitUpsideDown {
+                // Device was held in portrait mode during recording
+                
+                if isLandscapeImage {
+                    // Image is stored in landscape but device was in portrait - rotate 90°
+                    targetOrientation = recordedOrientation == .portrait ? .right : .left
+                    print("- Case 1: Portrait device, landscape image -> rotate to \(targetOrientation.rawValue)")
+                } else {
+                    // Image is already in portrait orientation
+                    targetOrientation = recordedOrientation == .portrait ? .up : .down
+                    print("- Case 2: Portrait device, portrait image -> no rotation needed")
+                }
+            } else if recordedOrientation == .landscapeLeft || recordedOrientation == .landscapeRight {
+                // Device was held in landscape mode during recording
+                
+                if !isLandscapeImage {
+                    // Image is stored in portrait but device was in landscape - needs rotation
+                    targetOrientation = recordedOrientation == .landscapeLeft ? .left : .right
+                    print("- Case 3: Landscape device, portrait image -> rotate to \(targetOrientation.rawValue)")
+                } else {
+                    // Both are landscape, but check if we need 180° rotation
+                    targetOrientation = recordedOrientation == .landscapeLeft ? .down : .up
+                    print("- Case 4: Landscape device, landscape image -> rotate to \(targetOrientation.rawValue)")
+                }
+            } else {
+                // Unknown or face up/down orientation, use image dimensions as hint
+                targetOrientation = isLandscapeImage ? .up : .right
+                print("- Case 5: Unknown device orientation -> using default for \(isLandscapeImage ? "landscape" : "portrait")")
+            }
+            
+            // If current orientation already matches target, return original
+            if image.imageOrientation == targetOrientation {
+                print("✓ No orientation change needed")
+                return image
+            }
+            
+            // Apply orientation
+            print("✓ Correcting orientation from \(image.imageOrientation.rawValue) to \(targetOrientation.rawValue)")
+            return UIImage(cgImage: cgImage, scale: image.scale, orientation: targetOrientation)
+        }
+        
+        // FALLBACK LOGIC: No metadata available
+        print("No metadata available, using fallback orientation logic")
+        
+        // Use image dimensions as hint
+        let isLandscapeImage = image.size.width > image.size.height
+        
+        // Default orientations
+        let defaultLandscapeOrientation: UIImage.Orientation = .up
+        let defaultPortraitOrientation: UIImage.Orientation = .right
+        
+        // Apply default orientation based on image dimensions
+        if isLandscapeImage && image.imageOrientation != defaultLandscapeOrientation {
+            print("Applying default landscape orientation")
+            return UIImage(cgImage: cgImage, scale: image.scale, orientation: defaultLandscapeOrientation)
+        } else if !isLandscapeImage && image.imageOrientation != defaultPortraitOrientation {
+            print("Applying default portrait orientation")
+            return UIImage(cgImage: cgImage, scale: image.scale, orientation: defaultPortraitOrientation)
+        }
+        
+        // No change needed
+        return image
+    }
+}
+
+// MARK:: All about playback controls
+extension CameraLiDARManager {
+    // Ensure this helper exists
+    private func updateSliderPosition() {
+        DispatchQueue.main.async {
+            self.sliderPosition = Double(self.currentFrameIndex)
+        }
+    }
+    
+    func nextFrame() {
+            if currentFrameIndex < totalFrames - 1 {
+                // Check if we're using video source or LiDAR data
+                if !videoFrames.isEmpty {
+                    setVideoFrame(to: currentFrameIndex + 1)
+                } else {
+                    loadFrame(at: currentFrameIndex + 1)
+                }
+                updateSliderPosition()
+            } else if isPlaying {
+                // Stop playback when we reach the end
+                stopPlayback()
+            }
+        }
+        
+    func stopPlayback() {
+        // Must run on main thread
+        if !Thread.isMainThread {
+            DispatchQueue.main.async {
+                self.stopPlayback()
+            }
+            return
+        }
+        
+        // Invalidate timer
+        if let timer = playbackTimer {
+            timer.invalidate()
+            self.playbackTimer = nil
+            print("⏸️ Playback timer invalidated")
+        }
+        
+        // Update state
+        if isPlaying {
+            isPlaying = false
+            print("⏸️ Playback stopped at frame \(currentFrameIndex)")
+        }
+    }
+        
+    
+    func previousFrame() {
+        if currentFrameIndex > 0 {
+            loadFrame(at: currentFrameIndex - 1)
+            updateSliderPosition()
+        }
+    }
+    
+    func loadLiDARFrameWithOrientation(from frameDir: URL) -> UIImage? {
+        // Look for image file with various possible names
+        let possibleImageNames = ["colorImage.jpg", "colorImage", "color_image.jpg", "color.jpg"]
+        var imageURL: URL? = nil
+        
+        for name in possibleImageNames {
+            let testURL = frameDir.appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: testURL.path) {
+                imageURL = testURL
+                break
+            }
+        }
+        
+        guard let imageURL = imageURL else {
+            print("❌ No image file found in frame directory: \(frameDir.path)")
+            return nil
+        }
+        
+        do {
+            // Read the file data
+            let imageData = try Data(contentsOf: imageURL)
+            
+            if let image = UIImage(data: imageData) {
+                // Apply orientation correction
+                return applyCorrectOrientation(to: image)
+            } else {
+                print("❌ Failed to create UIImage from data")
+                return nil
+            }
+        } catch {
+            print("❌ Error loading image: \(error)")
+            return nil
+        }
+    }
+
+    // Helper to load LiDAR frame directly (avoid the background thread)
+    private func loadLiDARFrameDirectly(from frameDir: URL) {
+        // Look for image file with various possible names
+        let possibleImageNames = ["colorImage.jpg", "colorImage", "color_image.jpg", "color.jpg"]
+        var imageURL: URL? = nil
+        
+        for name in possibleImageNames {
+            let testURL = frameDir.appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: testURL.path) {
+                imageURL = testURL
+                break
+            }
+        }
+        
+        guard let imageURL = imageURL else {
+            print("❌ No image file found in frame directory: \(frameDir.path)")
+            DispatchQueue.main.async { self.currentFrameImage = nil }
+            return
+        }
+        
+        do {
+            // Read the file data
+            let imageData = try Data(contentsOf: imageURL)
+            
+            if let image = UIImage(data: imageData) {
+                // Force immediate orientation correction
+                let orientedImage = self.applyCorrectOrientation(to: image)
+                self.currentFrameImage = orientedImage
+                self.onFrameChange?(currentFrameIndex)
+            } else {
+                print("❌ Failed to create UIImage from data")
+                self.currentFrameImage = nil
+            }
+        } catch {
+            print("❌ Error loading image: \(error)")
+            self.currentFrameImage = nil
+        }
+    }
+
+}
+
+
+//MARK:: All about Recording
+extension CameraLiDARManager {
+    func getCameraOrientation() -> UIDeviceOrientation {
+        // Try to get orientation from the camera connection first
+        if let connection = controller.captureSession.connections.first,
+           connection.isVideoOrientationSupported {
+            // Proper mapping of AVCaptureVideoOrientation to UIDeviceOrientation
+            switch connection.videoOrientation {
+            case .landscapeLeft:
+                return .landscapeRight  // Camera and device orientations are opposite
+            case .landscapeRight:
+                return .landscapeLeft   // Camera and device orientations are opposite
+            case .portraitUpsideDown:
+                return .portraitUpsideDown
+            case .portrait:
+                return .portrait
+            @unknown default:
+                return .portrait
+            }
+        } else {
+            // Fall back to device orientation
+            let deviceOrientation = UIDevice.current.orientation
+            if deviceOrientation == .faceUp || deviceOrientation == .faceDown || deviceOrientation == .unknown {
+                return .portrait  // Default to portrait for unusable orientations
+            } else {
+                return deviceOrientation
+            }
+        }
+    }
+    
+    func startVideoRecording(personName: String, action: String, distance: String) {
+        // Quick validation on main thread
+        guard !isRecording else {
+            print("⚠️ Already recording, ignoring request")
+            return
+        }
+        
+        // Get the current camera connection orientation
+        let cameraOrientation: UIDeviceOrientation
+        
+        // Try to get orientation from the camera connection
+        if let connection = controller.captureSession.connections.first,
+           connection.isVideoOrientationSupported {
+            // Map AVCaptureVideoOrientation to UIDeviceOrientation
+            switch connection.videoOrientation {
+            case .landscapeLeft:
+                cameraOrientation = .landscapeRight  // They're inverted
+            case .landscapeRight:
+                cameraOrientation = .landscapeLeft   // They're inverted
+            case .portraitUpsideDown:
+                cameraOrientation = .portraitUpsideDown
+            case .portrait:
+                cameraOrientation = .portrait
+            @unknown default:
+                cameraOrientation = .portrait
+            }
+        } else {
+            // Fall back to device orientation
+            let deviceOrientation = UIDevice.current.orientation
+            if deviceOrientation == .faceUp || deviceOrientation == .faceDown || deviceOrientation == .unknown {
+                cameraOrientation = .portrait  // Default to portrait for unusable orientations
+            } else {
+                cameraOrientation = deviceOrientation
+            }
+        }
+        
+        print("📷 Starting LiDAR recording with orientation: \(getOrientationName(cameraOrientation))")
+        
+        // Set recording flags
+        isRecording = true
+        useLiDAR = true
+        
+        // Move all file operations to background
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            // Create folder structure
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateString = dateFormatter.string(from: Date())
+            
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH-mm-ss"
+            let timeString = timeFormatter.string(from: Date())
+            
+            let personNameSafe = personName.isEmpty ? "Test" : personName
+            let actionSafe = action.isEmpty ? "Test" : action
+            let distanceSafe = distance.isEmpty ? "Unknown" : distance
+            
+            let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let dateFolderPath = documentsPath.appendingPathComponent(dateString)
+            let personFolderPath = dateFolderPath.appendingPathComponent(personNameSafe)
+            let recordingFolder = personFolderPath.appendingPathComponent("LiDAR_Recording_\(actionSafe)_\(timeString)")
+            
+            do {
+                // Create directories
+                try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true, attributes: nil)
+                
+                // Save orientation information immediately
+                let orientationPath = recordingFolder.appendingPathComponent("orientation_info.txt")
+                let orientationInfo = """
+                Orientation: \(self.getOrientationName(cameraOrientation))
+                Orientation RawValue: \(cameraOrientation.rawValue)
+                UIInterfaceOrientation: \(UIApplication.shared.statusBarOrientation.rawValue)
+                Interface Idiom: \(UIDevice.current.userInterfaceIdiom.rawValue)
+                """
+                try orientationInfo.write(to: orientationPath, atomically: true, encoding: .utf8)
+                
+                // Update properties on main thread
+                DispatchQueue.main.async {
+                    self.recordingFolder = recordingFolder
+                    self.recordingStartTime = Date()
+                    self.frameCount = 0
+                    self.recordingOrientation = cameraOrientation
+                    print("✅ LiDAR recording started to folder: \(recordingFolder.lastPathComponent)")
+                }
+            } catch {
+                print("❌ Error creating recording folder: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    self.isRecording = false
+                    self.useLiDAR = false
+                }
+            }
+        }
+    }
+
+
+    // Replace the current startRecording method
+    // Add this method to CameraLiDARManager
+    // Start standard recording
+    func startRecording(personName: String, action: String) {
+        // Quick validation on main thread
+        guard !isRecording else {
+            print("⚠️ Already recording, ignoring request")
+            return
+        }
+        
+        // Get the current camera connection orientation
+        let cameraOrientation: UIDeviceOrientation
+        
+        // Try to get orientation from the camera connection first
+        if let connection = controller.captureSession.connections.first,
+           connection.isVideoOrientationSupported {
+            // Map AVCaptureVideoOrientation to UIDeviceOrientation
+            switch connection.videoOrientation {
+            case .landscapeLeft:
+                cameraOrientation = .landscapeRight  // They're inverted
+            case .landscapeRight:
+                cameraOrientation = .landscapeLeft   // They're inverted
+            case .portraitUpsideDown:
+                cameraOrientation = .portraitUpsideDown
+            case .portrait:
+                cameraOrientation = .portrait
+            @unknown default:
+                cameraOrientation = .portrait
+            }
+        } else {
+            // Fall back to device orientation
+            let deviceOrientation = UIDevice.current.orientation
+            if deviceOrientation == .faceUp || deviceOrientation == .faceDown || deviceOrientation == .unknown {
+                cameraOrientation = .portrait  // Default to portrait for unusable orientations
+            } else {
+                cameraOrientation = deviceOrientation
+            }
+        }
+        
+        print("📱 Starting standard recording with orientation: \(getOrientationName(cameraOrientation))")
+        
+        // Set recording flag
+        isRecording = true
+        
+        // Move all file operations to background
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            // Create folder structure
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateString = dateFormatter.string(from: Date())
+            
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH-mm-ss"
+            let timeString = timeFormatter.string(from: Date())
+            
+            let personNameSafe = personName.isEmpty ? "Test" : personName
+            let actionSafe = action.isEmpty ? "Test" : action
+            
+            let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let dateFolderPath = documentsPath.appendingPathComponent(dateString)
+            let personFolderPath = dateFolderPath.appendingPathComponent(personNameSafe)
+            let recordingFolder = personFolderPath.appendingPathComponent("Standard_Recording_\(actionSafe)_\(timeString)")
+            
+            do {
+                // Create directories
+                try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true, attributes: nil)
+                
+                // Save orientation information immediately (for debugging)
+                let orientationPath = recordingFolder.appendingPathComponent("orientation_info.txt")
+                let orientationInfo = """
+                Orientation: \(self.getOrientationName(cameraOrientation))
+                Orientation RawValue: \(cameraOrientation.rawValue)
+                UIInterfaceOrientation: \(UIApplication.shared.statusBarOrientation.rawValue)
+                """
+                try orientationInfo.write(to: orientationPath, atomically: true, encoding: .utf8)
+                
+                // Update properties on main thread
+                DispatchQueue.main.async {
+                    self.recordingFolder = recordingFolder
+                    self.recordingStartTime = Date()
+                    self.frameCount = 0
+                    self.useLiDAR = false
+                    self.recordingOrientation = cameraOrientation
+                    
+                    // Setup video writer on background
+                    self.setupVideoWriterInBackground(at: recordingFolder)
+                }
+            } catch {
+                print("❌ Error creating recording folder: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    self.isRecording = false
+                }
+            }
+        }
+    }
+    
+    // Stop recording with proper cleanup
+    func stopRecording(completion: @escaping (URL?) -> Void) {
+        DispatchQueue.main.async {
+            guard self.isRecording, let folder = self.recordingFolder else {
+                completion(nil)
+                return
+            }
+            
+            // First mark as not recording to prevent new frames
+            self.isRecording = false
+            
+            // Capture all required information before moving to background thread
+            let isLiDAR = self.useLiDAR
+            let frameCount = self.frameCount
+            let recordingOrientation = self.recordingOrientation
+            
+            // Reset recording state
+            self.frameCount = 0
+            self.recordingStartTime = nil
+            
+            // Process completion on background thread
+            DispatchQueue.global(qos: .userInitiated).async {
+                print("🛑 Stopping recording...")
+                
+                // Call our improved metadata saver
+                self.saveRecordingMetadata(
+                    to: folder,
+                    orientation: recordingOrientation,
+                    frameCount: frameCount,
+                    isLiDAR: isLiDAR
+                )
+                
+                // For standard recordings, finalize the video
+                if !isLiDAR {
+                    if let writer = self.videoWriter, let writerInput = self.videoWriterInput {
+                        // Finish writing if input is ready
+                        if writerInput.isReadyForMoreMediaData {
+                            writerInput.markAsFinished()
+                            writer.finishWriting {
+                                print("✅ Video writing completed")
+                                
+                                // Clear video writer references
+                                DispatchQueue.main.async {
+                                    self.videoWriter = nil
+                                    self.videoWriterInput = nil
+                                    self.pixelBufferAdaptor = nil
+                                    self.recordingFolder = nil
+                                    
+                                    completion(folder)
+                                }
+                            }
+                        } else {
+                            print("⚠️ Video writer input not ready for finalization")
+                            DispatchQueue.main.async {
+                                self.videoWriter = nil
+                                self.videoWriterInput = nil
+                                self.pixelBufferAdaptor = nil
+                                self.recordingFolder = nil
+                                
+                                completion(folder)
+                            }
+                        }
+                    } else {
+                        // No video writer (unusual for standard recording)
+                        print("⚠️ No video writer available for finalization")
+                        DispatchQueue.main.async {
+                            self.recordingFolder = nil
+                            completion(folder)
+                        }
+                    }
+                } else {
+                    // LiDAR recording doesn't need video writer finalization
+                    DispatchQueue.main.async {
+                        self.recordingFolder = nil
+                        completion(folder)
+                    }
+                }
+            }
+        }
+    }
+    // Ensure stopVideoRecording delegates to the main stopRecording method for consistency
+    func stopVideoRecording(completion: @escaping (URL?) -> Void) {
+        // Just use the regular stop recording method for consistency
+        stopRecording(completion: completion)
+    }
+    
+    // Thread-safe method to set fixed focus
+    func setFixedFocus() {
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            print("Unable to access camera device")
+            return
+        }
+        
+        // Camera configuration should be on a background thread
+        sessionQueue.async {
+            do {
+                try device.lockForConfiguration()
+                
+                // Disable auto focus
+                if device.isFocusModeSupported(.locked) {
+                    device.focusMode = .locked
+                }
+                
+                // Set focus to the center of the image
+                if device.isFocusPointOfInterestSupported {
+                    device.focusPointOfInterest = CGPoint(x: 0.5, y: 0.5)
+                }
+                
+                // Disable auto exposure if needed
+                if device.isExposureModeSupported(.locked) {
+                    device.exposureMode = .locked
+                }
+                
+                device.unlockForConfiguration()
+                print("Camera focus locked")
+            } catch {
+                print("Error setting fixed focus: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    func correctImageOrientation(_ image: UIImage, orientation: UIDeviceOrientation) -> UIImage {
+        // If the image doesn't have a CGImage, return the original
+        guard let cgImage = image.cgImage else {
+            return image
+        }
+        
+        // If orientation is unknown or the device is face up/down, use portrait orientation
+        let effectiveOrientation: UIDeviceOrientation
+        if orientation == .unknown || orientation == .faceUp || orientation == .faceDown {
+            effectiveOrientation = .portrait
+        } else {
+            effectiveOrientation = orientation
+        }
+        
+        // Get the correct orientation based on device orientation
+        var targetOrientation: UIImage.Orientation
+        
+        switch effectiveOrientation {
+        case .portrait:
+            targetOrientation = .right // Portrait mode requires 90° rotation
+        case .portraitUpsideDown:
+            targetOrientation = .left // Portrait upside down requires -90° rotation
+        case .landscapeLeft:
+            targetOrientation = .down // LandscapeLeft requires 180° rotation
+        case .landscapeRight:
+            targetOrientation = .up // LandscapeRight is the default camera orientation (0° rotation)
+        default:
+            targetOrientation = .up // Default for unknown orientations
+        }
+        
+        // If the current orientation already matches the target, return the original
+        if image.imageOrientation == targetOrientation {
+            return image
+        }
+        
+        // Create a new image with the target orientation
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: targetOrientation)
+    }
+
+    private func getOrientationName(_ orientation: UIDeviceOrientation) -> String {
+            switch orientation {
+            case .portrait: return "portrait"
+            case .portraitUpsideDown: return "portraitUpsideDown"
+            case .landscapeLeft: return "landscapeLeft"
+            case .landscapeRight: return "landscapeRight"
+            case .faceUp: return "faceUp"
+            case .faceDown: return "faceDown"
+            default: return "unknown"
+            }
+        }
+    
+    // MARK: - Improved stopRecording method
+    private func setupVideoWriterInBackground(at folder: URL) {
+        // Run entirely on background thread
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            print("🎬 Setting up video writer in background...")
+            
+            // Create a file URL for the video
+            let fileURL = folder.appendingPathComponent("recording.mp4")
+            
+            // Clean up any existing file
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+            
+            do {
+                // Get dimensions and orientation before creating writer
+                var width: Int = 0
+                var height: Int = 0
+                var orientation: UIDeviceOrientation = .portrait
+                
+                // Use a semaphore to wait for the main thread to give us values
+                let semaphore = DispatchSemaphore(value: 0)
+                
+                DispatchQueue.main.async {
+                    width = Int(self.capturedData.cameraReferenceDimensions.width)
+                    height = Int(self.capturedData.cameraReferenceDimensions.height)
+                    orientation = self.recordingOrientation
+                    semaphore.signal()
+                }
+            } catch {
+                print("❌ Failed to setup video writer: \(error)")
+                DispatchQueue.main.async {
+                    self.isRecording = false // Reset recording flag
+                }
+            }
+        }
+    }
+    
+    func saveRecordingMetadata(to folder: URL, orientation: UIDeviceOrientation, frameCount: Int, isLiDAR: Bool) {
+        do {
+            // Calculate duration
+            var duration: TimeInterval = 0
+            if let startTime = recordingStartTime {
+                duration = Date().timeIntervalSince(startTime)
+            }
+            
+            // Get image dimensions
+            let width = capturedData.colorImage?.size.width ?? capturedData.cameraReferenceDimensions.width
+            let height = capturedData.colorImage?.size.height ?? capturedData.cameraReferenceDimensions.height
+            
+            // Record if the width/height ratio indicates landscape or portrait
+            let isImageLandscape = width > height
+            
+            // Create enhanced orientation information with camera info
+            let deviceOrientation = RecordingMetadata.DeviceOrientation(
+                rawValue: orientation.rawValue,
+                name: getOrientationName(orientation),
+                cameraOrientation: isImageLandscape ? "landscape" : "portrait",
+                capturedWidth: Int(width),
+                capturedHeight: Int(height)
+            )
+            
+            // Create the metadata with detailed orientation
+            let metadata = RecordingMetadata(
+                personName: "Test", // Use actual values from recording
+                action: "Test",
+                frameCount: frameCount,
+                useLiDAR: isLiDAR,
+                duration: duration,
+                resolution: RecordingMetadata.Resolution(
+                    width: capturedData.cameraReferenceDimensions.width,
+                    height: capturedData.cameraReferenceDimensions.height
+                ),
+                deviceOrientation: deviceOrientation,
+                timestamp: Date().timeIntervalSince1970,
+                distance: "Test",
+                cameraIntrinsics: [
+                    [Float(capturedData.cameraIntrinsics.columns.0.x), Float(capturedData.cameraIntrinsics.columns.0.y), Float(capturedData.cameraIntrinsics.columns.0.z)],
+                    [Float(capturedData.cameraIntrinsics.columns.1.x), Float(capturedData.cameraIntrinsics.columns.1.y), Float(capturedData.cameraIntrinsics.columns.1.z)],
+                    [Float(capturedData.cameraIntrinsics.columns.2.x), Float(capturedData.cameraIntrinsics.columns.2.y), Float(capturedData.cameraIntrinsics.columns.2.z)]
+                ]
+            )
+            
+            // Encode and save
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            let jsonData = try encoder.encode(metadata)
+            let metadataURL = folder.appendingPathComponent("recording_metadata.json")
+            try jsonData.write(to: metadataURL)
+            
+            print("✅ Saved enhanced metadata with orientation: \(deviceOrientation.name), camera: \(deviceOrientation.cameraOrientation ?? "unknown")")
+            
+            // Save additional debug orientation file that's easier to read
+            let orientationDebugURL = folder.appendingPathComponent("orientation_debug.txt")
+            let debugInfo = """
+            === ORIENTATION DEBUG INFO ===
+            Device Orientation: \(deviceOrientation.name) (rawValue: \(deviceOrientation.rawValue))
+            Camera Orientation: \(deviceOrientation.cameraOrientation ?? "unknown")
+            Image Dimensions: \(Int(width))x\(Int(height)) (\(isImageLandscape ? "landscape" : "portrait"))
+            Interface Orientation: \(UIApplication.shared.statusBarOrientation.rawValue)
+            Expected Display: \(isImageLandscape == deviceOrientation.isPortraitOrientation ? "Needs rotation" : "No rotation needed")
+            ============================
+            """
+            try debugInfo.write(to: orientationDebugURL, atomically: true, encoding: .utf8)
+        } catch {
+            print("❌ Failed to save metadata: \(error)")
+        }
+    }
+    
+}
+
+// Add this method to your CameraLiDARManager class
+extension CameraLiDARManager {
+    // Thread-safe method to update current frame
+    func forceFrameUpdate(to index: Int) {
+        if Thread.isMainThread {
+            _forceFrameUpdate(to: index)
+        } else {
+            DispatchQueue.main.async {
+                self._forceFrameUpdate(to: index)
+            }
+        }
+    }
+    
+    // Private implementation - always call on main thread
+    private func _forceFrameUpdate(to index: Int) {
+        // Ensure we're on the main thread
+        assert(Thread.isMainThread, "Frame updates must happen on the main thread")
+        
+        // Bounds check
+        guard index >= 0 && index < totalFrames else {
+            print("Error: Frame index \(index) is out of bounds (0..\(totalFrames-1))")
+            return
+        }
+        
+        // Update the frame index
+        self.currentFrameIndex = index
+        
+        // Notify any observers
+        if let handler = onFrameChange {
+            handler(index)
+        }
+        
+        // Notify via NotificationCenter as well
+        NotificationCenter.default.post(
+            name: NSNotification.Name("FrameChanged"),
+            object: nil,
+            userInfo: ["frameIndex": index]
+        )
+    }
+    
+    // Thread-safe overlay image setter
+    func setOverlayImage(_ image: UIImage) {
+        DispatchQueue.main.async {
+            self.currentFrameImage = image
+            
+            // Notify observers that the frame has been updated
+            if let handler = self.onFrameChange {
+                handler(self.currentFrameIndex)
+            }
+        }
+    }
+}
+// Add this method to your CameraLiDARManager class
+extension CameraLiDARManager {
+    // Method to safely access frames by index
+    func getFrame(at index: Int) -> UIImage? {
+        // Check if index is valid
+        guard index >= 0 && index < totalFrames else {
+            print("❌ getFrame: Index \(index) out of bounds (0..\(totalFrames-1))")
+            return nil
+        }
+        
+        // If the current frame is loaded and matches the requested index
+        if index == currentFrameIndex && currentFrameImage != nil {
+            return currentFrameImage
+        }
+        
+        // If we have video frames in memory
+        if !videoFrames.isEmpty && index < videoFrames.count {
+            return applyCorrectOrientation(to: videoFrames[index])
+        }
+        
+        // For LiDAR frames or any other source
+        if isLoadedDataLiDAR && index < lidarFrameURLs.count {
+            // This loads synchronously - might cause UI lag but ensures we get the frame
+            return loadLiDARFrameWithOrientation(from: lidarFrameURLs[index])
+        }
+        
+        // If we couldn't get the frame immediately, try to set it asynchronously
+        // and return currentFrameImage as a fallback (which might be nil or the wrong frame)
+        DispatchQueue.main.async {
+            self.setFrame(to: index)
+        }
+        
+        return currentFrameImage
+    }
+    // Helper method to load a specific frame
+    private func loadFrameIfNeeded(at index: Int) {
+        // Only load if the requested index is different from the current one
+        if index != currentFrameIndex {
+            // Set the frame index which should trigger your existing frame loading logic
+            currentFrameIndex = index
+        }
+    }
+}
+
+extension CameraLiDARManager {
+    // Comprehensive method to clear all frames and reset state
+    func clearAllFrames() {
+        print("🧹 CameraLiDARManager: Starting comprehensive cleanup...")
+        
+        cleanupVideoResources()
+        
+        // Stop any ongoing playback first
+        if isPlaying {
+            stopPlayback()
+        }
+        
+        // Clear frame storage
+        videoFrames.removeAll()
+        frameURLs.removeAll()
+        lidarFrameURLs.removeAll()
+        lidarFrameImageURLs.removeAll()
+        
+        // Reset frame counters
+        totalFrames = 0
+        currentFrameIndex = 0
+        sliderPosition = 0
+        
+        // Clear current display
+        currentFrameImage = nil
+        
+        // Reset capture data
+        capturedData = CameraCapturedData()
+        
+        // Clear all caches
+        preloadedFrames.removeAll()
+        preloadedFrameIndices.removeAll()
+        keypointData.removeAll()
+        keypointDataByFrame.removeAll()
+        processedImages.removeAll()
+        
+        // Clear depth-related data
+        selectedImagePoints.removeAll()
+        selectedWorldPoints.removeAll()
+        selectedPoints.removeAll()
+        distanceMeasured = nil
+        measuredDistance = nil
+        depthValue = nil
+        depthAtTappedPoint = nil
+        firstWorldPoint = nil
+        secondWorldPoint = nil
+        
+        // Reset metadata and URL references
+        loadedRecordingMetadata = nil
+        loadedDataURL = nil
+        
+        // Reset state flags
+        isDataLoaded = false
+        dataAvailable = false
+        isLoadedDataLiDAR = false
+        waitingForCapture = false
+        processingCapturedResult = false
+        
+        // Clear any frame change handlers
+        onFrameChange = nil
+        
+        print("✅ CameraLiDARManager: Cleanup complete")
+    }
+    
+    /// Pause playback without clearing data
+    func pausePlayback() {
+        if let timer = playbackTimer {
+            timer.invalidate()
+            playbackTimer = nil
+        }
+        isPlaying = false
+    }
+    
+    /// Reset just the playback state without clearing frames
+    func resetPlaybackPosition() {
+        currentFrameIndex = 0
+        sliderPosition = 0
+        if totalFrames > 0 {
+            setFrame(to: 0)
+        }
+    }
+
+}

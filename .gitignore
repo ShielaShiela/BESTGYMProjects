@@ -1,2 +1,5 @@
 *.mlpackage
 *.bin
+xcuserdata/
+Pods/
+.DS_Store

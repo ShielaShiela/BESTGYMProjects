@@ -25,14 +25,14 @@ struct PoseMetricsView: View {
                 VStack {
                     HStack {
                         Text("Turn Attempts: ")
-                            .font(.system(.body, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced))
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
                         
                         Spacer()
                         
                         Text("\(String(format: "%.1f", swingAnalysisViewModel.swingTurns))")
-                            .font(.system(.body, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced))
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
                     }
@@ -43,14 +43,32 @@ struct PoseMetricsView: View {
                     
                     HStack {
                         Text("Max Perfect Turns: ")
-                            .font(.system(.body, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced))
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
                         
                         Spacer()
                         
                         Text("\(Int(floor(swingAnalysisViewModel.swingTurns)))")
-                            .font(.system(.body, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                    
+                    HStack {
+                        Text("Angular Velocity: ")
+                            .font(.system(.caption, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                        
+                        Spacer()
+                        
+                        Text("Min: \(String(format: "%.1f", swingAnalysisViewModel.minSwingVelocity))rad/s  Max: \(String(format: "%.1f", swingAnalysisViewModel.maxSwingVelocity))rad/s")
+                            .font(.system(.caption, design: .monospaced))
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
                     }
@@ -139,7 +157,7 @@ struct PoseMetricsView: View {
         case .trajectories2D:
             return chartBuilderViewModel.fetchJointMetrics(joint: joint, using: chartBuilderViewModel.positionData)
         case .swingMotion:
-            return chartBuilderViewModel.fetchJointMetrics(joint: joint, using: chartBuilderViewModel.positionData)
+            return dataMetrics()
         case .velocities:
             return chartBuilderViewModel.fetchJointMetrics(joint: joint, using: chartBuilderViewModel.velocityData.x)
         case .accelerations:

@@ -9,6 +9,18 @@ import SwiftUI
 import Metal
 import AVFoundation
 
+struct MetadataInfo {
+    let intrinsics: matrix_float3x3
+    let referenceSize: CGSize
+    let depthCenter: Float16
+}
+
+struct TextureInfo {
+    let yWidth: Int, yHeight: Int, yPixelFormat: MTLPixelFormat
+    let cbcrWidth: Int, cbcrHeight: Int, cbcrPixelFormat: MTLPixelFormat
+    let depthWidth: Int, depthHeight: Int
+}
+
 class FrameDataModel: NSObject{
     // Define Variable
     var depth: MTLTexture?

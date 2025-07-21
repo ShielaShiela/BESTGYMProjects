@@ -43,7 +43,7 @@ struct KeypointLineVM: View {
             path.move(to: fromPoint)
             path.addLine(to: toPoint)
         }
-        .stroke(connectionColor(from: from, to: to), lineWidth: 2)
+        .stroke(connectionColor(from: from, to: to), lineWidth: 1)
     }
     
     private func connectionColor(from: String, to: String) -> Color {

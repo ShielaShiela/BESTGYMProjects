@@ -26,7 +26,7 @@ struct KeypointDotVM: View {
         
         let color = keypointColor(name: keypoint.name)
         // Fix: Convert Float to CGFloat explicitly
-        let size = 5.0 + (CGFloat(keypoint.confidence) * 6.0)
+        let size = 2.0
         
         ZStack {
             // Main keypoint circle
@@ -36,7 +36,7 @@ struct KeypointDotVM: View {
             
             // White border
             Circle()
-                .stroke(Color.white, lineWidth: 1)
+                .stroke(Color.white, lineWidth: 0.5)
                 .frame(width: size, height: size)
         }
         .position(position)

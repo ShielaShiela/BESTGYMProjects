@@ -102,7 +102,6 @@ struct PlaybackControlView: View {
     private func moveToFirstFrame() {
         print("⏮️ Moving to first frame")
         cameraManager.setFrame(to: 0)
-        notifyFrameChanged(0)
     }
 
     private func moveToPreviousFrame() {
@@ -110,7 +109,6 @@ struct PlaybackControlView: View {
             let newIndex = cameraManager.currentFrameIndex - 1
             print("◀️ Moving to previous frame: \(newIndex)")
             cameraManager.setFrame(to: newIndex)
-            notifyFrameChanged(newIndex)
         }
     }
 
@@ -119,7 +117,6 @@ struct PlaybackControlView: View {
             let newIndex = cameraManager.currentFrameIndex + 1
             print("▶️ Moving to next frame: \(newIndex)")
             cameraManager.setFrame(to: newIndex)
-            notifyFrameChanged(newIndex)
         }
     }
 
@@ -127,7 +124,6 @@ struct PlaybackControlView: View {
         let lastIndex = totalFrames - 1
         print("⏭️ Moving to last frame: \(lastIndex)")
         cameraManager.setFrame(to: lastIndex)
-        notifyFrameChanged(lastIndex)
     }
     
     // Function to send notification about frame change

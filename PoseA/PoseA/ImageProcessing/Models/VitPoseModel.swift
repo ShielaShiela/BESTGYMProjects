@@ -55,23 +55,6 @@ var keypointNames = [
     "left_knee", "right_knee", "left_ankle", "right_ankle"
 ]
 
-var availableJoints: [String] {
-    return [
-        "L Shoulder",
-        "R Shoulder",
-        "L Elbow",
-        "R Elbow",
-        "L Wrist",
-        "R Wrist",
-        "L Hip",
-        "R Hip",
-        "L Knee",
-        "R Knee",
-        "L Ankle",
-        "R Ankle"
-    ]
-}
-
 var jointConnections: [(String, String)] = [
     // Torso
     ("left_shoulder", "right_shoulder"),

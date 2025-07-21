@@ -548,22 +548,6 @@ extension VitPoseProcessor {
     }
 }
 
-// MARK: - Frame Update Publisher
-class FrameUpdatePublisher {
-    static let shared = FrameUpdatePublisher()
-    
-    private init() {}
-    
-    // Use NotificationCenter for broadcasting frame changes
-    func notifyFrameChanged(frameIndex: Int) {
-        NotificationCenter.default.post(
-            name: NSNotification.Name("FrameChanged"),
-            object: nil,
-            userInfo: ["frameIndex": frameIndex]
-        )
-    }
-}
-
 // Add this extension to fix the CGImage resize issue
 extension VitPoseProcessor {
     func hasKeypoints(for frameIndex: Int) -> Bool {

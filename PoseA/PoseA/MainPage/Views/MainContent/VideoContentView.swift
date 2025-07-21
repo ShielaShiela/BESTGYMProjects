@@ -15,9 +15,9 @@ extension MainContentView {
                 FrameView(
                     image: cameraManager.currentFrameImage,
                     keypoints: appState.showKeypoints ? appState.poseProcessor.getKeypoints(for: cameraManager.currentFrameIndex) : nil,
-                    rotation: appState.imageRotation,
                     appState: appState,
-                    ROIModel: ROIModel
+                    ROIModel: ROIModel,
+                    BoxModel: BoxModel
                 )
                 .overlay(
                     // Debug info overlay

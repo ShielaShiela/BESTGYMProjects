@@ -29,7 +29,6 @@ protocol CaptureDataReceiver: AnyObject {
 }
 
 class CameraLiDARDepthControllerUI: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
-    
     enum ConfigurationError: Error {
         case lidarDeviceUnavailable
         case requiredFormatUnavailable
@@ -54,8 +53,6 @@ class CameraLiDARDepthControllerUI: NSObject, ObservableObject, AVCaptureVideoDa
     private var filterMode = false
     private var hasLiDARSupport = false
 
-
-
     weak var delegate: CaptureDataReceiver?
     
     var isFilteringEnabled = true {
@@ -64,8 +61,6 @@ class CameraLiDARDepthControllerUI: NSObject, ObservableObject, AVCaptureVideoDa
             filterMode = isFilteringEnabled
         }
     }
-    
-    /**new new**/
 
     private var recordingStartTime: Date?
     private var recordingFolder: URL?
@@ -173,7 +168,7 @@ class CameraLiDARDepthControllerUI: NSObject, ObservableObject, AVCaptureVideoDa
             // Create an object to output depth data.
             depthDataOutput = AVCaptureDepthDataOutput()
             depthDataOutput?.isFilteringEnabled = isFilteringEnabled
-//            captureSession.addOutput(depthDataOutput)
+
             if captureSession.canAddOutput(depthDataOutput!) {
                     captureSession.addOutput(depthDataOutput!)
                     log("Successfully added depth data output", level: .info)
@@ -194,11 +189,11 @@ class CameraLiDARDepthControllerUI: NSObject, ObservableObject, AVCaptureVideoDa
             }
             
             if let connection = depthDataOutput!.connection(with: .depthData) {
-            if connection.isEnabled {
-                log("Depth data connection is enabled", level: .info)
-            } else {
-                log("Depth data connection is disabled", level: .info)
-            }
+                if connection.isEnabled {
+                    log("Depth data connection is enabled", level: .info)
+                } else {
+                    log("Depth data connection is disabled", level: .info)
+                }
             } else {
                 log("No depth data connection available", level: .info)
             }
@@ -220,30 +215,6 @@ class CameraLiDARDepthControllerUI: NSObject, ObservableObject, AVCaptureVideoDa
         
     }
     
-    func startStreamto(completion: @escaping (Bool, Error?) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            if self.captureSession.isRunning {
-                print("Capture session is already running")
-                DispatchQueue.main.async {
-                    completion(true, nil)
-                }
-                return
-            }
-            
-            self.captureSession.startRunning()
-            
-            // Wait a bit to ensure the session has time to start
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                if self.captureSession.isRunning {
-                    print("Capture session started successfully")
-                    completion(true, nil)
-                } else {
-                    print("Failed to start capture session")
-                    completion(false, NSError(domain: "CaptureSessionError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to start capture session"]))
-                }
-            }
-        }
-    }
     func stopStream() {
         captureSession.stopRunning()
     }
@@ -361,218 +332,10 @@ extension CameraLiDARDepthControllerUI: AVCaptureDataOutputSynchronizerDelegate 
         }
         
     }
-    
-    private func createSampleBufferFromPixelBuffer(_ pixelBuffer: CVPixelBuffer, timestamp: CMTime) -> CMSampleBuffer {
-        var sampleBuffer: CMSampleBuffer?
-        var timingInfo = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: timestamp, decodeTimeStamp: .invalid)
-        
-        var formatDescription: CMFormatDescription?
-        CMVideoFormatDescriptionCreateForImageBuffer(allocator: nil, imageBuffer: pixelBuffer, formatDescriptionOut: &formatDescription)
-        
-        CMSampleBufferCreateForImageBuffer(allocator: kCFAllocatorDefault,
-                                           imageBuffer: pixelBuffer,
-                                           dataReady: true,
-                                           makeDataReadyCallback: nil,
-                                           refcon: nil,
-                                           formatDescription: formatDescription!,
-                                           sampleTiming: &timingInfo,
-                                           sampleBufferOut: &sampleBuffer)
-        
-        return sampleBuffer!
-    }
-    
 }
 
 // MARK: Photo Capture Delegate
 extension CameraLiDARDepthControllerUI: AVCapturePhotoCaptureDelegate {
-    
-    func capturePhoto() {
-        var photoSettings: AVCapturePhotoSettings
-        if  photoOutput.availablePhotoPixelFormatTypes.contains(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
-            photoSettings = AVCapturePhotoSettings(format: [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
-            ])
-        } else {
-            photoSettings = AVCapturePhotoSettings()
-        }
-        
-        // Capture depth data with this photo capture.
-        photoSettings.isDepthDataDeliveryEnabled = true
-        photoOutput.capturePhoto(with: photoSettings, delegate: self)
-    }
-    
-        
-    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        
-        // Retrieve the image and depth data.
-        guard let pixelBuffer = photo.pixelBuffer,
-              let depthData = photo.depthData,
-              let cameraCalibrationData = depthData.cameraCalibrationData,
-              let photoData = photo.fileDataRepresentation() else { return }
-        
-        stopStream()
-        
-        measureDepth(photo: photo)
-        
-        // Generate UIImage
-        let colorImage = generateUIImage(from: pixelBuffer)
-        
-        if colorImage == nil {
-                    print("Warning: Failed to generate UIImage")
-                }
-
-        
-        // Convert the depth data to the expected format.
-        let convertedDepth = depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat16)
-        
-        let depthMap = convertedDepth.depthDataMap
-        
-        
-        let width = CVPixelBufferGetWidth(pixelBuffer)
-        let height = CVPixelBufferGetHeight(pixelBuffer)
-        
-        let depthWidth = CVPixelBufferGetWidth(depthMap)
-        let depthHeight = CVPixelBufferGetHeight(depthMap)
-
-        
-        let centerX = width / 2
-        let centerY = height / 2
-        
-        let scaleX = CGFloat(depthWidth) / CGFloat(width)
-        let scaleY = CGFloat(depthHeight) / CGFloat(height)
-
-        
-        let alignedDepth = alignDepth(coor: (centerX, centerY), scaleX: scaleX, scaleY: scaleY)
-        let depthX = alignedDepth.depthX
-        let depthY = alignedDepth.depthY
-
-        let depthValue = getDepth(depthMap: convertedDepth,coor: (centerX, centerY), depthX: depthX, depthY: depthY)
-        
-        //Mark the center pixel coordinate
-        CVPixelBufferLockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: 0))
-                
-                let yPlaneBaseAddress = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0)
-                let cbCrPlaneBaseAddress = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1)
-                
-                let yBytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0)
-                let cbCrBytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 1)
-                
-                // Mark the center pixel in the Y plane (luminance)
-                for y in max(0, centerY - 5)..<min(CVPixelBufferGetHeightOfPlane(pixelBuffer, 0), centerY + 5) {
-                    let pointer = yPlaneBaseAddress!.assumingMemoryBound(to: UInt8.self) + y * yBytesPerRow
-                    for x in max(0, centerX - 5)..<min(CVPixelBufferGetWidthOfPlane(pixelBuffer, 0), centerX + 5) {
-                        pointer[x] = 76  // Set luminance to white for marking
-                    }
-                }
-                
-                // Mark the center pixel in the CbCr plane (chrominance)
-                for y in max(0, centerY / 2 - 2)..<min(CVPixelBufferGetHeightOfPlane(pixelBuffer, 1), centerY / 2 + 2) {
-                    let pointer = cbCrPlaneBaseAddress!.assumingMemoryBound(to: UInt8.self) + y * cbCrBytesPerRow
-                    for x in max(0, centerX / 2 - 2)..<min(CVPixelBufferGetWidthOfPlane(pixelBuffer, 1), centerX / 2 + 2) {
-                        pointer[2 * x] = 84  // Cb value
-                        pointer[2 * x + 1] = 255  // Cr value
-                    }
-                }
-                
-        CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: 0))
-         
-        // Package the captured data.
-        let data = FrameDataModel(depth: convertedDepth.depthDataMap.texture(withFormat: .r16Float, planeIndex: 0, addToCache: textureCache),
-                                      colorY: pixelBuffer.texture(withFormat: .r8Unorm, planeIndex: 0, addToCache: textureCache),
-                                      colorCbCr: pixelBuffer.texture(withFormat: .rg8Unorm, planeIndex: 1, addToCache: textureCache),
-                                      cameraIntrinsics: cameraCalibrationData.intrinsicMatrix,
-                                      cameraReferenceDimensions: cameraCalibrationData.intrinsicMatrixReferenceDimensions,
-                                      depthCenter: depthValue,
-                                      originalDepth: depthData,
-                                      colorImage: colorImage)
-        
-        delegate?.onNewPhotoData(capturedData: data)
-    }
-    
-    
-    
-    func alignDepth(coor: (x: Int, y: Int), scaleX: CGFloat, scaleY: CGFloat) -> (depthX: Int, depthY: Int) {
-        let depthX = Int(CGFloat(coor.x) * scaleX)
-        let depthY = Int(CGFloat(coor.y) * scaleY)
-        // Assuming you want to return these values for now
-        return (depthX, depthY)
-    }
-    
-    func getDepthDataCorners(photo: AVCapturePhoto){
-        
-        // Retrieve the image and depth data.
-        guard let pixelBuffer = photo.pixelBuffer,
-              let depthData = photo.depthData else { return }
-        
-        // Convert the depth data to the expected format.
-        let convertedDepth = depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat16)
-        
-        
-        let depthMap = convertedDepth.depthDataMap
-        //        let photoPixelBuffer = photo.pixelBuffer!
-        
-        let width = CVPixelBufferGetWidth(pixelBuffer)
-        let height = CVPixelBufferGetHeight(pixelBuffer)
-        
-        let depthWidth = CVPixelBufferGetWidth(depthMap)
-        let depthHeight = CVPixelBufferGetHeight(depthMap)
-        
-        let scaleX = CGFloat(depthWidth) / CGFloat(width)
-        let scaleY = CGFloat(depthHeight) / CGFloat(height)
-        
-        
-        // Define an array of coordinates, where each coordinate is a tuple (x, y)
-        var depthCoordinates: [(x: Int, y: Int)] = []
-        
-        depthCoordinates.append((x: width / 2, y: height / 2)) //center-center
-        
-        // Populate the array with example coordinates
-        depthCoordinates.append((x: 0, y: 0)) //top-left
-        depthCoordinates.append((x: width - 1, y: 0)) //top-right
-        depthCoordinates.append((x: 0, y: height - 1)) //bottom-left
-        depthCoordinates.append((x: width - 1, y: height - 1)) //bottom-right
-        
-        depthCoordinates.append((x: width / 2, y: 0)) //top-center
-        depthCoordinates.append((x: width / 2, y: height - 1)) //bottom-center
-        depthCoordinates.append((x: width - 1, y: height / 2)) //right-center
-        depthCoordinates.append((x: 0, y: height / 2)) //left-center
-        
-        
-        for coordinates in depthCoordinates {
-            
-            let alignedDepth = alignDepth(coor: coordinates, scaleX: scaleX, scaleY: scaleY)
-            let depthX = alignedDepth.depthX
-            let depthY = alignedDepth.depthY
-            
-            let depthValue = getDepth(depthMap: convertedDepth,coor: coordinates, depthX: depthX, depthY: depthY)
-            
-            print("Depth value at coordinates (\(coordinates.x), \(coordinates.y)): \(depthValue) meters")
-            
-            
-        }
-        
-    }
-    
-    func getDepth(depthMap: AVDepthData,coor: (x: Int, y: Int), depthX : Int, depthY: Int ) -> (Float16){
-        
-        let depthMap = depthMap.depthDataMap
-        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
-        let rowData = CVPixelBufferGetBaseAddress(depthMap)! + depthY * CVPixelBufferGetBytesPerRow(depthMap)
-        let depthValue = rowData.assumingMemoryBound(to: Float16.self)[depthX]
-        CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
-        
-        
-        return depthValue
-        
-    }
-
-    
-    func measureDepth(photo: AVCapturePhoto){
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.getDepthDataCorners(photo: photo)
-            }
-    }
-    
     func generateUIImage(from pixelBuffer: CVPixelBuffer) -> UIImage? {
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
         let context = CIContext(options: nil)

@@ -11,7 +11,11 @@ import Combine
 class SwingDataVM: ObservableObject {
     @Published var barPosition: [PointData] = []
     @Published var swingAngleData: [JointData] = []
+    @Published var swingOmegaData: [JointData] = []
+    
     @Published var swingTurns: Float = 0
+    @Published var maxSwingVelocity: Float = 0
+    @Published var minSwingVelocity: Float = 0
     
     private let poseJointViewModel: PoseJointVM
     private let processingQueue = DispatchQueue(label: "com.posea.swingdata", qos: .userInitiated)
@@ -100,7 +104,10 @@ class SwingDataVM: ObservableObject {
         processingQueue.async { [weak self] in
             guard let self = self else { return }
             
-            var results: [xyzChartData] = []
+            var _dataMetrics: dataMetrics = .init()
+            var resultsAngle: [xyzChartData] = []
+            var resultsVelocity: [xyzChartData] = []
+            
             var prevAngle: Float = 0
             var accumulatedAngle: Float = 0
             var turns: Float = 0
@@ -130,32 +137,55 @@ class SwingDataVM: ObservableObject {
                     return
                 }
                 
-                for i in 1..<newData[0].dataPoints.count {
-                    let prev = newData[0].dataPoints[i - 1]
-                    let curr = newData[0].dataPoints[i]
+                //
+                let dt: Float = 1 / 30
+                let count = Int(newData[0].dataPoints.count)
+                
+                for i in 0..<count {
+                    let currL = newData[0].dataPoints[i]
+                    let currR = newData[1].dataPoints[i]
                     
-                    let dx = curr.x - Float(self.barPosition.first!.x)
-                    let dy = curr.y - Float(self.barPosition.first!.y)
+                    let dx = (currL.x + currR.x) / 2 - Float(self.barPosition.first!.x)
+                    let dy = (currL.y + currR.y) / 2 - Float(self.barPosition.first!.y)
                     
                     // Angle from +Y axis (clockwise is positive)
-                    let angle = atan2(dx, dy)
-                    
+                    let angle = atan2(dy, dx)  // Standard angle from +X
+                    let angleFromY = angle + .pi / 2  // Rotate CCW to make 0 = +Y
+
                     // Unwrap angle to avoid jumps at ±π
                     let delta = angle - prevAngle
                     let unwrappedDelta = atan2(sin(delta), cos(delta))
                     accumulatedAngle += unwrappedDelta
                     prevAngle = angle
                     
+                    let angularVelocity = i > 0 ? unwrappedDelta / dt : 0.0
                     turns = abs(accumulatedAngle / (.pi * 2))
 
-                    results.append(xyzChartData(x: i, y: angle))
+                    resultsAngle.append(xyzChartData(x: i, y: angleFromY))
+                    resultsVelocity.append(xyzChartData(x: i, y: angularVelocity))
+
                 }
+                
+                // Compute Metrics Value
+                _dataMetrics = dataMetrics(
+                    minX: resultsVelocity.map { $0.x }.min() ?? 0.0,
+                    maxX: resultsVelocity.map { $0.x }.max() ?? 0.0,
+                    minY: resultsVelocity.map { $0.y }.min() ?? 0.0,
+                    maxY: resultsVelocity.map { $0.y }.max() ?? 0.0
+                )
                 
                 DispatchQueue.main.async {
                     self.swingTurns = turns
+                    self.maxSwingVelocity = resultsVelocity.map { $0.y }.max() ?? 0.0
+                    self.minSwingVelocity = resultsVelocity.map { $0.y }.min() ?? 0.0
+                    
                     self.swingAngleData.append(JointData(joint: "Swing",
-                                                         dataPoints: results,
+                                                         dataPoints: resultsAngle,
                                                          dataMetrics: dataMetrics())
+                    )
+                    self.swingOmegaData.append(JointData(joint: "Swing",
+                                                         dataPoints: resultsVelocity,
+                                                         dataMetrics: _dataMetrics)
                     )
                     completion()
                 }

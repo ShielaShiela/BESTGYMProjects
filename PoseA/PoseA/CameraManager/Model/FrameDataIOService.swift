@@ -185,20 +185,8 @@ final class FrameDataIOService {
             colorImage: colorImage
         )
     }
-
-    struct Metadata {
-        let intrinsics: matrix_float3x3
-        let referenceSize: CGSize
-        let depthCenter: Float16
-    }
-
-    private struct TextureInfo {
-        let yWidth: Int, yHeight: Int, yPixelFormat: MTLPixelFormat
-        let cbcrWidth: Int, cbcrHeight: Int, cbcrPixelFormat: MTLPixelFormat
-        let depthWidth: Int, depthHeight: Int
-    }
         
-    func loadMetadata(from url: URL) throws -> Metadata {
+    func loadMetadata(from url: URL) throws -> MetadataInfo {
         // Parse File
         let data = try Data(contentsOf: url)
         guard let dict = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
@@ -207,7 +195,7 @@ final class FrameDataIOService {
         
         // Fetch Camera Intrinsics
         let intrinsicsArray = dict["cameraIntrinsics"] as? [[Double]] ?? Array(repeating: [0.0, 0.0, 0.0], count: 3)
-        var intrinsics = arrayToMatrix(intrinsicsArray)!
+        let intrinsics = arrayToMatrix(intrinsicsArray)!
         
         // Fetch Camera Reference Dimensions
         let refDict = dict["cameraReferenceDimensions"] as? [String: Double] ?? [:]
@@ -216,7 +204,7 @@ final class FrameDataIOService {
         // Fetch Depth Center
         let depthCenter = Float16(dict["depthCenter"] as? Double ?? 0.0)
 
-        return Metadata(intrinsics: intrinsics, referenceSize: referenceSize, depthCenter: depthCenter)
+        return MetadataInfo(intrinsics: intrinsics, referenceSize: referenceSize, depthCenter: depthCenter)
     }
     
     private func loadTextureInfo(from url: URL) throws -> TextureInfo {

@@ -10,7 +10,9 @@ import SwiftUI
 struct MainContentView: View {
     @ObservedObject var appState: MainAppState
     @ObservedObject var ROIModel: ROIViewModel
+    @ObservedObject var BoxModel: BoxViewModel
     @ObservedObject var cameraManager: CameraLiDARManager
+    @State var mediaManager: MediaManagerVM
     
     var body: some View {
         VStack(spacing: 0) {
@@ -110,15 +112,15 @@ struct MainContentView: View {
                     if self.appState.useLiDAR {
                         // Start LiDAR video recording with athlete info and distance
                         self.cameraManager.startVideoRecording(
-                            personName: self.appState.athleteName.isEmpty ? "Test" : self.appState.athleteName,
-                            action: self.appState.actionType.isEmpty ? "Test" : self.appState.actionType,
-                            distance: self.appState.distanceValue ?? "Test"
+                            personName: self.appState.RecordingData.athleteName.isEmpty ? "Test" : self.appState.RecordingData.athleteName,
+                            action: self.appState.RecordingData.actionType.isEmpty ? "Test" : self.appState.RecordingData.actionType,
+                            distance: self.appState.RecordingData.distanceValue ?? "Test"
                         )
                     } else {
                         // Start standard video recording with the same athlete info (no distance)
                         self.cameraManager.startRecording(
-                            personName: self.appState.athleteName.isEmpty ? "Test" : self.appState.athleteName,
-                            action: self.appState.actionType.isEmpty ? "Test" : self.appState.actionType
+                            personName: self.appState.RecordingData.athleteName.isEmpty ? "Test" : self.appState.RecordingData.athleteName,
+                            action: self.appState.RecordingData.actionType.isEmpty ? "Test" : self.appState.RecordingData.actionType
                         )
                     }
                 }

@@ -112,29 +112,51 @@ class PoseJointVM: ObservableObject {
         var data: [xyzChartData] = []
         var _dataMetrics: dataMetrics = .init()
         
+        let filter = KF3DWrapper(dt: 1.0 / fps)
+        var initialized = false
+
         processingQueue.sync { [weak self] in
             guard let self = self else { return }
 
             for i in 0..<self.totalFrames {
-                guard let keypoints = self.poseProcessor.getKeypoints(for: i), keypoints.count == 17 else {
-                    log("No keypoint found at frame \(i)", level: .warn)
-                    continue
-                }
+                let keypoints = self.poseProcessor.getKeypoints(for: i)
                 let index = self.jointIndex(for: joint)
-                let kp = keypoints[index]
-                
-                if useDepth {
-                    guard let _points = self.getCameraSpacePose(at: keypoints, joints: index, indices: i) else {
-                        continue
-                    }
-                    // Convert to Centimeter
-                    data.append(xyzChartData(x: _points.x * 100, y: _points.y * 100, z: _points.z * 100))
-                } else {
-                    data.append(xyzChartData(x: Float(kp.x), y: Float(kp.y), z: Float(kp.depth)))
 
+                var x: Float? = nil
+                var y: Float? = nil
+                var z: Float? = nil
+
+                if let keypoints = keypoints, keypoints.count == 17 {
+                    if useDepth {
+                        if let point = self.getCameraSpacePose(at: keypoints, joints: index, indices: i) {
+                            // Convert to Centimeter
+                            x = point.x * 100
+                            y = point.y * 100
+                            z = point.z * 100
+                        }
+                    } else {
+                        let kp = keypoints[index]
+                        x = Float(kp.x)
+                        y = Float(kp.y)
+                        z = Float(kp.depth)
+                    }
+                }
+
+                // Initialize Kalman filter if this is the first valid frame
+                if !initialized, let x = x, let y = y, let z = z {
+                    filter.reset(x: x, y: y, z: z)
+                    initialized = true
+                }
+
+                // Only update filter if initialized
+                if initialized {
+                    filter.update(x: x, y: y, z: z)
+                    if let (fx, fy, fz) = filter.getFilteredPosition() {
+                        data.append(xyzChartData(x: fx, y: fy, z: fz))
+                    }
                 }
             }
-            
+
             // Compute Metrics Value
             _dataMetrics = dataMetrics(
                 minX: data.map { $0.x }.min() ?? 0.0,
@@ -145,18 +167,19 @@ class PoseJointVM: ObservableObject {
                 maxZ: data.map { $0.z }.max() ?? 0.0
             )
         }
-        
+
         DispatchQueue.main.async {
             completion(JointData(joint: joint, dataPoints: data, dataMetrics: _dataMetrics))
         }
     }
 
+
     func fetchAngleData(for joint: String, completion: @escaping (JointData) -> Void) {
         processingQueue.sync { [weak self] in
             guard let self = self else { return }
-            let filter = Kalman1DAngleFilter(dt: 1.0 / fps)
-            var data: [xyzChartData] = []
 
+            let filter = KF1DWrapper(dt: 1.0 / fps)
+            var data: [xyzChartData] = []
             var initialized = false
 
             for i in 0..<self.totalFrames {
@@ -184,7 +207,6 @@ class PoseJointVM: ObservableObject {
                 }
             }
 
-            // Compute Metrics Value
             let dataMetrics = dataMetrics(
                 minY: data.map { $0.y }.min() ?? 0.0,
                 maxY: data.map { $0.y }.max() ?? 0.0
@@ -195,7 +217,6 @@ class PoseJointVM: ObservableObject {
             }
         }
     }
-
 
     func fetchVelocityData(for joint: String, completion: @escaping (JointData, JointData) -> Void) {
         processingQueue.sync { [weak self] in

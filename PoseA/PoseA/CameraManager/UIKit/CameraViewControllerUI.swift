@@ -30,7 +30,6 @@ class CameraViewControllerUI: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-//        checkLiDARSupport()
         setupCaptureSession()
     }
     
@@ -40,80 +39,80 @@ class CameraViewControllerUI: UIViewController {
     }
     
     private func updatePreviewLayerFrame() {
-            guard let previewLayer = previewLayer else { return }
-            
-            // Set the preview layer to fill the entire view
-            previewLayer.frame = view.bounds
-            
-            // Update video orientation
-            if let connection = previewLayer.connection {
-                let orientation = UIDevice.current.orientation
-                
-                if connection.isVideoOrientationSupported {
-                    switch orientation {
-                    case .landscapeRight:
-                        connection.videoOrientation = .landscapeLeft
-                    case .landscapeLeft:
-                        connection.videoOrientation = .landscapeRight
-                    case .portrait:
-                        connection.videoOrientation = .portrait
-                    case .portraitUpsideDown:
-                        connection.videoOrientation = .portraitUpsideDown
-                    default:
-                        connection.videoOrientation = .landscapeRight
-                    }
-                }
-            }
-        }
+        guard let previewLayer = previewLayer else { return }
         
-        private func setupCaptureSession() {
-            captureSession = AVCaptureSession()
-            
-            guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera,
-                                                          for: .video,
-                                                          position: .back) else { return }
-            self.currentDevice = videoDevice
-            
-            do {
-                try configureVideoFormat(device: videoDevice)
-                
-                let videoInput = try AVCaptureDeviceInput(device: videoDevice)
-                if captureSession?.canAddInput(videoInput) == true {
-                    captureSession?.addInput(videoInput)
+        // Set the preview layer to fill the entire view
+        previewLayer.frame = view.bounds
+        
+        // Update video orientation
+        if let connection = previewLayer.connection {
+            let orientation = UIDevice.current.orientation
+
+            if connection.isVideoOrientationSupported {
+                switch orientation {
+                case .landscapeRight:
+                    connection.videoOrientation = .landscapeLeft
+                case .landscapeLeft:
+                    connection.videoOrientation = .landscapeRight
+                case .portrait:
+                    connection.videoOrientation = .portrait
+                case .portraitUpsideDown:
+                    connection.videoOrientation = .portraitUpsideDown
+                default:
+                    connection.videoOrientation = .landscapeRight
                 }
-                
-                if let audioDevice = AVCaptureDevice.default(for: .audio),
-                   let audioInput = try? AVCaptureDeviceInput(device: audioDevice),
-                   captureSession?.canAddInput(audioInput) == true {
-                    captureSession?.addInput(audioInput)
-                }
-                
-                videoOutput = AVCaptureMovieFileOutput()
-                if let videoOutput = videoOutput,
-                   captureSession?.canAddOutput(videoOutput) == true {
-                    captureSession?.addOutput(videoOutput)
-                    
-                    if let connection = videoOutput.connection(with: .video) {
-                        connection.videoOrientation = .landscapeRight
-                    }
-                }
-                
-                previewLayer = AVCaptureVideoPreviewLayer(session: captureSession!)
-                previewLayer?.videoGravity = .resizeAspectFill // Changed to fill
-                if let previewLayer = previewLayer {
-                    view.layer.addSublayer(previewLayer)
-                }
-                
-                updatePreviewLayerFrame()
-                
-                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                    self?.captureSession?.startRunning()
-                }
-                
-            } catch {
-                log("Error setting up camera: \(error.localizedDescription)", level: .error)
             }
         }
+    }
+        
+    private func setupCaptureSession() {
+        captureSession = AVCaptureSession()
+        
+        guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera,
+                                                      for: .video,
+                                                      position: .back) else { return }
+        self.currentDevice = videoDevice
+        
+        do {
+            try configureVideoFormat(device: videoDevice)
+            
+            let videoInput = try AVCaptureDeviceInput(device: videoDevice)
+            if captureSession?.canAddInput(videoInput) == true {
+                captureSession?.addInput(videoInput)
+            }
+            
+            if let audioDevice = AVCaptureDevice.default(for: .audio),
+               let audioInput = try? AVCaptureDeviceInput(device: audioDevice),
+               captureSession?.canAddInput(audioInput) == true {
+                captureSession?.addInput(audioInput)
+            }
+            
+            videoOutput = AVCaptureMovieFileOutput()
+            if let videoOutput = videoOutput,
+               captureSession?.canAddOutput(videoOutput) == true {
+                captureSession?.addOutput(videoOutput)
+                
+                if let connection = videoOutput.connection(with: .video) {
+                    connection.videoOrientation = .landscapeRight
+                }
+            }
+            
+            previewLayer = AVCaptureVideoPreviewLayer(session: captureSession!)
+            previewLayer?.videoGravity = .resizeAspectFill // Changed to fill
+            if let previewLayer = previewLayer {
+                view.layer.addSublayer(previewLayer)
+            }
+            
+            updatePreviewLayerFrame()
+            
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                self?.captureSession?.startRunning()
+            }
+            
+        } catch {
+            log("Error setting up camera: \(error.localizedDescription)", level: .error)
+        }
+    }
     
     private func configureVideoFormat(device: AVCaptureDevice) throws {
         try device.lockForConfiguration()

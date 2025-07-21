@@ -56,4 +56,3 @@ kernel void generatePointCloudKernel(texture2d<float, access::sample> depthTextu
     outputBuffer[index] = PointCloudPoint{ float3(x, y, depth), rgbaColor.rgb };
 }
 
-

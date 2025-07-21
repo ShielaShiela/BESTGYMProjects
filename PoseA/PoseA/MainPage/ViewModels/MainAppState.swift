@@ -11,13 +11,19 @@ import SwiftUI
 class MainAppState: ObservableObject {
     // UI state
     @Published var isProcessing = false
+    @Published var isVideoSource = false
+    @Published var isRecordMode = false
+    @Published var hasImportedKeypoints = false
     @Published var processingStatus = ""
     @Published var errorMessage: String? = nil
     @Published var showKeypoints = false
+    
+    // Toolbox Status
     @Published var isAnnotationMode = false
-    @Published var isVideoSource = false
-    @Published var hasImportedKeypoints = false
-    @Published var isRecordMode = false
+    @Published var isROIMode = false
+    @Published var isZoomMode = false
+    
+    @Published var isAnalysisAvailable: Bool = false
     
     // Pickers Status
     @Published var isFilePickerPresented = false
@@ -33,11 +39,6 @@ class MainAppState: ObservableObject {
     // Device Orientation
     @Published var orientation: DeviceOrientationModel = .portrait
     
-    
-    
-    
-    
-    
     // File metadata
     @Published var sourceFileName = ""
     @Published var sourceURL: URL? = nil
@@ -51,10 +52,10 @@ class MainAppState: ObservableObject {
     @Published var didEditKeypoints = false
     @Published var selectedKeypointIndex: Int? = nil
     
-    @Published var athleteName: String = "Test"
-    @Published var actionType: String = "Test"
-    @Published var distanceValue: String? = "Test"
-    @Published var videoSettings = VideoSettings.defaultSettings
+    @Published var RecordingData: RecordingDataModel = RecordingDataModel(athleteName: "Test",
+                                                                          actionType: "Test",
+                                                                          distanceValue: "Test",
+                                                                          videoSettings: VideoSettings.defaultSettings)
     
     // LiDAR toggle state
     @Published var useLiDAR: Bool = false
@@ -69,23 +70,22 @@ extension MainAppState {
         print("🔄 Resetting file and keypoint state...")
         print("  - Before: hasImportedKeypoints = \(hasImportedKeypoints), keypoint frames = \(poseProcessor.getTotalFrames())")
            
-          
-        // ✅ ADD THIS LINE - explicitly clear pose processor keypoints
         poseProcessor.clearAllKeypoints()
         sourceFileName = ""
         sourceURL = nil
         originalKeypointFileURL = nil
         hasImportedKeypoints = false
         showKeypoints = false
+        
         // Keep default values for athlete info
-        if athleteName.isEmpty {
-            athleteName = "Test"
+        if RecordingData.athleteName.isEmpty {
+            RecordingData.athleteName = "Test"
         }
-        if actionType.isEmpty {
-            actionType = "Test"
+        if RecordingData.actionType.isEmpty {
+            RecordingData.actionType = "Test"
         }
-        if distanceValue == nil {
-            distanceValue = "Test"
+        if RecordingData.distanceValue == nil {
+            RecordingData.distanceValue = "Test"
         }
     }
     

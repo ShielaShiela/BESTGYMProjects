@@ -8,7 +8,14 @@ struct BESTGYMPoseApp: View {
     // MARK: - Properties
     @StateObject private var cameraManager = CameraLiDARManager()
     @StateObject private var appState = MainAppState()
+    
+    // Media Related VM
+    @State private var mediaManager = MediaManagerVM()
     @StateObject private var ROIModel = ROIViewModel()
+    @StateObject private var BoxModel = BoxViewModel()
+    
+    // Toolbar Related VM
+    @State private var toolbarVM = ToolbarButtonVM()
     
     // MARK: - Body
     var body: some View {
@@ -19,85 +26,204 @@ struct BESTGYMPoseApp: View {
             // Landscape Main Content
             if self.appState.orientation == DeviceOrientationModel.landscape {
                 NavigationView {
-                    GeometryReader { geometry in
-                        HStack(spacing: 10) {
-                            // Left half: MainContentView with padding inside its half
-                            MainContentView(appState: appState,
-                                            ROIModel: ROIModel,
-                                            cameraManager: cameraManager)
-                            .frame(width: geometry.size.width / 2 - 10) // Half of screen minus spacing
-                            
-                            // Right half: Placeholder
-                            VStack {
-                                Text("Placeholder")
-                                    .font(.headline)
-                                    .fontWeight(.bold)
+                    ZStack{
+                        GeometryReader { geometry in
+                            HStack(spacing: 10) {
+                                // Left half: MainContentLeftView with padding inside its half
+                                MainContentLeftView(appState: self.appState,
+                                                    ROIModel: self.ROIModel,
+                                                    BoxModel: self.BoxModel,
+                                                    mediaManager: self.mediaManager)
+                                .frame(width: geometry.size.width / 2 - 10) // Half of screen minus spacing
+                                
+                                Spacer()
+                                
+                                
+                                // Right half: MainContentRightView with padding inside its half
+                                MainContentRightView(appState: self.appState,
+                                                     ROIModel: self.ROIModel,
+                                                     BoxModel: self.BoxModel,
+                                                     mediaManager: self.mediaManager)
+                                .frame(width: geometry.size.width / 2 - 10)
                             }
-                            .frame(width: geometry.size.width / 2 - 10)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                            .padding(.top, 5)
                         }
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .padding(.top, 5)
-                    }
-                    .toolbar {
-                        // Left Toolbar
-                        ToolbarItemGroup(placement: .topBarLeading) {
-                            Button {
-                                appState.isRecordMode.toggle()
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: !appState.isRecordMode ? "record.circle" : "waveform")
-                                    Text(!appState.isRecordMode ? "Record Mode" : "Analyze Mode")
-                                }
-                            }
-                            .toolbarCapsuleStyle()
-                        }
-
-                        // Principal Toolbar
-                        ToolbarItemGroup(placement: .topBarTrailing) {
-                            HStack(spacing: 6) {
-                                Button { print("ROI") } label: {
-                                    Label("ROI", systemImage: "crop")
-                                }
-                                Button { print("Annotate") } label: {
-                                    Label("Annotate", systemImage: "figure")
-                                }
-                                Button { print("Zoom") } label: {
-                                    Label("Zoom", systemImage: "plus.magnifyingglass")
-                                }
-                            }
-                            .toolbarCapsuleStyle()
-                        }
-
-                        // Right Toolbar
-                        ToolbarItemGroup(placement: .topBarTrailing) {
-                            HStack(spacing: 6) {
-                                if !appState.isRecordMode {
-                                    Button { selectFileOrFolder() } label: {
-                                        Image(systemName: "folder")
-                                    }
-                                }
-
-                                Menu {
-                                    Button { selectFileOrFolder() } label: {
-                                        Label("Open File/Folder", systemImage: "folder")
-                                    }
-                                    Button { selectVideoFile() } label: {
-                                        Label("Open Video File", systemImage: "film")
-                                    }
-                                    Button { selectVideoFromLibrary() } label: {
-                                        Label("Video from Library", systemImage: "photo.on.rectangle")
-                                    }
-                                    
-                                    Divider()
-                                    
-                                    Button { selectKeypointFile() } label: {
-                                        Label("Import Keypoints (.json)", systemImage: "square.and.arrow.down")
-                                    }
+                        .toolbar {
+                            // Left Toolbar
+                            ToolbarItemGroup(placement: .topBarLeading) {
+                                Button {
+                                    appState.isRecordMode.toggle()
                                 } label: {
-                                    Label("Actions", systemImage: "ellipsis.circle")
+                                    HStack(spacing: 6) {
+                                        Image(systemName: !appState.isRecordMode ? "record.circle" : "waveform")
+                                        Text(!appState.isRecordMode ? "Record Mode" : "Analyze Mode")
+                                    }
+                                }
+                                .frame(height: 22)
+                                .toolbarCapsuleStyle()
+                            }
+
+                            // Principal Toolbar
+                            ToolbarItemGroup(placement: .topBarTrailing) {
+                                if toolbarVM.activeMode == .roi {
+                                    HStack(spacing: 6) {
+                                        Button {
+                                            ROIModel.clearROI()
+                                        } label: {
+                                            Label("ROI", systemImage: "trash").foregroundStyle(.red)
+                                        }
+
+                                        Button {
+                                            ROIModel.setROIMode(false)
+                                            toolbarVM.deactivateMode()
+                                        } label: {
+                                            Label("ROI", systemImage: "xmark").foregroundStyle(.gray)
+                                        }
+                                    }
+                                    .toolbarCapsuleStyle()
+                                } else if toolbarVM.activeMode == .box {
+                                    HStack(spacing: 6) {
+                                        Button {
+                                            BoxModel.clearBox()
+                                        } label: {
+                                            Label("Box", systemImage: "trash").foregroundStyle(.red)
+                                        }
+
+                                        Button {
+                                            BoxModel.setBoxMode(false)
+                                            toolbarVM.deactivateMode()
+                                        } label: {
+                                            Label("Box", systemImage: "xmark").foregroundStyle(.gray)
+                                        }
+                                    }
+                                    .toolbarCapsuleStyle()
+                                } else if toolbarVM.activeMode == .annotate {
+                                    HStack(spacing: 6) {
+                                        Button {
+                                            print("Return Annotate")
+                                        } label: {
+                                            Label("Annotate", systemImage: "trash").foregroundStyle(.red)
+                                        }
+
+                                        Button {
+                                            appState.isAnnotationMode = false
+                                            toolbarVM.deactivateMode()
+                                        } label: {
+                                            Label("Annotate", systemImage: "xmark").foregroundStyle(.gray)
+                                        }
+                                    }
+                                    .toolbarCapsuleStyle()
+                                } else if toolbarVM.activeMode == .zoom {
+                                    HStack(spacing: 6) {
+                                        Button {
+                                            print("Return Zoom")
+                                        } label: {
+                                            Label("Zoom", systemImage: "trash").foregroundStyle(.red)
+                                        }
+
+                                        Button {
+                                            appState.isZoomMode = false
+                                            toolbarVM.deactivateMode()
+                                        } label: {
+                                            Label("Zoom", systemImage: "xmark").foregroundStyle(.gray)
+                                        }
+                                    }
+                                    .frame(height: 22)
+                                    .toolbarCapsuleStyle()
                                 }
                             }
-                            .toolbarCapsuleStyle()
+                            
+                            // Principal Toolbar
+                            if mediaManager.isMediaAvailable {
+                                ToolbarItemGroup(placement: .topBarTrailing) {
+                                    HStack(spacing: 6) {
+                                        ToolbarButtonView(mode: .roi, icon: "crop", title: "ROI", viewModel: toolbarVM) {
+                                            // ROI Mode activated
+                                            ROIModel.setROIMode(true)
+                                        }
+                                        ToolbarButtonView(mode: .box, icon: "square.dashed", title: "Box", viewModel: toolbarVM) {
+                                            // Box Mode activated
+                                            BoxModel.setBoxMode(true)
+                                        }
+                                        ToolbarButtonView(mode: .annotate, icon: "figure", title: "Annotate", viewModel: toolbarVM) {
+                                            // Annotate logic
+                                            appState.isAnnotationMode = true
+                                        }
+                                        ToolbarButtonView(mode: .zoom, icon: "plus.magnifyingglass", title: "Zoom", viewModel: toolbarVM) {
+                                            // Zoom logic
+                                            appState.isZoomMode = true
+                                        }
+                                    }
+                                    .toolbarCapsuleStyle()
+                                }
+                            }
+
+                            // Right Toolbar
+                            ToolbarItemGroup(placement: .topBarTrailing) {
+                                HStack(spacing: 6) {
+                                    if !appState.isRecordMode {
+                                        Button { selectFileOrFolder() } label: {
+                                            Image(systemName: "folder")
+                                        }
+                                    }
+
+                                    Menu {
+                                        Button { selectFileOrFolder() } label: {
+                                            Label("Open File/Folder", systemImage: "folder")
+                                        }
+                                        Button { selectVideoFile() } label: {
+                                            Label("Open Video File", systemImage: "film")
+                                        }
+                                        Button { selectVideoFromLibrary() } label: {
+                                            Label("Video from Library", systemImage: "photo.on.rectangle")
+                                        }
+                                        
+                                        Divider()
+                                        
+                                        Button { selectKeypointFile() } label: {
+                                            Label("Import Keypoints (.json)", systemImage: "square.and.arrow.down")
+                                        }
+                                    } label: {
+                                        Label("Actions", systemImage: "ellipsis.circle")
+                                    }
+                                }
+                                .frame(height: 22)
+                                .toolbarCapsuleStyle()
+                            }
+                        }
+                        // File/Folder Picker
+                        .fullScreenCover(isPresented: $appState.isFilePickerPresented) {
+                            DocumentPickerUI { urls in
+                                if let url = urls.first {
+                                    // Use loadData Function
+                                    appState.isProcessing = true
+                                    appState.processingStatus = "Loading data..."
+                                    
+                                    let errMsg = mediaManager.loadMedia(url: url)
+                                    
+                                    if let errMsg = errMsg {
+                                        DispatchQueue.main.async {
+                                            self.appState.processingStatus = errMsg
+                                            self.appState.isProcessing = false
+                                        }
+                                    } else {
+                                        DispatchQueue.main.async {
+                                            self.appState.processingStatus = "Loaded frames from \(url.lastPathComponent)"
+                                            self.appState.sourceFileName = url.lastPathComponent
+                                            self.appState.sourceURL = url
+                                            self.appState.isProcessing = false
+                                            self.appState.showKeypoints = true
+                                            self.appState.isVideoSource = false
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Loading Overlay View
+                        if appState.isProcessing {
+                            ProcessingOverlayView(status: appState.processingStatus)
                         }
                     }
                 }
@@ -120,9 +246,11 @@ struct BESTGYMPoseApp: View {
                             )
                             
                             // Main content container
-                            MainContentView(appState: appState,
-                                            ROIModel: ROIModel,
-                                            cameraManager: cameraManager)
+                            MainContentView(appState: self.appState,
+                                            ROIModel: self.ROIModel,
+                                            BoxModel: self.BoxModel,
+                                            cameraManager: self.cameraManager,
+                                            mediaManager: self.mediaManager)
                         }
                         
                         // Loading Overlay View
@@ -164,6 +292,7 @@ struct BESTGYMPoseApp: View {
                                                 
                                                 Text("Filename: \(appState.sourceFileName)")
                                                     .font(.caption)
+                                                    .foregroundColor(.secondary)
                                                     .lineLimit(1)
                                                     .truncationMode(.middle)
                                             } else if let sourceURL = appState.sourceURL ?? appState.originalKeypointFileURL {
@@ -174,6 +303,7 @@ struct BESTGYMPoseApp: View {
                                                 
                                                 Text("Filename: \(sourceURL.lastPathComponent)")
                                                     .font(.caption)
+                                                    .foregroundColor(.secondary)
                                                     .lineLimit(1)
                                                     .truncationMode(.middle)
                                             } else {
@@ -183,6 +313,7 @@ struct BESTGYMPoseApp: View {
                                                 
                                                 Text("Filename: No file loaded")
                                                     .font(.caption)
+                                                    .foregroundColor(.secondary)
                                             }
                                         }
                                         
@@ -411,13 +542,6 @@ struct BESTGYMPoseApp: View {
         if !appState.isAnnotationMode {
             setupPlaybackHandler()
         }
-        
-        // Auto-load default data if configured (on a slight delay)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            if UserDefaults.standard.bool(forKey: "AutoLoadEnabled") {
-                autoLoadDefaultData()
-            }
-        }
     }
 
     // MARK: - Enhanced checkForAssociatedKeypointFile function
@@ -547,12 +671,6 @@ struct BESTGYMPoseApp: View {
         }
     }
     
-    private func autoLoadDefaultData() {
-        // Implementation for auto-loading default data
-        // This would depend on your specific requirements
-    }
-
-    
     // MARK: - Updated processData() function with optimized processing
     private func processData() {
         DispatchQueue.main.async {
@@ -681,23 +799,22 @@ struct BESTGYMPoseApp: View {
     }
     
     private func setupRecordMode() {
-        cameraManager.debugCameraSetup()
         // Reset states
         appState.resetFileAndKeypointState()
         appState.resetStatusState()
         
         
         // Set default values for athlete info
-        if appState.athleteName.isEmpty {
-            appState.athleteName = "Test"
+        if appState.RecordingData.athleteName.isEmpty {
+            appState.RecordingData.athleteName = "Test"
         }
         
-        if appState.actionType.isEmpty {
-            appState.actionType = "Test"
+        if appState.RecordingData.actionType.isEmpty {
+            appState.RecordingData.actionType = "Test"
         }
         
-        if appState.distanceValue == nil {
-            appState.distanceValue = "Test"
+        if appState.RecordingData.distanceValue == nil {
+            appState.RecordingData.distanceValue = "Test"
         }
         
         // Reset LiDAR toggle to default state
@@ -751,9 +868,9 @@ struct BESTGYMPoseApp: View {
     
     private func resetRecordModeSettings() {
         // Reset athlete info
-        appState.athleteName = "Test"
-        appState.actionType = "Test"
-        appState.distanceValue = "Test"
+        appState.RecordingData.athleteName = "Test"
+        appState.RecordingData.actionType = "Test"
+        appState.RecordingData.distanceValue = "Test"
         
         // Reset LiDAR setting
         appState.useLiDAR = false
@@ -915,15 +1032,15 @@ struct BESTGYMPoseApp: View {
         }
         
         // Add athlete info if available
-        if !appState.athleteName.isEmpty {
-            metadata["athleteName"] = appState.athleteName
+        if !appState.RecordingData.athleteName.isEmpty {
+            metadata["athleteName"] = appState.RecordingData.athleteName
         }
         
-        if !appState.actionType.isEmpty {
-            metadata["actionType"] = appState.actionType
+        if !appState.RecordingData.actionType.isEmpty {
+            metadata["actionType"] = appState.RecordingData.actionType
         }
         
-        if let distanceValue = appState.distanceValue {
+        if let distanceValue = appState.RecordingData.distanceValue {
             metadata["distance"] = distanceValue
         }
         
@@ -958,10 +1075,6 @@ struct BESTGYMPoseApp: View {
                 }
             }
         }
-    }
-    private func setupUserPreferences() {
-        // Load user preferences
-        appState.loadUserPreferences()
     }
     
     private func updateDisplayWithKeypoints(for frameIndex: Int) {
@@ -1035,26 +1148,25 @@ struct BESTGYMPoseApp: View {
     }
 
     private func setupPlaybackHandler() {
-        cameraManager.onFrameChange = { index in
-            DispatchQueue.main.async {
-                // Update UI based on current frame
-                if self.appState.showKeypoints {
-                    // Get the frame image and update it
-                    if let frameImage = self.cameraManager.getFrame(at: index) {
-                        self.cameraManager.currentFrameImage = frameImage
-                        print("🔄 Frame changed to \(index), image updated")
-                    }
-                    
-                    // Check if we have keypoints for this frame
-                    if let keypoints = self.appState.poseProcessor.getKeypoints(for: index), !keypoints.isEmpty {
-                        print("✅ Keypoints available for frame \(index): \(keypoints.count)")
-                    } else {
-                        print("⚠️ No keypoints for frame \(index)")
-                    }
+        DispatchQueue.main.async {
+            // Update UI based on current frame
+            if self.appState.showKeypoints {
+                // Get the frame image and update it
+                if let frameImage = self.cameraManager.getFrame(at: 0) {
+                    self.cameraManager.currentFrameImage = frameImage
+                    print("🔄 Frame changed to \(0), image updated")
+                }
+                
+                // Check if we have keypoints for this frame
+                if let keypoints = self.appState.poseProcessor.getKeypoints(for: 0), !keypoints.isEmpty {
+                    print("✅ Keypoints available for frame \(0): \(keypoints.count)")
+                } else {
+                    print("⚠️ No keypoints for frame \(0)")
                 }
             }
         }
     }
+    
     // MARK: - Improved PlaybackControlView frame navigation
     private func notifyFrameChanged(_ frameIndex: Int) {
         print("📱 Frame changed to: \(frameIndex)")
@@ -1398,27 +1510,4 @@ struct BESTGYMPoseApp: View {
             }
         }
     }
-    
-    private func switchToAnalysisMode() {
-        if appState.isRecordMode {
-            appState.isRecordMode = false
-            if cameraManager.isRecording {
-                cameraManager.stopRecording { _ in }
-            }
-            
-            // Stop camera stream on background thread
-            DispatchQueue.global(qos: .userInitiated).async {
-                self.cameraManager.pauseStream()
-            }
-            
-            // Clean up previous folder access when switching modes
-            cleanupPreviousData()
-            
-            // Reset states before loading new file
-            appState.resetFileAndKeypointState()
-            appState.resetStatusState()
-        }
-    }
- 
-    
 }

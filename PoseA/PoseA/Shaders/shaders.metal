@@ -531,4 +531,3 @@ struct VertexOut {
 //    out.texCoord = vertexArray[vertexID].texCoord;
 //    return out;
 //}
-

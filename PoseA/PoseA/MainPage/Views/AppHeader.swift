@@ -32,7 +32,7 @@ struct AppHeader: View {
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 .frame(width: 200)
-                .onChange(of: appState.isRecordMode) { newValue in
+                .onChange(of: appState.isRecordMode) { oldValue, newValue in
                     handleModeChange(isRecordMode: newValue)
                 }
             }
@@ -59,7 +59,7 @@ struct AppHeader: View {
                     .foregroundColor(.white)
                     .fontWeight(.bold)
                     .font(.system(size: 12))
-                TextField("Test", text: $appState.athleteName)
+                TextField("Test", text: $appState.RecordingData.athleteName)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .foregroundColor(.black)
                     .font(.system(size: 12))
@@ -72,7 +72,7 @@ struct AppHeader: View {
                     .foregroundColor(.white)
                     .fontWeight(.bold)
                     .font(.system(size: 12))
-                TextField("Test", text: $appState.actionType)
+                TextField("Test", text: $appState.RecordingData.actionType)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .foregroundColor(.black)
                     .font(.system(size: 12))
@@ -86,8 +86,8 @@ struct AppHeader: View {
                     .fontWeight(.bold)
                     .font(.system(size: 12))
                 TextField("Test", text: Binding(
-                    get: { appState.distanceValue ?? "Test" },
-                    set: { appState.distanceValue = $0 }
+                    get: { appState.RecordingData.distanceValue ?? "Test" },
+                    set: { appState.RecordingData.distanceValue = $0 }
                 ))
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .foregroundColor(.black)

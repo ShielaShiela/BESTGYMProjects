@@ -59,16 +59,28 @@ struct PoseGraphView: View {
                     Spacer()
 
                 case .swingMotion:
+                    Text("Swing Trajectory")
+                        .font(.body)
                     // Chart View
                     ChartsPoseView(
                         chartData: chartBuilderViewModel.positionData,
                         BarPoint: swingAnalysisViewModel.barPosition
                     )
                     
+                    Text("Rotation Angle")
+                        .font(.body)
                     // Chart View
                     Charts2DView(
                         chartData: swingAnalysisViewModel.swingAngleData,
                         yAxisUnit: "rad"
+                    )
+                    
+                    Text("Angular Velocity")
+                        .font(.body)
+                    // Chart View
+                    Charts2DView(
+                        chartData: swingAnalysisViewModel.swingOmegaData,
+                        yAxisUnit: "rad/s"
                     )
                     
                 case .velocities:

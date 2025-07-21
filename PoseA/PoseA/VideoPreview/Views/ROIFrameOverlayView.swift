@@ -11,12 +11,12 @@ struct ROIFrameOverlayView: View {
     @ObservedObject var ROIModel: ROIViewModel
     let containerSize: CGSize
     let imageSize: CGSize
-    let rotation: Int
     
     @State private var startPoint: CGPoint = .zero
     @State private var currentPoint: CGPoint = .zero
     @State private var isDragging = false
-    
+    @State private var isROIActive: Bool = false
+
     var body: some View {
         ZStack {
             // Show existing ROI if available
@@ -29,7 +29,6 @@ struct ROIFrameOverlayView: View {
                     // Background mask with dynamic cut-out
                     InvertedMaskShape(holeRect: roiRect)
                         .fill(Color.black.opacity(0.6), style: FillStyle(eoFill: true))
-                        .ignoresSafeArea()
                     
                     ZStack(alignment: .top) {
                         // ROI Rectangle with semi-transparent fill
@@ -111,38 +110,51 @@ struct ROIFrameOverlayView: View {
             Color.clear
                 .contentShape(Rectangle()) // Makes the entire area tappable
                 .gesture(
-                    DragGesture(minimumDistance: 0)
+                    LongPressGesture(minimumDuration: 1.0, maximumDistance: 20)
+                        .sequenced(before: DragGesture(minimumDistance: 0))
                         .onChanged { value in
-                            if !isDragging {
-                                startPoint = value.startLocation
-                                isDragging = true
+                            switch value {
+                            case .second(true, let drag?):
+                                if !isDragging {
+                                    startPoint = drag.startLocation
+                                    isDragging = true
+                                }
+                                currentPoint = drag.location
+                            default:
+                                break
                             }
-                            currentPoint = value.location
                         }
                         .onEnded { value in
-                            if isDragging {
-                                let displayRect = CGRect(
-                                    x: min(startPoint.x, currentPoint.x),
-                                    y: min(startPoint.y, currentPoint.y),
-                                    width: abs(currentPoint.x - startPoint.x),
-                                    height: abs(currentPoint.y - startPoint.y)
-                                )
-                                
-                                // Only set ROI if the rectangle is large enough
-                                if displayRect.width > 50 && displayRect.height > 50 {
-                                    // Convert display coordinates to image coordinates
-                                    ROIModel.updateROI(displaySpace: displayRect, containerSize: containerSize, imageSize: imageSize)
-                                    log("ROI set to: \(ROIModel.roiImageSpace!)", level: .debug)
-                                } else {
-                                    ROIModel.setROIMode(false)
-                                    log("ROI is too small. ROI mode disabled.", level: .warn)
-
+                            switch value {
+                            case .second(true, let drag?):
+                                if isDragging {
+                                    let displayRect = CGRect(
+                                        x: min(startPoint.x, currentPoint.x),
+                                        y: min(startPoint.y, currentPoint.y),
+                                        width: abs(currentPoint.x - startPoint.x),
+                                        height: abs(currentPoint.y - startPoint.y)
+                                    )
+                                    
+                                    if displayRect.width > 50 && displayRect.height > 50 {
+                                        ROIModel.updateROI(
+                                            displaySpace: displayRect,
+                                            containerSize: containerSize,
+                                            imageSize: imageSize
+                                        )
+                                        log("ROI set to: \(ROIModel.roiImageSpace!)", level: .debug)
+                                    } else {
+                                        ROIModel.setROIMode(false)
+                                        log("ROI is too small. ROI mode disabled.", level: .warn)
+                                    }
+                                    
+                                    isDragging = false
                                 }
-                                
+                            default:
                                 isDragging = false
                             }
                         }
                 )
+
         }
         .onChange(of: ROIModel.isROIAvailable){
             // Reset Gesture Point at Startup
@@ -152,6 +164,4 @@ struct ROIFrameOverlayView: View {
         }
         .allowsHitTesting(ROIModel.isROISelectMode)
     }
-    
-
 }

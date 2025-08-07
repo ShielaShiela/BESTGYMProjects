@@ -66,7 +66,7 @@ struct ChartsPoseView: View {
                         .foregroundStyle(.gray)
                     AxisValueLabel {
                         if let doubleValue = value.as(Double.self) {
-                            Text(String(format: "%.1f", doubleValue))
+                            Text(String(format: "%.1f%@", doubleValue, yAxisUnit))
                                 .foregroundStyle(.gray)
                         }
                     }

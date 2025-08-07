@@ -48,7 +48,7 @@ struct PoseGraphView: View {
                     // Chart View
                     Charts2DView(
                         chartData: chartBuilderViewModel.positionData,
-                        yAxisUnit: "cm"
+                        yAxisUnit: "px"
                     )
                     
                     Spacer()
@@ -64,7 +64,8 @@ struct PoseGraphView: View {
                     // Chart View
                     ChartsPoseView(
                         chartData: chartBuilderViewModel.positionData,
-                        BarPoint: swingAnalysisViewModel.barPosition
+                        BarPoint: swingAnalysisViewModel.barPosition,
+                        yAxisUnit: "px"
                     )
                     
                     Text("Rotation Angle")
@@ -87,11 +88,11 @@ struct PoseGraphView: View {
                     // Double Chart View
                     Charts2DView(
                         chartData: chartBuilderViewModel.velocityData.x,
-                        yAxisUnit: "m/s"
+                        yAxisUnit: "px/s"
                     )
                     Charts2DView(
                         chartData: chartBuilderViewModel.velocityData.y,
-                        yAxisUnit: "m/s"
+                        yAxisUnit: "px/s"
                     )
                     
                     Spacer()
@@ -105,11 +106,11 @@ struct PoseGraphView: View {
                     // Double Chart View
                     Charts2DView(
                         chartData: chartBuilderViewModel.accelerationData.x,
-                        yAxisUnit: "m/s2"
+                        yAxisUnit: "px/s2"
                     )
                     Charts2DView(
                         chartData: chartBuilderViewModel.accelerationData.y,
-                        yAxisUnit: "m/s2"
+                        yAxisUnit: "px/s2"
                     )
                     
                     Spacer()

@@ -54,7 +54,7 @@ struct Charts2DView: View {
                         .foregroundStyle(.gray)
                     AxisValueLabel {
                         if let doubleValue = value.as(Double.self) {
-                            Text(String(format: "%.1f", doubleValue))
+                            Text(String(format: "%.2f%@", doubleValue/30, "s"))
                                 .foregroundStyle(.gray)
                         }
                     }

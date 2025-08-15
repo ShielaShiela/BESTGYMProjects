@@ -24,6 +24,7 @@ struct AnalysisModeRightView: View {
         self.mediaManager = mediaManager
         self.MLModel = MLModel
         
+        // Initialize the PoseJointLandscapeVM with the provided BoxModel and mediaManager
         self._poseJointVM = State(wrappedValue: PoseJointLandscapeVM(BoxModel: BoxModel,
                                                                      mediaManager: mediaManager))
     }
@@ -43,19 +44,22 @@ struct AnalysisModeRightView: View {
                     .padding(.horizontal)
                 
                 case .dataMetrics:
-                    DataMetricsView(poseJointVM: poseJointVM)
+                    DataMetricsView(appState: appState,
+                                    poseJointVM: poseJointVM)
                     .frame(height: geometry.size.height)
                     .padding(.horizontal)
                     
                 case .swing:
-                    SwingAnalysisView(poseJointVM: poseJointVM,
+                    SwingAnalysisView(appState: appState,
+                                      poseJointVM: poseJointVM,
                                       mediaManager: mediaManager)
                     .frame(height: geometry.size.height)
                     .padding(.horizontal)
                 
                 default:
                     // Pose Analysis View
-                    PoseAnalysisView(selectedView: selectedView,
+                    PoseAnalysisView(appState: appState,
+                                     selectedView: selectedView,
                                      poseJointVM: poseJointVM,
                                      mediaManager: mediaManager)
                     .frame(height: geometry.size.height)
@@ -124,7 +128,13 @@ struct AnalysisModeRightView: View {
                                             .padding(2)
                                     }
                                 } else {
-                                    Button(action: { updateData() }) {
+                                    Button(action: {
+                                        if !mediaManager.isKeypointAvailable {
+                                            updateData()
+                                        } else {
+                                            updateAnalysis()
+                                        }
+                                    }) {
                                         Text("Start Analysis!")
                                             .font(.system(size: 10))
                                             .padding(2)
@@ -157,6 +167,29 @@ struct AnalysisModeRightView: View {
         }
     }
     
+    private func updateAnalysis() {
+        // Check if app processing something
+        guard !self.appState.isProcessing else {
+            log("App still processing...", level: .info)
+            return
+        }
+        
+        // Set App to Processing Mode
+        DispatchQueue.main.async {
+            appState.isProcessing = true
+            appState.isAnalysisAvailable = false
+            appState.processingStatus = "Processing Frame..."
+        }
+        
+        if !appState.isAnalysisAvailable && mediaManager.isKeypointAvailable && mediaManager.isMediaAvailable {
+            self.poseJointVM.buildCompleteData { success in
+                // Set State when finished
+                appState.isAnalysisAvailable = success
+                appState.isProcessing = false
+            }
+        }
+    }
+    
     private func updateData() {
         // Check if app processing something
         guard !self.appState.isProcessing else {
@@ -165,9 +198,11 @@ struct AnalysisModeRightView: View {
         }
         
         // Set App to Processing Mode
-        appState.isProcessing = true
-        appState.isAnalysisAvailable = false
-        appState.processingStatus = "Processing Frame..."
+        DispatchQueue.main.async {
+            appState.isProcessing = true
+            appState.isAnalysisAvailable = false
+            appState.processingStatus = "Processing Frame..."
+        }
         
         // Pass ROI information to the Model
         if let roiImageCoordinates = self.ROIModel.roiImageSpace {
@@ -193,7 +228,7 @@ struct AnalysisModeRightView: View {
                     let processedFrames = self.MLModel.getFrameIndicesWithKeypoints().count
                     let totalFrames = self.mediaManager.mediaPlayerViewModel.totalFrames
                     
-                    print("✅ Processing complete: \(processedFrames)/\(totalFrames) frames processed")
+                    log("Processing complete: \(processedFrames)/\(totalFrames) frames processed", level: .debug)
                     
                     if processedFrames < totalFrames {
                         self.appState.processingStatus = "Completed with \(processedFrames)/\(totalFrames) frames processed"
@@ -205,7 +240,9 @@ struct AnalysisModeRightView: View {
                     self.appState.hasImportedKeypoints = true
                     
                     // TODO: - Export To JSON
-//                    self.finishPoseDetection()
+                    self.exportKeypointsToJSON()
+                    
+                    // Load Keypoints into File Loader ViewModel
                     self.mediaManager.fileLoaderViewModel.loadKeypoints(from: self.MLModel.getKeypoints())
                     
                     // Process Keypoints
@@ -218,12 +255,124 @@ struct AnalysisModeRightView: View {
                     
                 } else if let processingError = error {
                     self.appState.errorMessage = "Processing failed: \(processingError.localizedDescription)"
-                    print("Pose detection error: \(processingError)")
+                    log("Pose detection error: \(processingError)", level: .error)
                 }
             }
         }
-
-
-        appState.isProcessing = false
+    }
+    
+    // Replace the exportKeypointsToJSON method in BESTGYMPoseApp.swift
+    private func exportKeypointsToJSON() {
+        // Ensure we have keypoints to export
+        guard MLModel.getTotalFrames() > 0 else {
+            appState.errorMessage = "No keypoints available to export"
+            return
+        }
+        
+        // Generate a timestamp for filenames
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
+        let timestamp = dateFormatter.string(from: Date())
+        
+        // Determine source filename base (without extension)
+        let sourceFilenameBase: String
+        if let sourceFileName = appState.sourceFileName.isEmpty ? nil : appState.sourceFileName {
+            // Remove extension if present
+            let components = sourceFileName.components(separatedBy: ".")
+            sourceFilenameBase = components.count > 1 ? components.dropLast().joined(separator: ".") : sourceFileName
+        } else {
+            sourceFilenameBase = "keypoints"
+        }
+        
+        // Create output filename
+        let keypointFilename = "\(sourceFilenameBase)_keypoints_\(timestamp).json"
+        
+        // Determine target directory
+        let fileManager = FileManager.default
+        var targetURL: URL
+        
+        if let sourceURL = appState.sourceURL {
+            // Check if source URL is a directory or file
+            var isDirectory: ObjCBool = false
+            if fileManager.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory) {
+                if isDirectory.boolValue {
+                    // It's a directory, save directly in it
+                    targetURL = sourceURL.appendingPathComponent(keypointFilename)
+                } else {
+                    // It's a file, save in the same directory
+                    targetURL = sourceURL.deletingLastPathComponent().appendingPathComponent(keypointFilename)
+                }
+            } else {
+                // Source URL doesn't exist (unusual), fallback to documents directory
+                let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+                targetURL = documentsDirectory.appendingPathComponent(keypointFilename)
+            }
+        } else {
+            // Fallback to documents directory
+            let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+            targetURL = documentsDirectory.appendingPathComponent(keypointFilename)
+        }
+        
+        log("Exporting keypoints to: \(targetURL.path)", level: .debug)
+        
+        // Show processing indicator
+        appState.processingStatus = "Exporting keypoints..."
+        
+        // Create metadata
+        var metadata: [String: Any] = [
+            "exportDate": Date().timeIntervalSince1970,
+            "totalFrames": mediaManager.fileLoaderViewModel.FrameCounts
+        ]
+        
+        // Add source information if available
+        if let sourceURL = appState.sourceURL {
+            metadata["sourceFile"] = sourceURL.lastPathComponent
+        } else if !appState.sourceFileName.isEmpty {
+            metadata["sourceFile"] = appState.sourceFileName
+        }
+        
+        // Add athlete info if available
+        if !appState.athleteName.isEmpty {
+            metadata["athleteName"] = appState.athleteName
+        }
+        
+        if !appState.actionType.isEmpty {
+            metadata["actionType"] = appState.actionType
+        }
+        
+        metadata["distance"] = 0
+        
+        
+        // Perform export in background
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                // First, make sure the parent directory exists
+                let directoryURL = targetURL.deletingLastPathComponent()
+                if !FileManager.default.fileExists(atPath: directoryURL.path) {
+                    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+                }
+                
+                // Export all frames to JSON
+                try self.MLModel.exportKeypoints(
+                    to: targetURL,
+                    format: "json",
+                    sourceInfo: metadata
+                )
+                
+                // Update UI on main thread
+                DispatchQueue.main.async {
+                    self.appState.processingStatus = "Keypoints exported to \(targetURL.lastPathComponent)"
+                    self.appState.originalKeypointFileURL = targetURL
+                    
+                    log("Successfully exported keypoints to: \(targetURL.path)", level: .info)
+                }
+            } catch {
+                // Handle export error
+                DispatchQueue.main.async {
+                    self.appState.errorMessage = "Failed to export keypoints: \(error.localizedDescription)"
+                    log("Error exporting keypoints: \(targetURL)", level: .error)
+                }
+            }
+        }
     }
 }

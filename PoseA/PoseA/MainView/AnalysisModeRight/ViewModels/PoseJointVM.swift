@@ -251,7 +251,7 @@ class PoseJointLandscapeVM {
             // Iterate per Keypoint Frame
             for i in 0..<self.mediaManager.fileLoaderViewModel.FrameImageURLs.count {
                 let keypoints = self.mediaManager.getKeypointsByIndex(i)
-                
+
                 // Iterate per Joints
                 for joint in availableJoints {
                     let index = self.jointIndex(for: joint)

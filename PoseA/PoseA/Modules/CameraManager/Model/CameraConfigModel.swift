@@ -99,8 +99,8 @@ struct CameraConfiguration {
     let enableDepthFiltering: Bool
     let cameraPosition: AVCaptureDevice.Position
     
-    init(resolution: Resolution = .hd1080p,
-         frameRate: FrameRate = .fps30,
+    init(resolution: Resolution = .hd720p,
+         frameRate: FrameRate = .fps60,
          enableLiDAR: Bool = true,
          enableDepthFiltering: Bool = true,
          cameraPosition: AVCaptureDevice.Position = .back) {

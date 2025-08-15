@@ -6,8 +6,9 @@
 //
 
 import SwiftUI
+import AVFoundation
 
-// Camera Preview View that uses UIViewRepresentable to display camera feed
+
 struct CameraPreviewView: UIViewRepresentable {
     @ObservedObject var cameraManager: CameraManagerVM
     
@@ -15,7 +16,6 @@ struct CameraPreviewView: UIViewRepresentable {
     func makeUIView(context: Context) -> CameraPreviewVM {
         let previewView = CameraPreviewVM()
         previewView.session = cameraManager.controller.captureSession
-        // Do NOT manually startRunning here; let CameraControllerUI handle it
         return previewView
     }
     
@@ -23,5 +23,9 @@ struct CameraPreviewView: UIViewRepresentable {
     func updateUIView(_ uiView: CameraPreviewVM, context: Context) {
         // Make sure the session is assigned
         uiView.session = cameraManager.controller.captureSession
+        
+        // Update the pose keypoints
+        uiView.poseKeypoints = cameraManager.poseKeypoints
     }
 }
+

@@ -14,7 +14,6 @@ struct RecordLandscapeView: View {
     @State var showInfoView: Bool = false
     
     var body: some View {
-        
         ZStack {
             Color.black
             
@@ -67,7 +66,7 @@ struct RecordLandscapeView: View {
                                             .fill(.green)
                                             .frame(width: 8, height: 8)
                                         
-                                        Text("Frame Rate: \(cameraManager.cameraConfiguration.frameRate.rawValue) FPS")
+                                        Text("Frame Rate Set: \(cameraManager.cameraConfiguration.frameRate.rawValue) FPS")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                             .lineLimit(1)
@@ -119,6 +118,22 @@ struct RecordLandscapeView: View {
                                             .lineLimit(1)
                                             .truncationMode(.middle)
                                     }
+                                    
+                                    Divider()
+                                    
+                                    // Stream FPS Status Indicator
+                                    HStack(spacing: 4) {
+                                        // Display FPS Status
+                                        Circle()
+                                            .fill(cameraManager.fpsStream > 20 ? .green : .red)
+                                            .frame(width: 8, height: 8)
+                                        
+                                        Text("FPS Benchmark: \(cameraManager.fpsStream, specifier: "%.1f")")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                    }
                                 }
                                 .padding()
                                 .presentationCompactAdaptation(.popover)
@@ -126,7 +141,7 @@ struct RecordLandscapeView: View {
 
                             // Setting Button
                             Button(action: {
-                                print("Setting Button Tapped")
+                                appState.showSettingsView = true
                             }) {
                                 Image(systemName: "gear")
                                     .font(.body)
@@ -189,6 +204,12 @@ struct RecordLandscapeView: View {
                             .onDisappear {
                                 cameraManager.stopCenterDepthDetection()
                             }
+                            .onChange(of: appState.realtimeDetection) {
+                                cameraManager.toogleRealtimeDetection()
+                            }
+                            .onChange(of: appState.realtimeModel) { oldValue, newValue in
+                                cameraManager.setRealtimeModelVersion(newValue)
+                            }
                             .transition(.opacity) // Optional smooth fade-in
                     }
 
@@ -211,7 +232,8 @@ struct RecordLandscapeView: View {
                                     }
                                 } else {
                                     // Start recording
-                                    cameraManager.startRecording(personName: "Test", action: "Test")
+                                    cameraManager.startRecording(personName: appState.athleteName,
+                                                                 action: appState.actionType)
                                 }
                             }) {
                                 ZStack {
@@ -250,6 +272,9 @@ struct RecordLandscapeView: View {
                                 .toggleStyle(SwitchToggleStyle(tint: .yellow.opacity(0.7)))
                                 .position(x: appState.orientation == .landscape ? geo.size.width * 0.5 : geo.size.width * 0.15,
                                           y: appState.orientation == .landscape ? geo.size.height * 0.85 : geo.size.height * 0.55 )
+                                .onChange(of: appState.useLiDAR) {
+                                    cameraManager.toggleLiDAR()
+                                }
                                 .disabled(!cameraManager.isLiDARSupported)
                             
                             // Analysis Mode Buttons

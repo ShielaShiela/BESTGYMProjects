@@ -20,14 +20,17 @@ class FrameCache {
         cache.setObject(image, forKey: NSNumber(value: index))
     }
 
-    func preload(from index: Int, using loader: (Int) -> UIImage?) {
-        for i in index..<(index + preloadCount) {
-            if cache.object(forKey: NSNumber(value: i)) == nil,
-               let img = loader(i) {
-                cache.setObject(img, forKey: NSNumber(value: i))
+    func preload(from index: Int, using loader: @escaping (Int) -> UIImage?) {
+        DispatchQueue.global(qos: .utility).async {
+            for i in index..<(index + self.preloadCount) {
+                if self.cache.object(forKey: NSNumber(value: i)) == nil,
+                   let img = loader(i) {
+                    self.cache.setObject(img, forKey: NSNumber(value: i))
+                }
             }
         }
     }
+
 
     func clear() {
         cache.removeAllObjects()

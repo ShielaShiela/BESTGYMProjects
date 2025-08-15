@@ -16,7 +16,7 @@ import Metal
 import os.log
 
 protocol CaptureDataReceiver: AnyObject {
-    func onNewData(capturedData: FrameDataModel)
+    func onNewData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?)
 }
 
 class CameraControllerUI: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -433,7 +433,7 @@ extension CameraControllerUI: AVCaptureDataOutputSynchronizerDelegate {
                                      colorImage: colorImage)
         
 
-        delegate?.onNewData(capturedData: data)
+        delegate?.onNewData(capturedData: data, pixelBuffer: pixelBuffer)
         
         
     
@@ -512,7 +512,7 @@ extension CameraControllerUI {
             colorImage: colorImage
         )
         
-        delegate?.onNewData(capturedData: data)
+        delegate?.onNewData(capturedData: data, pixelBuffer: pixelBuffer)
     }
 }
 

@@ -53,6 +53,8 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     
     @Published var isLiDARSupported: Bool = false
     @Published var isLiDAREnabled: Bool = false
+    @Published var isPoseProcessingEnabled: Bool = false
+    @Published var poseProcessingModelURL: String = "yolo11n-pose"
     
     // MARK: - Internal Properties
     var capturedData: FrameDataVM
@@ -66,19 +68,29 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
     private var recordingStartTime: Date?
     private var recordingFolder: URL?
+    
+    private var athleteName: String = "Unknown"
+    private var actionType: String = "General"
     private var frameCount: Int = 0
     private var recordingOrientation: UIInterfaceOrientation = .portrait
     private let frameSemaphore = DispatchSemaphore(value: 0)
 
     private var frameBuffer = [FrameDataModel]()
-    private let frameBufferQueue = DispatchQueue(label: "com.bestgym.frameBufferQueue")
-    private let videoWriterQueue = DispatchQueue(label: "com.bestgym.videoWriterQueue")
     
     // Depth detection
     private var centerDepthTimer: Timer?
+
+    // Image Processing
+    private var poseProcessor: YOLOPoseProcessor?
+    private var frameStreamCount = 0
+    private var lastTimestamp = Date()
+    @Published var fpsStream: Double = 0
+    @Published var poseKeypoints: [PoseBox] = []
     
     // Queues
     private let sessionQueue = DispatchQueue(label: "com.bestgym.sessionQueue", qos: .userInitiated)
+    private let frameBufferQueue = DispatchQueue(label: "com.bestgym.frameBufferQueue")
+    private let videoWriterQueue = DispatchQueue(label: "com.bestgym.videoWriterQueue")
     
     // MARK: - Initialization
     init(configuration: CameraConfiguration = CameraConfiguration()) {
@@ -100,10 +112,12 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
         
         // Set delegate
         controller.delegate = self
+        
+        // Init Pose
+        self.poseProcessor = YOLOPoseProcessor(modelName: self.poseProcessingModelURL)
     }
     
     // MARK: - Camera Setup
-    
     func reconfigureCamera() {
         self.isCameraReady = false
         DispatchQueue.global(qos: .userInitiated).async {
@@ -227,11 +241,49 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
             cameraPosition: cameraConfiguration.cameraPosition
         )
     }
+    
+    func toogleRealtimeDetection() {
+        isPoseProcessingEnabled.toggle()
+        log("Realtime pose processing is \(isPoseProcessingEnabled ? "enabled" : "disabled")", level: .info)
+    }
+    
+    func setRealtimeModelVersion(_ version: String) {
+        if isPoseProcessingEnabled {
+            isPoseProcessingEnabled = false
+            log("Realtime pose processing is disabled to reload the model", level: .info)
+            
+            self.poseProcessingModelURL = version
+            self.poseProcessor = YOLOPoseProcessor(modelName: self.poseProcessingModelURL)
+            log("Model changed to \(version)", level: .info)
+            
+            isPoseProcessingEnabled = true
+
+        } else {
+            self.poseProcessingModelURL = version
+            self.poseProcessor = YOLOPoseProcessor(modelName: self.poseProcessingModelURL)
+            log("Model changed to \(version)", level: .info)
+        }
+    }
 }
 
 // MARK: - CaptureDataReceiver Protocol
 extension CameraManagerVM {
-    func onNewData(capturedData: FrameDataModel) {
+    func onNewData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?) {
+        // FrameRate Benchmarking
+        self.frameStreamCount += 1
+        let now = Date()
+        let elapsed = now.timeIntervalSince(lastTimestamp)
+
+        if elapsed >= 1.0 {
+            let fps = Double(self.frameStreamCount) / elapsed
+            self.frameStreamCount = 0
+            lastTimestamp = now
+            
+            DispatchQueue.main.async {
+                self.fpsStream = fps
+            }
+        }
+        
         // Ensure we're on the main thread for @Published property updates
         DispatchQueue.main.async {
             // Update basic camera data
@@ -254,6 +306,18 @@ extension CameraManagerVM {
             frameBufferQueue.async {
                 self.frameBuffer.append(capturedData)
                 self.frameSemaphore.signal()
+            }
+        }
+
+        // Image Processing
+        if let _pixelBuffer = pixelBuffer, isPoseProcessingEnabled {
+            poseProcessor?.process(pixelBuffer: _pixelBuffer) { [weak self] poses in
+                // Optional Filtering
+                let filteredPose = self!.poseProcessor?.filterPoses(poses, minConfidence: 0.5, iouThreshold: 0.5)
+                    
+                DispatchQueue.main.async {
+                    self?.poseKeypoints = filteredPose ?? []
+                }
             }
         }
     }
@@ -487,13 +551,13 @@ extension CameraManagerVM {
             timeFormatter.dateFormat = "HH-mm-ss"
             let timeString = timeFormatter.string(from: Date())
             
-            let personNameSafe = personName.isEmpty ? "Test" : personName
-            let actionSafe = action.isEmpty ? "Test" : action
+            self.athleteName = personName.isEmpty ? "Unknown" : personName
+            self.actionType = action.isEmpty ? "Unknown" : action
             
             let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             let dateFolderPath = documentsPath.appendingPathComponent(dateString)
-            let personFolderPath = dateFolderPath.appendingPathComponent(personNameSafe)
-            let recordingFolder = personFolderPath.appendingPathComponent("Standard_Recording_\(actionSafe)_\(timeString)")
+            let personFolderPath = dateFolderPath.appendingPathComponent(athleteName)
+            let recordingFolder = personFolderPath.appendingPathComponent("Recording_\(actionType)_\(timeString)")
             
             do {
                 // Create directories
@@ -765,8 +829,8 @@ extension CameraManagerVM {
             
             // Create the metadata with detailed orientation
             let metadata = RecordingMetadata(
-                personName: "Test", // Use actual values from recording
-                action: "Test",
+                personName: self.athleteName,
+                action: self.actionType,
                 frameCount: frameCount,
                 useLiDAR: isLiDAR,
                 duration: duration,

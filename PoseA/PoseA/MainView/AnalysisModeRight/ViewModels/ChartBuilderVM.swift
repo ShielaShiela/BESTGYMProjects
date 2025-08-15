@@ -21,6 +21,7 @@ class ChartBuilderLandscapeVM {
     // Observable Variable
     var chartDataFirst: [ChartData] = []
     var chartDataSecond: [ChartData] = []
+    var pointData: [PointData] = []
     var rawCompleteJointData: [JointData] = []
     
     // Define ViewModel
@@ -112,6 +113,8 @@ class ChartBuilderLandscapeVM {
                 dataMetrics: calculateDataMetrics(from: pointData)
             )
         }
+        
+        self.pointData = poseJointViewModel.barPosition
     }
     
     private func fetchJointAngleData(joints: [String]) {

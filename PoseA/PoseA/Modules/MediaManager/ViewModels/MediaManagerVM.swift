@@ -32,6 +32,7 @@ class MediaManagerVM {
     // Media Player Variable
     var isPlaying: Bool = false
     
+
     // MARK: - Cleaner
     func clearAllData() {
         fileLoaderViewModel.isDataLoaded = false
@@ -45,8 +46,8 @@ class MediaManagerVM {
     }
     
     // MARK: - Public Function of Media Loader
-    
-    func loadGalleryFile(url: URL, completion: @escaping (String?) -> Void) {
+        
+    func loadGalleryFile(url: URL, autoDetectKeypoints: Bool, completion: @escaping (String?) -> Void) {
         // Initialize File Manager
         let fileManager = FileManager.default
         var isDirectory: ObjCBool = false
@@ -72,7 +73,7 @@ class MediaManagerVM {
             log("Found video in project folder \(destinationDir.lastPathComponent)", level: .debug)
             
             // Open Project
-            let ret = self.loadMedia(url: destinationDir)
+            let ret = self.loadMedia(url: destinationDir, autoDetectKeypoints: autoDetectKeypoints)
             self.isDataLIDAR = false
             self.isDataTemp = false
             completion(ret)
@@ -96,7 +97,7 @@ class MediaManagerVM {
         }
     }
 
-    func loadMedia(url: URL) -> String? {
+    func loadMedia(url: URL, autoDetectKeypoints: Bool) -> String? {
         // Initialize File Manager
         let fileManager = FileManager.default
         var isDirectory: ObjCBool = false
@@ -147,7 +148,7 @@ class MediaManagerVM {
                     self.fileLoaderViewModel.loadVideoFolder(from: url)
 
                     // Check for keypoints in LiDAR folder
-                    if !keypointFiles.isEmpty {
+                    if !keypointFiles.isEmpty && autoDetectKeypoints{
                         let keypointURL = keypointFiles.first!
                         log("Found keypoint file in folder: \(keypointURL.lastPathComponent)", level: .debug)
                         
@@ -169,8 +170,6 @@ class MediaManagerVM {
                         log("No depth data found in any frame directory.", level: .info)
                     }
                 }
-                
-                // If 
             } catch {
                 log("Error loading folder: \(error.localizedDescription)", level: .error)
             }
@@ -286,9 +285,7 @@ class MediaManagerVM {
                 }
                 try? await Task.sleep(nanoseconds: 100_000_000) // 100ms polling
             }
-        }
-
-        Task {
+            
             while !isMediaAvailable {
                 if fileLoaderViewModel.isDataLoaded {
                     isMediaAvailable = true

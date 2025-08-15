@@ -33,22 +33,14 @@
 		97BAF6B82D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseATests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				MainView/AnalysisModeLeft/ViewModels/KeypointLineVM.swift,
-				Modules/CameraManager/CameraManagerVM.swift,
-				Modules/CameraManager/Model/MetalEnvironment.swift,
 				Modules/ImageProcessingManager/MLModel/VitPoseh.mlpackage,
-				Modules/Utility/Extensions.swift,
 			);
 			target = 97BAF65A2D7543FC008E34D4 /* PoseATests */;
 		};
 		97BAF6B92D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseAUITests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				MainView/AnalysisModeLeft/ViewModels/KeypointLineVM.swift,
-				Modules/CameraManager/CameraManagerVM.swift,
-				Modules/CameraManager/Model/MetalEnvironment.swift,
 				Modules/ImageProcessingManager/MLModel/VitPoseh.mlpackage,
-				Modules/Utility/Extensions.swift,
 			);
 			target = 97BAF6642D7543FC008E34D4 /* PoseAUITests */;
 		};
@@ -367,6 +359,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OBJC_BRIDGING_HEADER = "PoseA/MainView/AnalysisModeRight/Cpp/PoseA-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -424,6 +417,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OBJC_BRIDGING_HEADER = "PoseA/MainView/AnalysisModeRight/Cpp/PoseA-Bridging-Header.h";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -465,7 +459,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = BESTLAB.PoseA;
+				PRODUCT_BUNDLE_IDENTIFIER = BESTLAB.Pose;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -516,7 +510,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = BESTLAB.PoseA;
+				PRODUCT_BUNDLE_IDENTIFIER = BESTLAB.Pose;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

@@ -11,6 +11,7 @@ struct PoseAnalysisView: View {
     // MARK: - Properties
     
     // Declare State ViewModel Variable
+    @ObservedObject var appState: MainAppState
     @State private var poseJointVM: PoseJointLandscapeVM
     @State private var chartBuilderViewModel: ChartBuilderLandscapeVM
     @State private var mediaManager: MediaManagerVM
@@ -22,7 +23,8 @@ struct PoseAnalysisView: View {
     
     // MARK: - Initialization
     
-    init (selectedView: RightViewModel, poseJointVM: PoseJointLandscapeVM, mediaManager: MediaManagerVM) {
+    init (appState: MainAppState, selectedView: RightViewModel, poseJointVM: PoseJointLandscapeVM, mediaManager: MediaManagerVM) {
+        self.appState = appState
         self.selectedView = selectedView
         self.poseJointVM = poseJointVM
         self.mediaManager = mediaManager
@@ -85,20 +87,26 @@ struct PoseAnalysisView: View {
                         // Single Charts
                         if self.chartBuilderViewModel.chartDataSecond.isEmpty {
                             ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataFirst,
-                                               currentFrame: mediaManager.currentFrameIndex)
+                                               currentFrame: mediaManager.currentFrameIndex,
+                                               xAxisUnit: self.appState.timeUnit,
+                                               yAxisUnit: selectedView == .angle ? self.appState.angleUnit : self.appState.distanceUnit)
                                 .frame(width: geometry.size.width, height: (geometry.size.height - 50))
                                 .background(Color(.systemGray6))
                                 .cornerRadius(10)
                         } else {
                             // Double Charts
                             ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataFirst,
-                                               currentFrame: mediaManager.currentFrameIndex)
+                                               currentFrame: mediaManager.currentFrameIndex,
+                                               xAxisUnit: self.appState.timeUnit,
+                                               yAxisUnit: selectedView == .angle ? self.appState.angleUnit : self.appState.distanceUnit)
                                 .frame(width: geometry.size.width, height: (geometry.size.height - 50) * 0.5)
                                 .background(Color(.systemGray6))
                                 .cornerRadius(10)
 
                             ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataSecond,
-                                               currentFrame: mediaManager.currentFrameIndex)
+                                               currentFrame: mediaManager.currentFrameIndex,
+                                               xAxisUnit: self.appState.timeUnit,
+                                               yAxisUnit: selectedView == .angle ? self.appState.angleUnit : self.appState.distanceUnit)
                                 .frame(width: geometry.size.width, height: (geometry.size.height - 50) * 0.5)
                                 .background(Color(.systemGray6))
                                 .cornerRadius(10)

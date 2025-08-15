@@ -567,105 +567,79 @@ extension VitPoseProcessor {
     }
     
     /// Process frames in batches with memory management
-    private func processBatches(mediaManager: MediaManagerVM,
-                                batchSize: Int,
-                                delayBetweenBatches: TimeInterval,
-                                currentBatch: Int,
-                                processedFrames: Int,
-                                failedFrames: [Int],
-                                progress: @escaping (Double) -> Void,
-                                completion: @escaping (Bool, Error?) -> Void) {
-        // Get Start and End Frame Index of Batch
+    private func processBatches(
+        mediaManager: MediaManagerVM,
+        batchSize: Int,
+        delayBetweenBatches: TimeInterval,
+        currentBatch: Int,
+        processedFrames: Int,
+        failedFrames: [Int],
+        progress: @escaping (Double) -> Void,
+        completion: @escaping (Bool, Error?) -> Void
+    ) {
         let startFrame = currentBatch * batchSize
         let endFrame = min(startFrame + batchSize, mediaManager.mediaPlayerViewModel.totalFrames)
-        
-        // Check if processing is done
-        if startFrame >= mediaManager.mediaPlayerViewModel.totalFrames {
+        let totalFrames = mediaManager.mediaPlayerViewModel.totalFrames
+
+        if startFrame >= totalFrames {
             log("Completed processing all batches. Processed: \(processedFrames), Failed: \(failedFrames.count)", level: .info)
-            
-            // Handle failed frames if any
             if !failedFrames.isEmpty {
                 log("Failed to process frames: \(failedFrames)", level: .warn)
             }
-            
             DispatchQueue.main.async {
                 completion(true, nil)
             }
             return
         }
-        
-        log("Processing batch \(currentBatch + 1), frames \(startFrame) to \(endFrame - 1)", level: .debug)
-        
- 
-        // Process current batch in background
-        DispatchQueue.global(qos: .userInitiated).async {
-            Task {
-                var batchProcessedFrames = processedFrames
-                var batchFailedFrames = failedFrames
 
-                for frameIndex in startFrame..<endFrame {
-                    do {
-                        // Await image loading properly
-                        guard let frameImage = try await mediaManager.mediaPlayerViewModel.moveToFrameAsync(frameIndex) else {
-                            print("Error loading image")
-                            batchFailedFrames.append(frameIndex)
-                            continue
-                        }
+        Task {
+            var batchProcessedFrames = processedFrames
+            var batchFailedFrames = failedFrames
 
-                        // Process frameImage here
-                        print("Successfully loaded frame \(frameIndex)")
-
-                        let result = try self.processFrameWithMemoryManagement(
-                            from: mediaManager,
-                            image: frameImage,
-                            frameIndex: frameIndex
+            for frameIndex in startFrame..<endFrame {
+                do {
+                    guard let frameImage = try await mediaManager.mediaPlayerViewModel.moveToFrameAsync(frameIndex) else {
+                        print("Error loading image")
+                        batchFailedFrames.append(frameIndex)
+                        continue
+                    }
+                    let result = try self.processFrameWithMemoryManagement(
+                        from: mediaManager,
+                        image: frameImage,
+                        frameIndex: frameIndex
+                    )
+                    if !result.keypoints.isEmpty {
+                        self.storeKeypointsWithMemoryManagement(
+                            result.keypoints,
+                            visualizedImage: result.visualizedImage,
+                            for: frameIndex
                         )
-                        
-                        // Store results safely
-                        if !result.keypoints.isEmpty {
-                            self.storeKeypointsWithMemoryManagement(
-                                result.keypoints,
-                                visualizedImage: result.visualizedImage,
-                                for: frameIndex
-                            )
-                            batchProcessedFrames += 1
-                        } else {
-                            print("⚠️ No keypoints detected for frame \(frameIndex)")
-                            batchFailedFrames.append(frameIndex)
-                        }
-                            
-                        // Update progress
-                        let progressValue = Double(batchProcessedFrames) / Double(mediaManager.mediaPlayerViewModel.totalFrames)
-                        DispatchQueue.main.async {
-                            progress(progressValue)
-                        }
-                        
-                    } catch {
-                        print("Error loading image: \(error.localizedDescription)")
+                        batchProcessedFrames += 1
+                    } else {
+                        print("⚠️ No keypoints detected for frame \(frameIndex)")
                         batchFailedFrames.append(frameIndex)
                     }
-
-                    // Memory cleanup between batches
-                    self.performMemoryCleanup()
-                    
-                    // Log batch completion
-                    print("✅ Batch \(currentBatch + 1) completed. Processed: \(batchProcessedFrames - processedFrames)/\(endFrame - startFrame)")
-                    
-                    // Schedule next batch with delay
-                    DispatchQueue.main.asyncAfter(deadline: .now() + delayBetweenBatches) {
-                        self.processBatches(
-                            mediaManager: mediaManager,
-                            batchSize: batchSize,
-                            delayBetweenBatches: delayBetweenBatches,
-                            currentBatch: currentBatch + 1,
-                            processedFrames: batchProcessedFrames,
-                            failedFrames: batchFailedFrames,
-                            progress: progress,
-                            completion: completion
-                        )
-                    }
+                    let progressValue = Double(batchProcessedFrames) / Double(totalFrames)
+                    await MainActor.run { progress(progressValue) }
+                } catch {
+                    print("Error loading image: \(error.localizedDescription)")
+                    batchFailedFrames.append(frameIndex)
                 }
+                self.performMemoryCleanup()
             }
+
+            // Schedule next batch after delay
+            try? await Task.sleep(nanoseconds: UInt64(delayBetweenBatches * 1_000_000_000))
+            self.processBatches(
+                mediaManager: mediaManager,
+                batchSize: batchSize,
+                delayBetweenBatches: delayBetweenBatches,
+                currentBatch: currentBatch + 1,
+                processedFrames: batchProcessedFrames,
+                failedFrames: batchFailedFrames,
+                progress: progress,
+                completion: completion
+            )
         }
     }
     

@@ -22,8 +22,14 @@ class MainAppState: ObservableObject {
     @Published var isAnnotationMode = false
     @Published var isROIMode = false
     @Published var isZoomMode = false
-    @Published var analysisFilterMode = true
     
+    // Analysis Settings
+    @Published var analysisFilterMode = true
+    @Published var angleUnit: String = "rad"
+    @Published var distanceUnit: String = "px"
+    @Published var timeUnit: String = "n"
+    @Published var autoDetectKeypoints: Bool = true
+
     // Pickers Status
     @Published var isTempFiles = false
     @Published var isFilePickerPresented = false
@@ -43,17 +49,16 @@ class MainAppState: ObservableObject {
     @Published var originalKeypointFileURL: URL? = nil
     @Published var recordingDate: Date? = nil
     
-    // Editing state
-    @Published var RecordingData: RecordingDataModel = RecordingDataModel(athleteName: "Test",
-                                                                          actionType: "Test",
-                                                                          distanceValue: "Test",
-                                                                          videoSettings: VideoSettings.defaultSettings)
+    // Recording Value
+    @Published var actionType: String = "General"
+    @Published var athleteName: String = "Unknown"
     
-    // LiDAR toggle state
+    // Camera Settings
     @Published var useLiDAR: Bool = false
-    @Published var imageRotation: Int = 0
+    @Published var realtimeDetection: Bool = false
+    @Published var realtimeModel: String = "yolo11n-pose"
     
-    @Published var autoDetectKeypoints: Bool = false
+    @Published var imageRotation: Int = 0
 }
 
 extension MainAppState {
@@ -66,17 +71,6 @@ extension MainAppState {
         originalKeypointFileURL = nil
         hasImportedKeypoints = false
         showKeypoints = false
-        
-        // Keep default values for athlete info
-        if RecordingData.athleteName.isEmpty {
-            RecordingData.athleteName = "Test"
-        }
-        if RecordingData.actionType.isEmpty {
-            RecordingData.actionType = "Test"
-        }
-        if RecordingData.distanceValue == nil {
-            RecordingData.distanceValue = "Test"
-        }
     }
     
     // Helper to reset processing/error state

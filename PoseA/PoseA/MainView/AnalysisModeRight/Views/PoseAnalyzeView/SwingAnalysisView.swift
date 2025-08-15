@@ -11,6 +11,7 @@ struct SwingAnalysisView: View {
     // MARK: - Properties
     
     // Declare State ViewModel Variable
+    @ObservedObject var appState: MainAppState
     @State private var poseJointVM: PoseJointLandscapeVM
     @State private var chartBuilderViewModel: ChartBuilderLandscapeVM
     @State private var mediaManager: MediaManagerVM
@@ -20,7 +21,8 @@ struct SwingAnalysisView: View {
     
     // MARK: - Initialization
     
-    init (poseJointVM: PoseJointLandscapeVM, mediaManager: MediaManagerVM) {
+    init (appState: MainAppState, poseJointVM: PoseJointLandscapeVM, mediaManager: MediaManagerVM) {
+        self.appState = appState
         self.poseJointVM = poseJointVM
         self.mediaManager = mediaManager
         self._chartBuilderViewModel = State(wrappedValue: ChartBuilderLandscapeVM(poseJointViewModel: poseJointVM))
@@ -42,13 +44,18 @@ struct SwingAnalysisView: View {
                 
                 // Double Charts
                 ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataFirst,
-                                   currentFrame: mediaManager.currentFrameIndex)
+                                   pointData: self.chartBuilderViewModel.pointData,
+                                   currentFrame: mediaManager.currentFrameIndex,
+                                   xAxisUnit: self.appState.distanceUnit,
+                                   yAxisUnit: self.appState.distanceUnit)
                     .frame(width: geometry.size.width, height: (geometry.size.height - 50) * 0.5)
                     .background(Color(.systemGray6))
                     .cornerRadius(10)
 
                 ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataSecond,
-                                   currentFrame: mediaManager.currentFrameIndex)
+                                   currentFrame: mediaManager.currentFrameIndex,
+                                   xAxisUnit: self.appState.timeUnit,
+                                   yAxisUnit: self.appState.distanceUnit)
                     .frame(width: geometry.size.width, height: (geometry.size.height - 50) * 0.5)
                     .background(Color(.systemGray6))
                     .cornerRadius(10)

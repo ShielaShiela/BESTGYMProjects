@@ -24,16 +24,37 @@ struct ChartLandscapeView: View {
 
     // Initialize mock data for the chart
     let chartData: [ChartData]
+    let pointData: [PointData]
     let currentFrame: Int?
+    
+    let xAxisUnit: String
+    let yAxisUnit: String
     
     // Chart Scale
     @State private var baseXScale: ClosedRange<Double> = 0...0
     @State private var baseYScale: ClosedRange<Double> = 0...190
     
+    init(chartData: [ChartData], pointData: [PointData] = [], currentFrame: Int?, xAxisUnit: String = "", yAxisUnit: String = "") {
+        self.chartData = chartData
+        self.pointData = pointData
+        self.currentFrame = currentFrame
+        self.xAxisUnit = xAxisUnit
+        self.yAxisUnit = yAxisUnit
+    }
+    
     var body: some View {
         ZStack(alignment: .topTrailing) {
             // Chart View
             Chart {
+                ForEach(pointData) { point in
+                    PointMark(
+                        x: .value("Bar_X", point.x),
+                        y: .value("Bar_Y", point.y)
+                    )
+                    .foregroundStyle(.green)
+                    .symbolSize(100)
+                }
+                
                 ForEach(chartData, id: \.joint) { jointData in
                     ForEach(jointData.dataPoints) { point in
                         LineMark(
@@ -66,7 +87,7 @@ struct ChartLandscapeView: View {
                         .foregroundStyle(.gray)
                     AxisValueLabel {
                         if let doubleValue = value.as(Double.self) {
-                            Text(String(format: "%.1f", doubleValue))
+                            Text(String(format: "%.1f", doubleValue) + " \(xAxisUnit)")
                                 .foregroundStyle(.gray)
                         }
                     }
@@ -82,7 +103,7 @@ struct ChartLandscapeView: View {
                         .foregroundStyle(.gray)
                     AxisValueLabel {
                         if let doubleValue = value.as(Double.self) {
-                            Text(String(format: "%.1f%", doubleValue))
+                            Text(String(format: "%.1f%", doubleValue) + " \(yAxisUnit)")
                                 .foregroundStyle(.gray)
                         }
                     }

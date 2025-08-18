@@ -74,11 +74,6 @@
 			path = PoseAUITests;
 			sourceTree = "<group>";
 		};
-		B01631C62E52E081008B5D58 /* gitimage */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = gitimage;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -109,7 +104,6 @@
 		97BAF6402D7543FA008E34D4 = {
 			isa = PBXGroup;
 			children = (
-				B01631C62E52E081008B5D58 /* gitimage */,
 				97BAF64B2D7543FA008E34D4 /* PoseA */,
 				97BAF65E2D7543FC008E34D4 /* PoseATests */,
 				97BAF6682D7543FC008E34D4 /* PoseAUITests */,
@@ -144,7 +138,6 @@
 			);
 			fileSystemSynchronizedGroups = (
 				97BAF64B2D7543FA008E34D4 /* PoseA */,
-				B01631C62E52E081008B5D58 /* gitimage */,
 			);
 			name = PoseA;
 			packageProductDependencies = (

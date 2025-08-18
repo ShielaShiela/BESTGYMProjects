@@ -17,7 +17,8 @@ struct DataMetricsView: View {
     private let options: [String] = ["Trajectory", "Velocity", "Acceleration", "Angle", "Swing"]
     
     @State private var expandedJoints: Set<String> = []
-    
+    private var dataUnits: String = ""
+        
     // MARK: - Initialization
     init(appState: MainAppState, poseJointVM: PoseJointLandscapeVM) {
         self.appState = appState
@@ -30,6 +31,7 @@ struct DataMetricsView: View {
         GeometryReader { geometry in
             ZStack(alignment: .topTrailing) {
                 VStack(alignment: .leading, spacing: 10) {
+
                     Text("Data Metrics")
                         .font(.body)
                         .fontWeight(.bold)
@@ -118,14 +120,17 @@ struct ExpandableJointView: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 4) {
-                    if selectedOptions == "Angle" || selectedOptions == "Swing" {
-                        Text("Max: \(String(format: "%.2f", jointData.dataMetrics.maxX))" + "\(appState.angleUnit)")
-                        Text("Min: \(String(format: "%.2f", jointData.dataMetrics.minX))" + "\(appState.angleUnit)")
+                    if selectedOptions == "Angle" {
+                        Text("Max: \(String(format: "%.2f", jointData.dataMetrics.maxX))" + " \(appState.angleUnit)")
+                        Text("Min: \(String(format: "%.2f", jointData.dataMetrics.minX))" + " \(appState.angleUnit)")
+                    } else if selectedOptions == "Swing" {
+                        Text("Max: \(String(format: "%.2f", jointData.dataMetrics.maxX))")
+                        Text("Min: \(String(format: "%.2f", jointData.dataMetrics.minX))")
                     } else{
-                        Text("Max X: \(String(format: "%.2f", jointData.dataMetrics.maxX))" + "\(appState.distanceUnit)")
-                        Text("Min X: \(String(format: "%.2f", jointData.dataMetrics.minX))" + "\(appState.distanceUnit)")
-                        Text("Max Y: \(String(format: "%.2f", jointData.dataMetrics.maxY))" + "\(appState.distanceUnit)")
-                        Text("Min Y: \(String(format: "%.2f", jointData.dataMetrics.minY))" + "\(appState.distanceUnit)")
+                        Text("Max X: \(String(format: "%.2f", jointData.dataMetrics.maxX))" + " \(appState.distanceUnit)")
+                        Text("Min X: \(String(format: "%.2f", jointData.dataMetrics.minX))" + " \(appState.distanceUnit)")
+                        Text("Max Y: \(String(format: "%.2f", jointData.dataMetrics.maxY))" + " \(appState.distanceUnit)")
+                        Text("Min Y: \(String(format: "%.2f", jointData.dataMetrics.minY))" + " \(appState.distanceUnit)")
                     }
                 }
                 .font(.caption)

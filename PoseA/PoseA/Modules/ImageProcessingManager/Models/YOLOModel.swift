@@ -8,9 +8,8 @@
 import Foundation
 
 struct PoseBox {
-    let bbox: CGRect    // x,y,w,h normalized or pixel coords
+    let bbox: CGRect
     let confidence: Float
-    let keypoints: [CGPoint] // px, py scaled to image size
-    let visibility: [Float]
+    let keypoints: [KeypointData]
 }
 

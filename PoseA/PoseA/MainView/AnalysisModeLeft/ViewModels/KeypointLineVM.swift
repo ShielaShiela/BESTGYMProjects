@@ -14,7 +14,6 @@ struct KeypointLineVM: View {
     let keypoints: [KeypointData]
     let containerSize: CGSize
     let imageSize: CGSize
-    let rotation: Int
     
     var body: some View {
         Path { path in
@@ -28,16 +27,14 @@ struct KeypointLineVM: View {
                 x: fromKeypoint.x,
                 y: fromKeypoint.y,
                 containerSize: containerSize,
-                imageSize: imageSize,
-                rotation: rotation
+                imageSize: imageSize
             )
             
             let toPoint = transformPoint(
                 x: toKeypoint.x,
                 y: toKeypoint.y,
                 containerSize: containerSize,
-                imageSize: imageSize,
-                rotation: rotation
+                imageSize: imageSize
             )
             
             path.move(to: fromPoint)

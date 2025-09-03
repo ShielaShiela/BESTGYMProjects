@@ -86,9 +86,19 @@ struct SettingsView: View {
                             Text("YOLO11n").tag("yolo11n-pose")
                             Text("YOLO11l").tag("yolo11l-pose")
                             Text("YOLO11x").tag("yolo11x-pose")
+                            Text("YOLO_TF").tag("yolotf")
                         }
                         .onChange(of: appState.realtimeModel) {
                             appState.saveUserPreferences()
+                        }
+                        
+                        if appState.realtimeDetection {
+                            Picker("Choose View", selection: $appState.realtimeViewMode) {
+                                Text("General").tag("general")
+                                Text("Side View").tag("side-view")
+                                Text("Front View").tag("front-view")
+                                Text("Corner View").tag("corner-view")
+                            }
                         }
                     }
                 }

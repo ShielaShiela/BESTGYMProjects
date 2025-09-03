@@ -6,13 +6,7 @@
 //
 
 import SwiftUI
-import Combine
 import AVFoundation
-import Photos
-import Metal
-import MetalKit
-import CoreGraphics
-import CoreVideo
 
 // MARK: - Camera Manager
 class CameraManagerVM: ObservableObject, CaptureDataReceiver {
@@ -34,15 +28,9 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
         }
     }
     @Published var isCameraReady: Bool = false
-
-    @Published var orientation = UIDevice.current.orientation
-    @Published var waitingForCapture = false
-    @Published var processingCapturedResult = false
     @Published var isRecording = false
-    @Published var isVideoWriterReady = false
     @Published var isPreparingRecording = false
-    @Published var depthValue: Float?
-    @Published var centerDepthValue: Float?
+
     
     // MARK: - Camera State
     @Published var cameraConfiguration: CameraConfiguration {
@@ -59,7 +47,6 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     // MARK: - Internal Properties
     var capturedData: FrameDataVM
     let controller: CameraControllerUI
-    var cancellables = Set<AnyCancellable>()
     var session: AVCaptureSession { controller.captureSession }
     
     // Recording properties
@@ -72,24 +59,31 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     private var athleteName: String = "Unknown"
     private var actionType: String = "General"
     private var frameCount: Int = 0
-    private var recordingOrientation: UIInterfaceOrientation = .portrait
+    private var recordingOrientation: DeviceOrientationModel = .portrait
     private let frameSemaphore = DispatchSemaphore(value: 0)
 
-    private var frameBuffer = [FrameDataModel]()
-    
+    private var firstPTS: CMTime? = nil
+    private var frameBuffer = [(CVPixelBuffer, CMTime)]()
+
     // Depth detection
+    @Published var depthValue: Float?
+    @Published var centerDepthValue: Float?
     private var centerDepthTimer: Timer?
 
     // Image Processing
-    private var poseProcessor: YOLOPoseProcessor?
-    private var frameStreamCount = 0
-    private var lastTimestamp = Date()
-    @Published var fpsStream: Double = 0
     @Published var poseKeypoints: [PoseBox] = []
-    
+    private var poseProcessor: YOLOPoseProcessor?
+    private var isProcessingPose = false // Mutex Lock
+
+    // FPS Tracker
+    @Published var fpsStream: Double = 0
+    @Published var fpsModel: Double = 0
+    private let systemFPS = FPSMeter(label: "System")
+
     // Queues
     private let sessionQueue = DispatchQueue(label: "com.bestgym.sessionQueue", qos: .userInitiated)
     private let frameBufferQueue = DispatchQueue(label: "com.bestgym.frameBufferQueue")
+    private let frameWriterQueue = DispatchQueue(label: "com.bestgym.frameWriterQueue")
     private let videoWriterQueue = DispatchQueue(label: "com.bestgym.videoWriterQueue")
     
     // MARK: - Initialization
@@ -106,15 +100,12 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
         // Configure camera based on settings
         self.isFilteringDepth = configuration.enableDepthFiltering
         self.isLiDAREnabled = configuration.enableLiDAR && isLiDARSupported
-        
-        // Setup orientation monitoring
-        setupOrientationMonitoring()
-        
+     
         // Set delegate
         controller.delegate = self
         
         // Init Pose
-        self.poseProcessor = YOLOPoseProcessor(modelName: self.poseProcessingModelURL)
+        self.poseProcessor = YOLOPoseProcessor()
     }
     
     // MARK: - Camera Setup
@@ -163,16 +154,7 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
         return !discoverySession.devices.isEmpty
     }
     
-    // MARK: - Orientation Monitoring
-    private func setupOrientationMonitoring() {
-        NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)
-            .sink { [weak self] _ in
-                self?.orientation = UIDevice.current.orientation
-            }
-            .store(in: &cancellables)
-    }
-    
-    // MARK: - Camera Control
+    // MARK: - Camera Stream Control
     func startStream() {
         controller.startStream()
         isLiveCapture = true
@@ -193,43 +175,59 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     func pauseStream() {
         if controller.captureSession.isRunning {
             controller.stopStream()
-            DispatchQueue.main.async { 
-                self.isLiveCapture = false 
+            DispatchQueue.main.async {
+                self.isLiveCapture = false
             }
+            log("Stream paused.", level: .info)
         }
-        log("Stream paused.", level: .info)
     }
     
     // MARK: - Cycling Methods
     func cycleResolution() {
         let oldResolution = cameraConfiguration.resolution
-        let newResolution = cameraConfiguration.resolution.next()
-        log("Cycling resolution from \(oldResolution.description) (\(oldResolution.width)x\(oldResolution.height)) to \(newResolution.description) (\(newResolution.width)x\(newResolution.height))", level: .info)
+        let newResolution = oldResolution.next()
+        
+        log("Cycling resolution from \(oldResolution.description) (\(oldResolution.width)x\(oldResolution.height)) " +
+            "to \(newResolution.description) (\(newResolution.width)x\(newResolution.height))", level: .info)
+        
         cameraConfiguration = cameraConfiguration.cycleResolution()
-        log("Resolution updated to: \(cameraConfiguration.resolution.description) (\(cameraConfiguration.resolution.width)x\(cameraConfiguration.resolution.height))", level: .info)
+        
+        log("Resolution updated to: \(cameraConfiguration.resolution.description) " +
+            "(\(cameraConfiguration.resolution.width)x\(cameraConfiguration.resolution.height))", level: .info)
     }
-    
+
     func cycleFrameRate() {
+        guard !cameraConfiguration.enableLiDAR else {
+            log("Frame rate cycling disabled while LiDAR is active", level: .info)
+            return
+        }
+        
         let oldFrameRate = cameraConfiguration.frameRate
-        let newFrameRate = cameraConfiguration.frameRate.nextForResolution(cameraConfiguration.resolution)
-        log("Cycling FPS from \(oldFrameRate.description) to \(newFrameRate.description) for resolution \(cameraConfiguration.resolution.description)", level: .info)
+        let newFrameRate = oldFrameRate.nextForResolution(cameraConfiguration.resolution)
+        
+        log("Cycling FPS from \(oldFrameRate.description) to \(newFrameRate.description) " +
+            "for resolution \(cameraConfiguration.resolution.description)", level: .info)
+        
         cameraConfiguration = cameraConfiguration.cycleFrameRate()
+        
         log("Frame rate updated to: \(cameraConfiguration.frameRate.description) FPS", level: .info)
     }
-    
+
     func toggleLiDAR() {
         guard isLiDARSupported else {
             log("LiDAR not supported on this device", level: .info)
             return
         }
         
-        cameraConfiguration = CameraConfiguration(
-            resolution: cameraConfiguration.resolution,
-            frameRate: cameraConfiguration.frameRate,
-            enableLiDAR: !cameraConfiguration.enableLiDAR,
-            enableDepthFiltering: cameraConfiguration.enableDepthFiltering,
-            cameraPosition: cameraConfiguration.cameraPosition
-        )
+        isLiDAREnabled.toggle()
+        
+        cameraConfiguration = cameraConfiguration.withLiDAR(isLiDAREnabled)
+        
+        if isLiDAREnabled {
+            log("LiDAR enabled → frame rate forced to 30 FPS", level: .info)
+        } else {
+            log("LiDAR disabled → restored frame rate: \(cameraConfiguration.frameRate.description) FPS", level: .info)
+        }
     }
     
     func toggleDepthFiltering() {
@@ -245,6 +243,11 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     func toogleRealtimeDetection() {
         isPoseProcessingEnabled.toggle()
         log("Realtime pose processing is \(isPoseProcessingEnabled ? "enabled" : "disabled")", level: .info)
+        
+        // Load Model if On
+        if isPoseProcessingEnabled {
+            self.setRealtimeModelVersion(self.poseProcessingModelURL)
+        }
     }
     
     func setRealtimeModelVersion(_ version: String) {
@@ -253,149 +256,85 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
             log("Realtime pose processing is disabled to reload the model", level: .info)
             
             self.poseProcessingModelURL = version
-            self.poseProcessor = YOLOPoseProcessor(modelName: self.poseProcessingModelURL)
-            log("Model changed to \(version)", level: .info)
-            
-            isPoseProcessingEnabled = true
-
+            poseProcessor?.loadModel(named: self.poseProcessingModelURL) { success in
+                if success {
+                    log("Model changed to \(version)", level: .info)
+                    self.isPoseProcessingEnabled = true
+                }
+            }
         } else {
             self.poseProcessingModelURL = version
-            self.poseProcessor = YOLOPoseProcessor(modelName: self.poseProcessingModelURL)
-            log("Model changed to \(version)", level: .info)
         }
     }
 }
 
 // MARK: - CaptureDataReceiver Protocol
 extension CameraManagerVM {
-    func onNewData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?) {
-        // FrameRate Benchmarking
-        self.frameStreamCount += 1
-        let now = Date()
-        let elapsed = now.timeIntervalSince(lastTimestamp)
-
-        if elapsed >= 1.0 {
-            let fps = Double(self.frameStreamCount) / elapsed
-            self.frameStreamCount = 0
-            lastTimestamp = now
-            
-            DispatchQueue.main.async {
-                self.fpsStream = fps
-            }
-        }
-        
-        // Ensure we're on the main thread for @Published property updates
+    // TODO: - onNewDepthData implementation for LiDAR Camera
+    func onNewDepthData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, pts: CMTime) {
+        self.systemFPS.tick()
         DispatchQueue.main.async {
-            // Update basic camera data
-            self.capturedData.database.colorY = capturedData.colorY
-            self.capturedData.database.colorCbCr = capturedData.colorCbCr
-            self.capturedData.database.cameraIntrinsics = capturedData.cameraIntrinsics
-            self.capturedData.database.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
-            self.capturedData.database.colorImage = capturedData.colorImage
-            
-            // Only update LiDAR-specific data if LiDAR is enabled
-            if self.isLiDAREnabled {
-                self.capturedData.database.depth = capturedData.depth
-                self.capturedData.database.depthCenter = capturedData.depthCenter
-                self.capturedData.database.originalDepth = capturedData.originalDepth
-            }
+            self.fpsStream = self.systemFPS.fps
         }
         
-        // Write frame to video if recording and video writer is ready
-        if isRecording && !isLiDAREnabled && isVideoWriterReady {
-            frameBufferQueue.async {
-                self.frameBuffer.append(capturedData)
-                self.frameSemaphore.signal()
+        
+    }
+    
+    // onNewBasicData implementation for Basic Camera
+    func onNewBasicData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, pts: CMTime) {
+        if let currentBuffer = pixelBuffer {
+            // Update FPS
+            self.systemFPS.tick()
+            DispatchQueue.main.async {
+                self.fpsStream = self.systemFPS.fps
             }
-        }
-
-        // Image Processing
-        if let _pixelBuffer = pixelBuffer, isPoseProcessingEnabled {
-            poseProcessor?.process(pixelBuffer: _pixelBuffer) { [weak self] poses in
-                // Optional Filtering
-                let filteredPose = self!.poseProcessor?.filterPoses(poses, minConfidence: 0.5, iouThreshold: 0.5)
-                    
+            
+            // Write frame to video if recording is true
+            if isRecording && !isPreparingRecording {
                 DispatchQueue.main.async {
-                    self?.poseKeypoints = filteredPose ?? []
+                    // Update basic camera data
+                    self.capturedData.database.cameraIntrinsics = capturedData.cameraIntrinsics
+                    self.capturedData.database.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
+                }
+                
+                frameBufferQueue.async {
+                    self.frameBuffer.append((currentBuffer, pts))
+                    self.frameSemaphore.signal()
                 }
             }
-        }
-    }
-
-    private func startWriterLoop() {
-        videoWriterQueue.async { [weak self] in
-            guard let self = self else { return }
-            while self.isRecording || !self.frameBuffer.isEmpty {
-                self.frameSemaphore.wait()
-                self.frameBufferQueue.sync {
-                    if !self.frameBuffer.isEmpty {
-                        let frame = self.frameBuffer.removeFirst()
-                        self.writeFrameToVideo(capturedData: frame)
+            
+            // BETA: - YOLO Pose Detection
+            if isPoseProcessingEnabled {
+                poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
+                    // Run tracker
+                    // Inside your process callback:
+//                    let tracked = updateTracks(with: poses, roi: nil)   // barROI can be nil if unknown
+//                    if let athlete = pickSwinger(from: tracked, roi: nil), shouldRender(athlete) {
+//                        DispatchQueue.main.async {
+//                            self?.poseKeypoints = [athlete.pose]
+//                        }
+//                    } else {
+//                        DispatchQueue.main.async {
+//                            self?.poseKeypoints = []   // don’t render stale predictions
+//                        }
+//                    }
+                    
+                    if !poses.isEmpty {
+                        DispatchQueue.main.async {
+                            self?.poseKeypoints = poses
+                            self?.fpsModel = fps
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            self?.poseKeypoints = []
+                            self?.fpsModel = fps
+                        }
                     }
                 }
             }
+
+
         }
-    }
-    
-    private func writeFrameToVideo(capturedData: FrameDataModel) {
-        guard let videoWriterInput = videoWriterInput,
-              let pixelBufferAdaptor = pixelBufferAdaptor,
-              videoWriterInput.isReadyForMoreMediaData else {
-            return
-        }
-        
-        // Create pixel buffer from the captured image
-        guard let image = capturedData.colorImage else { return }
-        
-        // Convert UIImage to CVPixelBuffer
-        guard let pixelBuffer = imageToPixelBuffer(image) else { return }
-        
-        // Calculate presentation time based on actual frame rate
-        let frameRate = cameraConfiguration.frameRate.rawValue
-        let frameDuration = CMTime(value: 1, timescale: CMTimeScale(frameRate))
-        let presentationTime = CMTimeMultiply(frameDuration, multiplier: Int32(frameCount))
-        
-        // Append the pixel buffer
-        if pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime) {
-            frameCount += 1
-        } else {
-            log("Failed to append pixel buffer to video", level: .error)
-        }
-    }
-    
-    private func imageToPixelBuffer(_ image: UIImage) -> CVPixelBuffer? {
-        let width = Int(image.size.width)
-        let height = Int(image.size.height)
-        
-        var pixelBuffer: CVPixelBuffer?
-        let status = CVPixelBufferCreate(kCFAllocatorDefault,
-                                       width,
-                                       height,
-                                       kCVPixelFormatType_32BGRA,
-                                       nil,
-                                       &pixelBuffer)
-        
-        guard status == kCVReturnSuccess, let buffer = pixelBuffer else {
-            return nil
-        }
-        
-        CVPixelBufferLockBaseAddress(buffer, [])
-        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
-        
-        guard let context = CGContext(data: CVPixelBufferGetBaseAddress(buffer),
-                                    width: width,
-                                    height: height,
-                                    bitsPerComponent: 8,
-                                    bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
-                                    space: CGColorSpaceCreateDeviceRGB(),
-                                    bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue) else {
-            return nil
-        }
-        
-        // Draw the image
-        context.draw(image.cgImage!, in: CGRect(x: 0, y: 0, width: width, height: height))
-        
-        return buffer
     }
 }
 
@@ -474,49 +413,13 @@ extension CameraManagerVM {
         
         capturedData = FrameDataVM()
         depthValue = nil
-        waitingForCapture = false
-        processingCapturedResult = false
         
         log("Cleanup complete", level: .info)
     }
 }
 
-// MARK: - Camera Focus Control
+// MARK: - All about Recording
 extension CameraManagerVM {
-    func setFixedFocus() {
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
-            log("Unable to access camera device", level: .error)
-            return
-        }
-        
-        sessionQueue.async {
-            do {
-                try device.lockForConfiguration()
-                
-                if device.isFocusModeSupported(.locked) {
-                    device.focusMode = .locked
-                }
-                
-                if device.isFocusPointOfInterestSupported {
-                    device.focusPointOfInterest = CGPoint(x: 0.5, y: 0.5)
-                }
-                
-                if device.isExposureModeSupported(.locked) {
-                    device.exposureMode = .locked
-                }
-                
-                device.unlockForConfiguration()
-                log("Camera focus locked", level: .info)
-            } catch {
-                log("Error setting fixed focus: \(error.localizedDescription)", level: .error)
-            }
-        }
-    }
-}
-
-//MARK:: All about Recording
-extension CameraManagerVM {
-    
     // Start standard recording
     func startRecording(personName: String, action: String) {
         // Quick validation on main thread
@@ -525,13 +428,7 @@ extension CameraManagerVM {
             return
         }
         
-        // Get the current UI connection orientation
-        let UIOrientation = UIApplication.shared.connectedScenes
-                                              .compactMap { $0 as? UIWindowScene }
-                                              .first?
-                                              .interfaceOrientation ?? .portrait
-        
-        log("Starting standard recording with orientation: \(getOrientationName(UIOrientation))", level: .info)
+        log("Starting standard recording with orientation: \(getOrientationName(OrientationCache.shared.orientation))", level: .info)
         log("Current camera configuration: \(cameraConfiguration.resolution.description) (\(cameraConfiguration.resolution.width)x\(cameraConfiguration.resolution.height)) at \(cameraConfiguration.frameRate.description) FPS", level: .info)
         log("Target frame rate: \(cameraConfiguration.frameRate.rawValue) FPS", level: .info)
         
@@ -566,7 +463,7 @@ extension CameraManagerVM {
                 // Save orientation information immediately (for debugging)
                 let orientationPath = recordingFolder.appendingPathComponent("orientation_info.txt")
                 let orientationInfo = """
-                Orientation: \(self.getOrientationName(UIOrientation))
+                Orientation: \(OrientationCache.shared.orientation)
                 Interface Idiom: \(UIDevice.current.userInterfaceIdiom.rawValue)
                 """
                 try orientationInfo.write(to: orientationPath, atomically: true, encoding: .utf8)
@@ -576,7 +473,7 @@ extension CameraManagerVM {
                     self.recordingFolder = recordingFolder
                     self.recordingStartTime = Date()
                     self.frameCount = 0
-                    self.recordingOrientation = UIOrientation
+                    self.recordingOrientation = OrientationCache.shared.orientation
                     
                     log("recording started to folder: \(recordingFolder.lastPathComponent)", level: .info)
                     
@@ -594,6 +491,12 @@ extension CameraManagerVM {
                                 }
                             }
                         }
+                    } else {
+                        DispatchQueue.main.async {
+                            self.isPreparingRecording = false
+                            self.isRecording = true
+                        }
+                        log("Recording started successfully", level: .info)
                     }
                 }
             } catch {
@@ -615,8 +518,8 @@ extension CameraManagerVM {
             
             // First mark as not recording to prevent new frames
             self.isRecording = false
-            self.isVideoWriterReady = false
-            
+            self.frameSemaphore.signal()
+
             // Capture all required information before moving to background thread
             let isLiDAR = self.isLiDAREnabled
             let frameCount = self.frameCount
@@ -634,59 +537,38 @@ extension CameraManagerVM {
                     isLiDAR: self.isLiDAREnabled
                 )
                 
-                // For standard recordings, finalize the video
                 self.videoWriterQueue.async { [weak self] in
                     guard let self = self else { return }
-                    while !self.frameBuffer.isEmpty {
-                        usleep(1000)
+                    
+                    // Wait until frameWriterQueue is finished
+                    self.frameWriterQueue.sync {
+                        // all frames processed
                     }
                     
+                    // For standard recordings, finalize the video
                     if !isLiDAR {
                         if let writer = self.videoWriter, let writerInput = self.videoWriterInput {
-                            // Finish writing if input is ready
-                            if writerInput.isReadyForMoreMediaData {
-                                writerInput.markAsFinished()
-                                writer.finishWriting {
-                                    log("Video writing completed", level: .info)
-                                    
-                                    // Clear video writer references
-                                    DispatchQueue.main.async {
-                                        self.videoWriter = nil
-                                        self.videoWriterInput = nil
-                                        self.pixelBufferAdaptor = nil
-                                        self.recordingFolder = nil
-                                        // Reset recording state
-                                        self.frameCount = 0
-                                        self.recordingStartTime = nil
-                                        completion(folder)
-                                    }
-                                }
-                            } else {
-                                log("Video writer input not ready for finalization", level: .warn)
+                            writerInput.markAsFinished()
+                            writer.finishWriting {
+                                log("Video writing completed", level: .info)
+                                
                                 DispatchQueue.main.async {
                                     self.videoWriter = nil
                                     self.videoWriterInput = nil
                                     self.pixelBufferAdaptor = nil
                                     self.recordingFolder = nil
-                                    // Reset recording state
                                     self.frameCount = 0
+                                    self.firstPTS = nil
                                     self.recordingStartTime = nil
                                     completion(folder)
                                 }
                             }
                         } else {
-                            // No video writer (unusual for standard recording)
                             log("No video writer available for finalization", level: .error)
                             DispatchQueue.main.async {
                                 self.recordingFolder = nil
                                 completion(folder)
                             }
-                        }
-                    } else {
-                        // LiDAR recording doesn't need video writer finalization
-                        DispatchQueue.main.async {
-                            self.recordingFolder = nil
-                            completion(folder)
                         }
                     }
                 }
@@ -694,17 +576,49 @@ extension CameraManagerVM {
         }
     }
     
-    private func getOrientationName(_ orientation: UIInterfaceOrientation) -> String {
-            switch orientation {
-            case .portrait: return "portrait"
-            case .portraitUpsideDown: return "portraitUpsideDown"
-            case .landscapeLeft: return "landscapeLeft"
-            case .landscapeRight: return "landscapeRight"
-            default: return "portrait"
+    private func startWriterLoop() {
+        frameWriterQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            while true {
+                // Wait until a frame is ready
+                self.frameSemaphore.wait()
+                
+                if !self.isRecording && self.frameBuffer.isEmpty {
+                    break // exit loop cleanly
+                }
+                
+                // Drain one frame if available
+                if let (frame, pts) = self.frameBufferQueue.sync(execute: {
+                    return self.frameBuffer.isEmpty ? nil : self.frameBuffer.removeFirst()
+                }) {
+                    // Guard against nil video writer or input
+                    guard let input = self.videoWriterInput,
+                          let adaptor = self.pixelBufferAdaptor,
+                          let writer = self.videoWriter else { return }
+
+                    // Set Timestamp
+                    if firstPTS == nil {
+                        firstPTS = pts
+                        writer.startSession(atSourceTime: pts)
+                    }
+                    
+                    // Get a buffer from the adaptor’s pool
+                    guard input.isReadyForMoreMediaData else { return }
+
+                    // Use append to adaptor pool
+                    if !adaptor.append(frame, withPresentationTime: pts) {
+                        log("Failed to append pixel buffer to video", level: .error)
+                    } else {
+                        self.frameCount += 1
+                    }
+                }
             }
+            
+            log("Frame writer loop exited", level: .info)
         }
+    }
     
-    // MARK: - Improved stopRecording method
     private func setupVideoWriterInBackground(at folder: URL, completion: @escaping (Bool) -> Void) {
         // Run entirely on background thread
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -729,8 +643,13 @@ extension CameraManagerVM {
             
             DispatchQueue.main.async {
                 // Use current camera configuration dimensions instead of captured data
-                width = self.cameraConfiguration.resolution.width
-                height = self.cameraConfiguration.resolution.height
+                if self.recordingOrientation == .portrait || self.recordingOrientation == .portraitUpsideDown {
+                    width = self.cameraConfiguration.resolution.height
+                    height = self.cameraConfiguration.resolution.width
+                } else {
+                    width = self.cameraConfiguration.resolution.width
+                    height = self.cameraConfiguration.resolution.height
+                }
                 semaphore.signal()
             }
             
@@ -765,7 +684,9 @@ extension CameraManagerVM {
                 let sourcePixelBufferAttributes: [String: Any] = [
                     kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
                     kCVPixelBufferWidthKey as String: width,
-                    kCVPixelBufferHeightKey as String: height
+                    kCVPixelBufferHeightKey as String: height,
+                    // iOS requires this empty dictionary to back by IOSurface for realtime
+                    kCVPixelBufferIOSurfacePropertiesKey as String: [:]
                 ]
                 
                 self.pixelBufferAdaptor = AVAssetWriterInputPixelBufferAdaptor(
@@ -774,27 +695,20 @@ extension CameraManagerVM {
                 )
                 
                 // Add input to writer
-                if let writer = self.videoWriter, let input = self.videoWriterInput {
-                    if writer.canAdd(input) {
+                if let writer = self.videoWriter, let input = self.videoWriterInput,
+                    writer.canAdd(input) {
                         writer.add(input)
-                        
-                        // Start writing
                         if writer.startWriting() {
-                            writer.startSession(atSourceTime: .zero)
-                            log("Video writer setup completed successfully", level: .info)
-                            DispatchQueue.main.async {
-                                self.isVideoWriterReady = true
-                            }
+                            log("Writer ready, waiting for first PTS…", level: .info)
                             completion(true)
                         } else {
-                            log("Failed to start video writing: \(writer.error?.localizedDescription ?? "Unknown error")", level: .error)
+                            log("Failed to start writing: \(writer.error?.localizedDescription ?? "unknown")", level: .error)
                             completion(false)
                         }
-                    } else {
-                        log("Cannot add video input to writer", level: .error)
-                        completion(false)
-                    }
+                } else {
+                    completion(false)
                 }
+
                 
             } catch {
                 log("Failed to create video writer: \(error.localizedDescription)", level: .error)
@@ -803,7 +717,16 @@ extension CameraManagerVM {
         }
     }
     
-    func saveRecordingMetadata(to folder: URL, orientation: UIInterfaceOrientation, frameCount: Int, isLiDAR: Bool) {
+    private func getOrientationName(_ orientation: DeviceOrientationModel) -> String {
+            switch orientation {
+            case .portrait: return "portrait"
+            case .portraitUpsideDown: return "portraitUpsideDown"
+            case .landscapeLeft: return "landscapeLeft"
+            case .landscapeRight: return "landscapeRight"
+            }
+        }
+    
+    private func saveRecordingMetadata(to folder: URL, orientation: DeviceOrientationModel, frameCount: Int, isLiDAR: Bool) {
         do {
             // Calculate duration
             var duration: TimeInterval = 0
@@ -820,7 +743,7 @@ extension CameraManagerVM {
             
             // Create enhanced orientation information with camera info
             let deviceOrientation = RecordingMetadata.DeviceOrientation(
-                rawValue: orientation.rawValue,
+                rawValue: 0,
                 name: getOrientationName(orientation),
                 cameraOrientation: isImageLandscape ? "landscape" : "portrait",
                 capturedWidth: Int(width),
@@ -850,12 +773,9 @@ extension CameraManagerVM {
             let jsonData = try encoder.encode(metadata)
             let metadataURL = folder.appendingPathComponent("recording_metadata.json")
             try jsonData.write(to: metadataURL)
-            
-            let actualFPS = duration > 0 ? Double(frameCount) / duration : 0
-            print("Saved metadata - Target FPS: \(cameraConfiguration.frameRate.rawValue), Actual FPS: \(String(format: "%.1f", actualFPS)), Frame Count: \(frameCount), Duration: \(String(format: "%.2f", duration))s")
 
         } catch {
-            print("❌ Failed to save metadata: \(error)")
+            log("Failed to save metadata: \(error)", level: .error)
         }
     }
 }

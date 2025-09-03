@@ -13,15 +13,13 @@ struct KeypointDotVM: View {
     let index: Int
     let containerSize: CGSize
     let imageSize: CGSize
-    let rotation: Int
     
     var body: some View {
         let position = transformPoint(
             x: keypoint.x,
             y: keypoint.y,
             containerSize: containerSize,
-            imageSize: imageSize,
-            rotation: rotation
+            imageSize: imageSize
         )
         
         let color = keypointColor(name: keypoint.name)

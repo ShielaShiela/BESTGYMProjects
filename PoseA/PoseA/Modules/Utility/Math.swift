@@ -6,28 +6,9 @@
 //  General Math Functions
 
 import SwiftUI
-import Metal
 import AVFoundation
 
-// MARK: Angle Function
-
-func angleBetween(_ a: KeypointData, _ b: KeypointData, _ c: KeypointData) -> Float {
-    let ab = CGVector(dx: a.x - b.x, dy: a.y - b.y)
-    let cb = CGVector(dx: c.x - b.x, dy: c.y - b.y)
-
-    let dot = ab.dx * cb.dx + ab.dy * cb.dy
-    let cross = ab.dx * cb.dy - ab.dy * cb.dx
-
-    var angle = atan2(cross, dot) * 180 / .pi // [-180, 180]
-
-    if angle < 0 {
-        angle += 360 // Wrap to [0, 360]
-    }
-
-    return Float(angle)
-}
-
-func transformPoint(x: CGFloat, y: CGFloat, containerSize: CGSize, imageSize: CGSize, rotation: Int) -> CGPoint {
+func transformPoint(x: CGFloat, y: CGFloat, containerSize: CGSize, imageSize: CGSize) -> CGPoint {
     // Calculate the actual display size of the image within the container
     let imageAspectRatio = imageSize.width / imageSize.height
     let containerAspectRatio = containerSize.width / containerSize.height
@@ -53,26 +34,8 @@ func transformPoint(x: CGFloat, y: CGFloat, containerSize: CGSize, imageSize: CG
     let offsetY = (containerSize.height - displaySize.height) / 2
     
     // Convert keypoint coordinates to display coordinates
-    var displayX = (x / imageSize.width) * displaySize.width + offsetX
-    var displayY = (y / imageSize.height) * displaySize.height + offsetY
-    
-    // Apply rotation if needed
-    if rotation != 0 {
-        let centerX = containerSize.width / 2
-        let centerY = containerSize.height / 2
-        
-        // Translate to origin
-        displayX -= centerX
-        displayY -= centerY
-        
-        // Apply rotation using CGAffineTransform (cleaner approach)
-        let transform = CGAffineTransform(rotationAngle: CGFloat(rotation) * CGFloat.pi / 2)
-        let rotatedPoint = CGPoint(x: displayX, y: displayY).applying(transform)
-        
-        // Translate back
-        displayX = rotatedPoint.x + centerX
-        displayY = rotatedPoint.y + centerY
-    }
+    let displayX = (x / imageSize.width) * displaySize.width + offsetX
+    let displayY = (y / imageSize.height) * displaySize.height + offsetY
     
     return CGPoint(x: displayX, y: displayY)
 }

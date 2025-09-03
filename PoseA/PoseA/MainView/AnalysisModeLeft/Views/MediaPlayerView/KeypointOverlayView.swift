@@ -12,7 +12,6 @@ struct KeypointOverlayView: View {
     let keypoints: [KeypointData]
     let containerSize: CGSize
     let imageSize: CGSize
-    let rotation: Int
     
     var body: some View {
         ZStack {
@@ -23,8 +22,7 @@ struct KeypointOverlayView: View {
                     to: jointConnections[index].1,
                     keypoints: keypoints,
                     containerSize: containerSize,
-                    imageSize: imageSize,
-                    rotation: rotation
+                    imageSize: imageSize
                 )
             }
             
@@ -37,8 +35,7 @@ struct KeypointOverlayView: View {
                         keypoint: keypoint,
                         index: index,
                         containerSize: containerSize,
-                        imageSize: imageSize,
-                        rotation: rotation
+                        imageSize: imageSize
                     )
                 }
             }

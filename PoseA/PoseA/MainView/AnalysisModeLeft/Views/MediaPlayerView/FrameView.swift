@@ -31,7 +31,6 @@ struct FrameView: View {
             let containerSize = geometry.size
             let imageSize = image?.size ?? CGSize.zero
             let fittedSize = fittedImageSize(imageSize: imageSize, containerSize: containerSize)
-            let rotation = self.appState.imageRotation
             
             // Define Gesture Condition
             let zoomEnabled = appState.isZoomMode
@@ -93,7 +92,6 @@ struct FrameView: View {
                         Image(uiImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .rotationEffect(.degrees(Double(rotation) * 90))
                             .frame(width: geometry.size.width, height: geometry.size.height)
                         
                         // Keypoints
@@ -104,8 +102,7 @@ struct FrameView: View {
                             KeypointOverlayView(
                                 keypoints: keypoints,
                                 containerSize: geometry.size,
-                                imageSize: imageSize,
-                                rotation: rotation
+                                imageSize: imageSize
                             )
                         }
                         

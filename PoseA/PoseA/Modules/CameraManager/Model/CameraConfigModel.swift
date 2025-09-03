@@ -14,7 +14,7 @@ struct CameraConfiguration {
         case hd720p    // 1280x720
         case hd1080p   // 1920x1080
         case li1440p   // 1920x1440
-        case hd4k       // 3840x2160
+        case hd4k      // 3840x2160
         
         var width: Int {
             switch self {
@@ -52,7 +52,6 @@ struct CameraConfiguration {
             }
         }
         
-        // Get next resolution in cycle
         func next() -> Resolution {
             let allResolutions = Resolution.allCases
             guard let currentIndex = allResolutions.firstIndex(of: self) else {
@@ -72,7 +71,6 @@ struct CameraConfiguration {
             return "\(self.rawValue)"
         }
         
-        // Get available frame rates for a given resolution
         static func availableForResolution(_ resolution: Resolution) -> [FrameRate] {
             switch resolution {
             case .hd720p, .hd1080p, .li1440p:
@@ -82,7 +80,6 @@ struct CameraConfiguration {
             }
         }
         
-        // Get next frame rate in cycle for a given resolution
         func nextForResolution(_ resolution: Resolution) -> FrameRate {
             let availableRates = FrameRate.availableForResolution(resolution)
             guard let currentIndex = availableRates.firstIndex(of: self) else {
@@ -100,15 +97,23 @@ struct CameraConfiguration {
     let cameraPosition: AVCaptureDevice.Position
     
     init(resolution: Resolution = .hd720p,
-         frameRate: FrameRate = .fps60,
-         enableLiDAR: Bool = true,
+         frameRate: FrameRate = .fps30,
+         enableLiDAR: Bool = false,
          enableDepthFiltering: Bool = true,
          cameraPosition: AVCaptureDevice.Position = .back) {
+        
         self.resolution = resolution
-        self.frameRate = frameRate
         self.enableLiDAR = enableLiDAR
         self.enableDepthFiltering = enableDepthFiltering
         self.cameraPosition = cameraPosition
+        
+        // Always enforce 30fps if LiDAR is enabled
+        if enableLiDAR {
+            self.frameRate = .fps30
+        } else {
+            let availableRates = FrameRate.availableForResolution(resolution)
+            self.frameRate = availableRates.contains(frameRate) ? frameRate : availableRates.first ?? .fps30
+        }
     }
     
     // Cycle to next resolution
@@ -119,39 +124,40 @@ struct CameraConfiguration {
     
     // Cycle to next frame rate for current resolution
     func cycleFrameRate() -> CameraConfiguration {
+        guard !enableLiDAR else { return self } // locked
         let nextFrameRate = frameRate.nextForResolution(resolution)
         return withFrameRate(nextFrameRate)
     }
     
-    // Create a new configuration with updated resolution
     private func withResolution(_ newResolution: Resolution) -> CameraConfiguration {
-        // Ensure frame rate is compatible with new resolution
-        let availableRates = FrameRate.availableForResolution(newResolution)
-        let newFrameRate = availableRates.contains(self.frameRate) ? self.frameRate : availableRates.first ?? .fps30
-        
         return CameraConfiguration(
             resolution: newResolution,
-            frameRate: newFrameRate,
+            frameRate: frameRate, // initializer will fix if invalid
             enableLiDAR: enableLiDAR,
             enableDepthFiltering: enableDepthFiltering,
             cameraPosition: cameraPosition
         )
     }
     
-    // Create a new configuration with updated frame rate
     private func withFrameRate(_ newFrameRate: FrameRate) -> CameraConfiguration {
-        // Ensure frame rate is compatible with current resolution
-        let availableRates = FrameRate.availableForResolution(resolution)
-        guard availableRates.contains(newFrameRate) else {
-            return self // Return unchanged if frame rate not compatible
-        }
-        
         return CameraConfiguration(
             resolution: resolution,
-            frameRate: newFrameRate,
+            frameRate: newFrameRate, // initializer will fix if invalid
             enableLiDAR: enableLiDAR,
+            enableDepthFiltering: enableDepthFiltering,
+            cameraPosition: cameraPosition
+        )
+    }
+    
+    // Toggle LiDAR mode
+    func withLiDAR(_ enabled: Bool) -> CameraConfiguration {
+        return CameraConfiguration(
+            resolution: resolution,
+            frameRate: frameRate, // initializer will force 30 if enabled
+            enableLiDAR: enabled,
             enableDepthFiltering: enableDepthFiltering,
             cameraPosition: cameraPosition
         )
     }
 }
+

@@ -24,9 +24,6 @@ struct BESTGYMPoseApp: View {
     // MARK: - Body
     var body: some View {
         ZStack {
-            // Check for Device Orientation
-            DeviceOrientationVM(orientation: $appState.orientation)
-            
             // Landscape Main Content
             NavigationView {
                 ZStack {
@@ -151,6 +148,7 @@ struct BESTGYMPoseApp: View {
                     SettingsView(appState: appState)
                 }
             }
+            .navigationViewStyle(StackNavigationViewStyle())
             
             if appState.isRecordMode {
                 RecordLandscapeView(appState: self.appState,
@@ -171,6 +169,26 @@ struct BESTGYMPoseApp: View {
                 .zIndex(1)
             }
         }
+        .onAppear {
+            // Ensure initialization
+            _ = OrientationCache.shared
+        }
+        
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+           print("App will resign active - keeping folder access alive")
+           // Don't clean up resources when app goes to background
+           // This allows continued access when returning to the app
+       }
+        
+       .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+           print("App did become active")
+           // Resources should still be accessible
+       }
+        
+       .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
+           print("App will terminate - cleaning up all resources")
+           SecurityScopedResourceManager.shared.stopAccessingAll()
+       }
     }
     
     // MARK: - Helper Functions
@@ -188,33 +206,9 @@ struct BESTGYMPoseApp: View {
                     self.cameraManager.isLiveCapture = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
                         self.appState.isRecordMode = true
-                        self.setupRecordMode()
                     }
                 }
             }
-        }
-    }
-    
-    private func setupRecordMode() {
-        // Reset LiDAR toggle to default state
-        appState.useLiDAR = false
-        
-        // Make sure the camera is not already running before starting it
-        if !cameraManager.isLiveCapture {
-            // First make sure the camera session exists and is set up correctly
-            print("Starting camera for record mode...")
-            
-            // Start camera on background thread
-            DispatchQueue.global(qos: .userInitiated).async {
-                self.cameraManager.resumeStream()
-                
-                // Print status after a brief delay to confirm
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    print("Camera live capture status: \(self.cameraManager.isLiveCapture)")
-                }
-            }
-        } else {
-            print("Camera is already running")
         }
     }
     

@@ -6,248 +6,291 @@
 //
 
 import CoreML
-import UIKit
-import CoreImage
+import Vision
+import os.log
 
 final class YOLOPoseProcessor {
-    private var mlModel: MLModel?
+    // MARK: - Public knobs
+    var confidenceThreshold: Float = 0.35
+    var iouThreshold: Float = 0.50
+
+    // MARK: - Private
+    private var mlModel: MLModel!
+    private var vnModel: VNCoreMLModel!
+    private var visionRequest: VNCoreMLRequest!
+
     private let queue = DispatchQueue(label: "yolo.pose.queue")
-    
-    private var camInputSize: CGSize = .zero // Camera input size
-    private var modelInputSize: CGSize = .zero // Model input size
+
+    private(set) var camInputSize: CGSize = .zero
+    private(set) var modelInputSize: CGSize = .zero
+
     private var boxCount: Int = 0
     private var featureLength: Int = 0
-    private var keypointCount: Int = 0
     
-    init(modelName: String) {
-        loadModel(named: modelName)
-        configureModelParameters()
+    // MARK: - Double buffer
+    private let frameQueue = DispatchQueue(label: "yolo.pose.frameQueue", attributes: .concurrent)
+    private var pixelBufferQueue: [(CVPixelBuffer, CMTime)] = []
+    private var isProcessing: Bool = false
+
+    private let modelFPS = FPSMeter(label: "Model", autoPrint: false)
+
+    // MARK: - Utilities
+    private func tick(_ label: String, block: () -> Void) {
+        let start = CFAbsoluteTimeGetCurrent()
+        block()
+        let diff = (CFAbsoluteTimeGetCurrent() - start) * 1000
+        print("⏱ \(label): \(String(format: "%.2f", diff)) ms")
     }
-    
-    private func loadModel(named name: String) {
-        guard let modelURL = Bundle.main.url(forResource: name, withExtension: "mlmodelc") else {
-            log("Model not found", level: .error)
+
+    // MARK: - Model Loading
+    func loadModel(named name: String, completion: @escaping ((Bool) -> Void)) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            self.tick("LoadModel") {
+                do {
+                    guard let url = Bundle.main.url(forResource: name, withExtension: "mlmodelc") else {
+                        assertionFailure("Model not found in bundle")
+                        return
+                    }
+                    let config = MLModelConfiguration()
+                    config.computeUnits = .cpuAndNeuralEngine
+                    
+                    self.mlModel = try MLModel(contentsOf: url, configuration: config)
+                    self.vnModel = try VNCoreMLModel(for: self.mlModel)
+                    
+                    if let input = self.mlModel?.modelDescription.inputDescriptionsByName.values.first,
+                       input.type == .image,
+                       let ic = input.imageConstraint {
+                        self.modelInputSize = CGSize(width: ic.pixelsWide, height: ic.pixelsHigh)
+                    }
+
+                    if let output = self.mlModel?.modelDescription.outputDescriptionsByName.values.first,
+                       output.type == .multiArray,
+                       let shape = output.multiArrayConstraint?.shape,
+                       shape.count == 3 {
+                        self.featureLength = Int(truncating: shape[1])
+                        self.boxCount = Int(truncating: shape[2])
+                    }
+                    
+                    DispatchQueue.main.async {
+                        self.setUpVision()
+                        completion(true)
+                    }
+                    
+                } catch {
+                    assertionFailure("Failed to load model: \(error)")
+                    DispatchQueue.main.async {
+                        completion(false)
+                    }
+                }
+            }
+        }
+    }
+
+    private func setUpVision() {
+        visionRequest = VNCoreMLRequest(model: vnModel) { _, _ in }
+        visionRequest.imageCropAndScaleOption = .scaleFill
+    }
+
+    // MARK: - Public API
+    func process(pixelBuffer: CVPixelBuffer, pts: CMTime, completion: @escaping ([PoseBox], Double, CMTime) -> Void) {
+        // Add frame to queue
+        frameQueue.async(flags: .barrier) {
+            // Keep max 2 frames, drop older
+            if self.pixelBufferQueue.count >= 2 {
+                self.pixelBufferQueue.removeFirst()
+            }
+            self.pixelBufferQueue.append((pixelBuffer, pts))
+        }
+
+        tryProcessNextFrame(completion: completion)
+    }
+
+    private func tryProcessNextFrame(completion: @escaping ([PoseBox], Double, CMTime) -> Void) {
+        let start = CFAbsoluteTimeGetCurrent()
+
+        // Only one frame at a time
+        guard !isProcessing else { return }
+        isProcessing = true
+
+        // Get the latest frame
+        var bufferToProcess: (CVPixelBuffer, CMTime)?
+        frameQueue.sync {
+            bufferToProcess = self.pixelBufferQueue.popLast()!
+            self.pixelBufferQueue.removeAll() // discard older frames
+        }
+
+        guard let (buffer, pts) = bufferToProcess else {
+            isProcessing = false
             return
         }
-        do {
-            let config = MLModelConfiguration()
-            config.computeUnits = .all
-            mlModel = try MLModel(contentsOf: modelURL, configuration: config)
-            log("Model loaded successfully", level: .info)
-        } catch {
-            log("Failed to load model - \(error)", level: .error)
-        }
-    }
-    
-    private func configureModelParameters() {
-        guard let model = mlModel else { return }
-        
-        // Get the model's output description
-        if let outputDescription = model.modelDescription.outputDescriptionsByName.keys.first {
-            // Assuming the output is a MultiArray
-            let output = model.modelDescription.outputDescriptionsByName[outputDescription]
-            if output!.type == .multiArray {
-                // Extract dimensions
-                let shape = output?.multiArrayConstraint?.shape ?? []
-                if shape.count == 3 {
-                    boxCount = Int(truncating: shape[2])
-                    featureLength = Int(truncating: shape[1])
-                    keypointCount = 17
-                }
-            }
-        }
-        
-        // Get the model's output description
-        if let inputDescription = model.modelDescription.inputDescriptionsByName.keys.first {
-            let input = model.modelDescription.inputDescriptionsByName[inputDescription]
-            if input!.type == .image {
-                modelInputSize = CGSize(width: input?.imageConstraint?.pixelsWide ?? 640,
-                                        height: input?.imageConstraint?.pixelsHigh ?? 640)
-            }
-        }
-    }
-    
-    func process(pixelBuffer: CVPixelBuffer, completion: @escaping ([PoseBox]) -> Void) {
-        queue.async { [weak self] in
-            guard let self = self, let model = self.mlModel else {
-                DispatchQueue.main.async { completion([]) }
+
+        camInputSize = CGSize(width: CVPixelBufferGetWidth(buffer),
+                              height: CVPixelBufferGetHeight(buffer))
+
+        let handler = VNImageRequestHandler(cvPixelBuffer: buffer, orientation: .up, options: [:])
+        let request = VNCoreMLRequest(model: vnModel) { [weak self] request, _ in
+            guard let self = self else { return }
+            defer { self.isProcessing = false }
+
+            guard let results = request.results as? [VNCoreMLFeatureValueObservation],
+                  let multiArray = results.first?.featureValue.multiArrayValue else {
+                DispatchQueue.main.async { completion([], self.modelFPS.fps, pts) }
+                // Try next frame if available
+                self.tryProcessNextFrame(completion: completion)
                 return
             }
             
-            // Get Camera Size
-            self.camInputSize = CGSize(width: CGFloat(CVPixelBufferGetWidth(pixelBuffer)),
-                                       height: CGFloat(CVPixelBufferGetHeight(pixelBuffer)))
-            
-            // Convert YCbCr -> BGRA + resize to 640x640
-            guard let inputBuffer = self.convertToBGRA(pixelBuffer, targetSize: self.modelInputSize) else {
-                DispatchQueue.main.async { completion([]) }
-                return
+            let diff = (CFAbsoluteTimeGetCurrent() - start) * 1000
+            print("⏱ inference time: \(String(format: "%.2f", diff)) ms")
+
+            let poses = self.decodeOutputFast(multiArray)
+            self.modelFPS.tick()
+
+            DispatchQueue.main.async {
+                completion(poses, self.modelFPS.fps, pts)
             }
-            
-            let inputName = model.modelDescription.inputDescriptionsByName.keys.first!
-            
-            guard let inputProvider = try? MLDictionaryFeatureProvider(dictionary: [inputName: inputBuffer]) else {
-                DispatchQueue.main.async { completion([]) }
-                return
-            }
-            
+
+            // Try next frame if there are queued frames
+            self.tryProcessNextFrame(completion: completion)
+        }
+        request.imageCropAndScaleOption = .scaleFill
+
+        DispatchQueue.global(qos: .userInitiated).async {
             do {
-                let prediction = try model.prediction(from: inputProvider)
-                guard let outputMultiArray = prediction.featureValue(for: prediction.featureNames.first!)?.multiArrayValue else {
-                    DispatchQueue.main.async { completion([]) }
-                    return
-                }
-                
-                let poses = self.decodeOutput(outputMultiArray)
-                
-                DispatchQueue.main.async {
-                    completion(poses)
-                }
-                
+                try handler.perform([request])
             } catch {
-                log("Model prediction error: \(error)", level: .error)
-                DispatchQueue.main.async { completion([]) }
+                self.isProcessing = false
+                DispatchQueue.main.async { completion([], self.modelFPS.fps, pts) }
             }
         }
     }
-    
-    private func decodeOutput(_ multiArray: MLMultiArray) -> [PoseBox] {
-        func index(_ channel: Int, _ box: Int) -> Int {
-            return channel * boxCount + box
-        }
+
+    // MARK: - Fast decode
+    private func decodeOutputFast(_ multiArray: MLMultiArray) -> [PoseBox] {
+        let start = CFAbsoluteTimeGetCurrent()
+
+        // Access MLMultiArray as a raw pointer
+        let ptr = UnsafeMutablePointer<Float>(OpaquePointer(multiArray.dataPointer))
+        let shape = multiArray.shape.map { Int(truncating: $0) }      // e.g. [1, 56, 2100]
+        let strides = multiArray.strides.map { Int(truncating: $0) }
         
-        var results: [PoseBox] = []
-        
-        for boxIdx in 0..<boxCount {
-            let conf = multiArray[index(4, boxIdx)].floatValue
-            if conf < 0.3 { continue }
-            
-            let x = multiArray[index(0, boxIdx)].floatValue
-            let y = multiArray[index(1, boxIdx)].floatValue
-            let w = multiArray[index(2, boxIdx)].floatValue
-            let h = multiArray[index(3, boxIdx)].floatValue
-            
-            let topLeft = self.modelToCameraCoords(x: CGFloat(x - w/2), y: CGFloat(y - h/2),
-                                                   origW: self.camInputSize.width, origH: self.camInputSize.height,
-                                                   modelW: self.modelInputSize.width, modelH: self.modelInputSize.width)
-            
-            let bottomRight = self.modelToCameraCoords(x: CGFloat(x + w/2), y: CGFloat(y + h/2),
-                                                       origW: self.camInputSize.width, origH: self.camInputSize.height,
-                                                       modelW: self.modelInputSize.width, modelH: self.modelInputSize.width)
-            let rect = CGRect(
-                x: topLeft.x,
-                y: topLeft.y,
-                width: bottomRight.x - topLeft.x,
-                height: bottomRight.y - topLeft.y
-            )
-            
-            var keypoints: [CGPoint] = []
-            var visibility: [Float] = []
-            
-            for k in 0..<keypointCount {
-                let px = multiArray[index(5 + k * 3, boxIdx)].floatValue
-                let py = multiArray[index(6 + k * 3, boxIdx)].floatValue
-                let v = multiArray[index(7 + k * 3, boxIdx)].floatValue
+        let C = shape[1]   // featureLength (56)
+        let N = shape[2]   // boxCount (2100)
+
+        var candidates: [PoseBox] = []
+
+        // Concurrent decode using thread-local arrays to avoid locks
+        let lock = DispatchQueue(label: "com.YOLOVM.lock")
+
+        DispatchQueue.concurrentPerform(iterations: N) { boxIdx in
+            let confIndex = 4 * strides[1] + boxIdx * strides[2]
+            let conf = ptr[confIndex]
+            if conf > confidenceThreshold {
+                // Decode box coords
+                let cx = ptr[0 * strides[1] + boxIdx * strides[2]]
+                let cy = ptr[1 * strides[1] + boxIdx * strides[2]]
+                let w  = ptr[2 * strides[1] + boxIdx * strides[2]]
+                let h  = ptr[3 * strides[1] + boxIdx * strides[2]]
                 
-                let kp = self.modelToCameraCoords(x: CGFloat(px), y: CGFloat(py),
-                                                  origW: self.camInputSize.width, origH: self.camInputSize.height,
-                                                  modelW: self.modelInputSize.width, modelH: self.modelInputSize.width)
-                                             
-                keypoints.append(CGPoint(x: kp.x, y: kp.y))
-                visibility.append(v)
+                let tl = modelToCameraCoords(x: CGFloat(cx - w * 0.5),
+                                             y: CGFloat(cy - h * 0.5),
+                                             origSize: camInputSize,
+                                             modelSize: modelInputSize)
+                let br = modelToCameraCoords(x: CGFloat(cx + w * 0.5),
+                                             y: CGFloat(cy + h * 0.5),
+                                             origSize: camInputSize,
+                                             modelSize: modelInputSize)
+                let rect = CGRect(x: tl.x, y: tl.y, width: br.x - tl.x, height: br.y - tl.y)
+
+                var keypoints: [KeypointData] = []
+                
+                // Decode all keypoints
+                for k in 0..<((C - 5) / 3) {
+                    let kx = ptr[(5 + k * 3) * strides[1] + boxIdx * strides[2]]
+                    let ky = ptr[(6 + k * 3) * strides[1] + boxIdx * strides[2]]
+                    let kc = ptr[(7 + k * 3) * strides[1] + boxIdx * strides[2]]
+                    
+                    let mapped = modelToCameraCoords(x: CGFloat(kx),
+                                                     y: CGFloat(ky),
+                                                     origSize: camInputSize,
+                                                     modelSize: modelInputSize)
+                    
+                    keypoints.append(KeypointData(name: keypointNames[k],
+                                                  x: mapped.x,
+                                                  y: mapped.y,
+                                                  confidence: kc,
+                                                  depth: 0.0,
+                                                  frameIndex: 0))
+                }
+
+                let localBox = PoseBox(bbox: rect,
+                                       confidence: conf,
+                                       keypoints: keypoints)
+
+                // Merge into main array once
+                lock.sync {
+                    candidates.append(localBox)
+                }
             }
-            
-            results.append(PoseBox(bbox: rect, confidence: conf, keypoints: keypoints, visibility: visibility))
         }
+        
+        let diff = (CFAbsoluteTimeGetCurrent() - start) * 1000
+        print("⏱ decode time: \(String(format: "%.2f", diff)) ms")
+        
+        // Optional: run NMS
+        var filtered: [PoseBox] = []
+        filtered = filterPoses(candidates, minConfidence: confidenceThreshold, iouThreshold: iouThreshold)
+
+        return filtered
+    }
+
+    // MARK: - Reuse your existing helpers (unchanged)
+    private func modelToCameraCoords(
+        x: CGFloat, y: CGFloat,
+        origSize: CGSize, modelSize: CGSize) -> CGPoint {
+        // Scale
+        let scaledX = (x / modelSize.width)
+        let scaledY = (y / modelSize.height)
+            
+        // Rotate coordinates back to camera orientation
+        return CGPoint(x: scaledX, y: scaledY)
+    }
+
+    func filterPoses(_ poses: [PoseBox], minConfidence: Float = 0.5, iouThreshold: Float = 0.5) -> [PoseBox] {
+        let start = CFAbsoluteTimeGetCurrent()
+
+        let boxes = poses.enumerated()
+            .filter { $0.element.confidence > minConfidence }
+            .sorted { $0.element.confidence > $1.element.confidence }
+
+        var suppressed = Array(repeating: false, count: boxes.count)
+        var results: [PoseBox] = []
+
+        for i in 0..<boxes.count {
+            if suppressed[i] { continue }
+            let current = boxes[i].element
+            results.append(current)
+
+            for j in (i+1)..<boxes.count {
+                if suppressed[j] { continue }
+                let other = boxes[j].element
+                let iou = calculateIoU(current.bbox, other.bbox)
+                if iou >= iouThreshold {
+                    suppressed[j] = true
+                }
+            }
+        }
+        let diff = (CFAbsoluteTimeGetCurrent() - start) * 1000
+        print("⏱ decode time: \(String(format: "%.2f", diff)) ms")
         
         return results
     }
-    
-    private func convertToBGRA(_ pixelBuffer: CVPixelBuffer, targetSize: CGSize) -> CVPixelBuffer? {
-        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
 
-        // Maintain aspect ratio
-        let scale = min(targetSize.width / self.camInputSize.width, targetSize.height / self.camInputSize.height)
-        let scaledWidth = self.camInputSize.width * scale
-        let scaledHeight = self.camInputSize.height * scale
-        
-        let dx = (targetSize.width - scaledWidth) / 2.0
-        let dy = (targetSize.height - scaledHeight) / 2.0
-        
-        // First scale
-        let scaledImage = ciImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-            .transformed(by: CGAffineTransform(translationX: dx, y: dy))
-        
-        let attrs = [
-            kCVPixelBufferCGImageCompatibilityKey: true,
-            kCVPixelBufferCGBitmapContextCompatibilityKey: true,
-            kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA
-        ] as CFDictionary
-        
-        var outputBuffer: CVPixelBuffer?
-        let status = CVPixelBufferCreate(
-            kCFAllocatorDefault,
-            Int(targetSize.width),
-            Int(targetSize.height),
-            kCVPixelFormatType_32BGRA,
-            attrs,
-            &outputBuffer
-        )
-        
-        guard status == kCVReturnSuccess, let outBuffer = outputBuffer else {
-            return nil
-        }
-        
-        let context = CIContext()
-        context.render(scaledImage, to: outBuffer)
-        return outBuffer
+    func calculateIoU(_ a: CGRect, _ b: CGRect) -> Float {
+        let inter = a.intersection(b)
+        if inter.isNull { return 0 }
+        let interArea = inter.width * inter.height
+        let unionArea = a.width * a.height + b.width * b.height - interArea
+        return Float(interArea / unionArea)
     }
-    
-    private func modelToCameraCoords(x: CGFloat, y: CGFloat,
-                                     origW: CGFloat, origH: CGFloat,
-                                     modelW: CGFloat, modelH: CGFloat) -> CGPoint {
-        let scale = min(modelW / origW, modelH / origH)
-        let padX = (modelW - origW * scale) / 2
-        let padY = (modelH - origH * scale) / 2
-        
-        let unpadX = (x - padX) / scale
-        let unpadY = (y - padY) / scale
-        return CGPoint(x: unpadX, y: unpadY)
-    }
-
-    
-    func filterPoses(_ poses: [PoseBox], minConfidence: Float = 0.5, iouThreshold: Float = 0.5) -> [PoseBox] {
-        // Step 1: Filter by confidence
-        var filtered = poses.filter { $0.confidence > minConfidence }
-        
-        // Step 2: Sort by confidence descending
-        filtered.sort { $0.confidence > $1.confidence }
-        
-        var result: [PoseBox] = []
-        
-        while !filtered.isEmpty {
-            let current = filtered.removeFirst()
-            result.append(current)
-            
-            filtered = filtered.filter { other in
-                let iou = calculateIoU(current.bbox, other.bbox)
-                return iou < iouThreshold
-            }
-        }
-        
-        return result
-    }
-
-    func calculateIoU(_ rectA: CGRect, _ rectB: CGRect) -> Float {
-        let intersection = rectA.intersection(rectB)
-        if intersection.isNull {
-            return 0
-        }
-        
-        let intersectionArea = intersection.width * intersection.height
-        let unionArea = rectA.width * rectA.height + rectB.width * rectB.height - intersectionArea
-        
-        return Float(intersectionArea / unionArea)
-    }
-
 }

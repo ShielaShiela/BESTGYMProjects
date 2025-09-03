@@ -57,8 +57,7 @@ class MainAppState: ObservableObject {
     @Published var useLiDAR: Bool = false
     @Published var realtimeDetection: Bool = false
     @Published var realtimeModel: String = "yolo11n-pose"
-    
-    @Published var imageRotation: Int = 0
+    @Published var realtimeViewMode: String = "general"
 }
 
 extension MainAppState {

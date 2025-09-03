@@ -16,6 +16,8 @@ struct RecordLandscapeView: View {
     var body: some View {
         ZStack {
             Color.black
+            // Get Orientation
+            let isLandscape = OrientationCache.shared.orientation == .landscapeLeft || OrientationCache.shared.orientation == .landscapeRight
             
             GeometryReader { geometry in
                 Group {
@@ -34,10 +36,10 @@ struct RecordLandscapeView: View {
                                     .foregroundStyle(Color.white)
                             }
                             .contentShape(Rectangle())
-                            .frame(width: appState.orientation == .landscape ? geo.size.width * 0.8 : geo.size.width * 0.25,
-                                   height: appState.orientation == .landscape ? geo.size.height * 0.25 : geo.size.height * 0.8)
-                            .position(x: appState.orientation == .landscape ? geo.size.width * 0.5 : geo.size.width * 0.125,
-                                      y: appState.orientation == .landscape ? geo.size.height * 0.875 : geo.size.height * 0.75 )
+                            .frame(width: isLandscape ? geo.size.width * 0.8 : geo.size.width * 0.25,
+                                   height: isLandscape ? geo.size.height * 0.25 : geo.size.height * 0.8)
+                            .position(x: isLandscape ? geo.size.width * 0.5 : geo.size.width * 0.125,
+                                      y: isLandscape ? geo.size.height * 0.875 : geo.size.height * 0.75 )
                             .popover(isPresented: $showInfoView) {
                                 // Status indicator
                                 VStack(alignment: .leading, spacing: 8) {
@@ -128,11 +130,11 @@ struct RecordLandscapeView: View {
                                             .fill(cameraManager.fpsStream > 20 ? .green : .red)
                                             .frame(width: 8, height: 8)
                                         
-                                        Text("FPS Benchmark: \(cameraManager.fpsStream, specifier: "%.1f")")
+                                        Text("FPS Benchmark: \(cameraManager.fpsModel, specifier: "%.1f") / \(cameraManager.fpsStream, specifier: "%.1f")")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                             .lineLimit(1)
-                                            .truncationMode(.middle)
+                                            .truncationMode(.middle) 
                                     }
                                 }
                                 .padding()
@@ -148,10 +150,10 @@ struct RecordLandscapeView: View {
                                     .foregroundStyle(Color.white)
                             }
                             .contentShape(Rectangle())
-                            .frame(width: appState.orientation == .landscape ? geo.size.width * 0.8 : geo.size.width * 0.25,
-                                   height: appState.orientation == .landscape ? geo.size.height * 0.25 : geo.size.height * 0.8)
-                            .position(x: appState.orientation == .landscape ? geo.size.width * 0.5 : geo.size.width * 0.375,
-                                      y: appState.orientation == .landscape ? geo.size.height * 0.625 : geo.size.height * 0.75 )
+                            .frame(width: isLandscape ? geo.size.width * 0.8 : geo.size.width * 0.25,
+                                   height: isLandscape ? geo.size.height * 0.25 : geo.size.height * 0.8)
+                            .position(x: isLandscape ? geo.size.width * 0.5 : geo.size.width * 0.375,
+                                      y: isLandscape ? geo.size.height * 0.625 : geo.size.height * 0.75 )
                             
                             // FPS Button
                             Button(action: {
@@ -163,10 +165,10 @@ struct RecordLandscapeView: View {
                                     .foregroundStyle(Color.white)
                             }
                             .contentShape(Rectangle())
-                            .frame(width: appState.orientation == .landscape ? geo.size.width * 0.8 : geo.size.width * 0.25,
-                                   height: appState.orientation == .landscape ? geo.size.height * 0.25 : geo.size.height * 0.8)
-                            .position(x: appState.orientation == .landscape ? geo.size.width * 0.5 : geo.size.width * 0.625,
-                                      y: appState.orientation == .landscape ? geo.size.height * 0.375 : geo.size.height * 0.75 )
+                            .frame(width: isLandscape ? geo.size.width * 0.8 : geo.size.width * 0.25,
+                                   height: isLandscape ? geo.size.height * 0.25 : geo.size.height * 0.8)
+                            .position(x: isLandscape ? geo.size.width * 0.5 : geo.size.width * 0.625,
+                                      y: isLandscape ? geo.size.height * 0.375 : geo.size.height * 0.75 )
                             
                             // Resolution Button
                             Button(action: {
@@ -178,39 +180,63 @@ struct RecordLandscapeView: View {
                                     .foregroundStyle(Color.white)
                             }
                             .contentShape(Rectangle())
-                            .frame(width: appState.orientation == .landscape ? geo.size.width * 0.8 : geo.size.width * 0.25,
-                                   height: appState.orientation == .landscape ? geo.size.height * 0.25 : geo.size.height * 0.8)
-                            .position(x: appState.orientation == .landscape ? geo.size.width * 0.5 : geo.size.width * 0.875,
-                                      y: appState.orientation == .landscape ? geo.size.height * 0.125 : geo.size.height * 0.75 )
+                            .frame(width: isLandscape ? geo.size.width * 0.8 : geo.size.width * 0.25,
+                                   height: isLandscape ? geo.size.height * 0.25 : geo.size.height * 0.8)
+                            .position(x: isLandscape ? geo.size.width * 0.5 : geo.size.width * 0.875,
+                                      y: isLandscape ? geo.size.height * 0.125 : geo.size.height * 0.75 )
                             
                         }
                     }
                         
-                        .frame(width: appState.orientation == .landscape ? geometry.size.width * 0.1 : geometry.size.width,
-                               height: appState.orientation == .landscape ? geometry.size.height : geometry.size.height * 0.1)
-                        .position(x: appState.orientation == .landscape ? geometry.size.width * 0.05 : geometry.size.width * 0.5,
-                                  y: appState.orientation == .landscape ? geometry.size.height * 0.5 : geometry.size.height * 0.05)
+                        .frame(width: isLandscape ? geometry.size.width * 0.1 : geometry.size.width,
+                               height: isLandscape ? geometry.size.height : geometry.size.height * 0.1)
+                        .position(x: isLandscape ? geometry.size.width * 0.05 : geometry.size.width * 0.5,
+                                  y: isLandscape ? geometry.size.height * 0.5 : geometry.size.height * 0.05)
 
                     // Camera view
                     if cameraManager.isCameraReady {
-                        CameraPreviewView(cameraManager: self.cameraManager)
-                            .frame(width: appState.orientation == .landscape ? geometry.size.width * 0.7 : geometry.size.width,
-                                   height: appState.orientation == .landscape ? geometry.size.height : geometry.size.height * 0.7)
-                            .position(x: appState.orientation == .landscape ? geometry.size.width * 0.45 : geometry.size.width * 0.5,
-                                      y: appState.orientation == .landscape ? geometry.size.height * 0.5 : geometry.size.height * 0.45)
-                            .onAppear {
-                                cameraManager.startCenterDepthDetection()
+                        ZStack {
+                            // Camera Preview
+                            CameraPreviewView(cameraManager: self.cameraManager)
+                            
+                            // Realtime Detection
+                            if appState.realtimeDetection {
+                                // Pose Overlay
+                                PoseOverlayView(poses: self.cameraManager.poseKeypoints,
+                                                videoSize: isLandscape ? CGSize(width: self.cameraManager.cameraConfiguration.resolution.width,
+                                                                                height: self.cameraManager.cameraConfiguration.resolution.height) :
+                                                    CGSize(width: self.cameraManager.cameraConfiguration.resolution.height,
+                                                           height: self.cameraManager.cameraConfiguration.resolution.width))
+                                
+                                // Pose Information Overlay
+                                PoseInformationView()
+                                
+                                // Point Picker Overlay for Horizontal Bar
+                                if appState.realtimeViewMode == "side-view" {
+                                    PointPickerView()
+                                        .allowsHitTesting(true)
+                                }
                             }
-                            .onDisappear {
-                                cameraManager.stopCenterDepthDetection()
-                            }
-                            .onChange(of: appState.realtimeDetection) {
-                                cameraManager.toogleRealtimeDetection()
-                            }
-                            .onChange(of: appState.realtimeModel) { oldValue, newValue in
-                                cameraManager.setRealtimeModelVersion(newValue)
-                            }
-                            .transition(.opacity) // Optional smooth fade-in
+                        }
+                        .frame(width: isLandscape ? geometry.size.width * 0.7 : geometry.size.width,
+                               height: isLandscape ? geometry.size.height : geometry.size.height * 0.7)
+                        
+                        .position(x: isLandscape ? geometry.size.width * 0.45 : geometry.size.width * 0.5,
+                                  y: isLandscape ? geometry.size.height * 0.5 : geometry.size.height * 0.45)
+                    
+                        .onAppear {
+                            cameraManager.startCenterDepthDetection()
+                        }
+                        .onDisappear {
+                            cameraManager.stopCenterDepthDetection()
+                        }
+                        .onChange(of: appState.realtimeDetection) {
+                            cameraManager.toogleRealtimeDetection()
+                        }
+                        .onChange(of: appState.realtimeModel) { oldValue, newValue in
+                            cameraManager.setRealtimeModelVersion(newValue)
+                        }
+                        .transition(.opacity) // Optional smooth fade-in
                     }
 
                     // Right black area + button
@@ -264,14 +290,14 @@ struct RecordLandscapeView: View {
                             Text("LiDAR")
                                 .foregroundColor(.white)
                                 .font(.caption)
-                                .position(x: appState.orientation == .landscape ? geo.size.width * 0.5 : geo.size.width * 0.15,
-                                          y: appState.orientation == .landscape ? geo.size.height * 0.75 : geo.size.height * 0.35 )
+                                .position(x: isLandscape ? geo.size.width * 0.5 : geo.size.width * 0.15,
+                                          y: isLandscape ? geo.size.height * 0.75 : geo.size.height * 0.35 )
                             
                             Toggle("", isOn: $appState.useLiDAR)
                                 .labelsHidden()
                                 .toggleStyle(SwitchToggleStyle(tint: .yellow.opacity(0.7)))
-                                .position(x: appState.orientation == .landscape ? geo.size.width * 0.5 : geo.size.width * 0.15,
-                                          y: appState.orientation == .landscape ? geo.size.height * 0.85 : geo.size.height * 0.55 )
+                                .position(x: isLandscape ? geo.size.width * 0.5 : geo.size.width * 0.15,
+                                          y: isLandscape ? geo.size.height * 0.85 : geo.size.height * 0.55 )
                                 .onChange(of: appState.useLiDAR) {
                                     cameraManager.toggleLiDAR()
                                 }
@@ -305,15 +331,15 @@ struct RecordLandscapeView: View {
                                     .padding()
                             }
                             .frame(width: 70, height: 70)
-                            .position(x: appState.orientation == .landscape ? geo.size.width * 0.5 : geo.size.width * 0.85,
-                                      y: appState.orientation == .landscape ? geo.size.height * 0.15 : geo.size.height * 0.5)
+                            .position(x: isLandscape ? geo.size.width * 0.5 : geo.size.width * 0.85,
+                                      y: isLandscape ? geo.size.height * 0.15 : geo.size.height * 0.5)
 
                         }
                     }
-                    .frame(width: appState.orientation == .landscape ? geometry.size.width * 0.2 : geometry.size.width,
-                           height: appState.orientation == .landscape ? geometry.size.height : geometry.size.height * 0.2)
-                    .position(x: appState.orientation == .landscape ? geometry.size.width * 0.9 : geometry.size.width * 0.5,
-                              y: appState.orientation == .landscape ? geometry.size.height * 0.5 : geometry.size.height * 0.9)
+                    .frame(width: isLandscape ? geometry.size.width * 0.2 : geometry.size.width,
+                           height: isLandscape ? geometry.size.height : geometry.size.height * 0.2)
+                    .position(x: isLandscape ? geometry.size.width * 0.9 : geometry.size.width * 0.5,
+                              y: isLandscape ? geometry.size.height * 0.5 : geometry.size.height * 0.9)
                 }
                 .animation(.easeInOut(duration: 0.3), value: appState.orientation)
             }

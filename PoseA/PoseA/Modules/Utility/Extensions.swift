@@ -74,13 +74,6 @@ extension matrix_float3x3 {
     }
 }
 
-// MARK: Image Processing Extension
-extension CGRect {
-    var center: CGPoint {
-        CGPoint(x: self.midX, y: self.midY)
-    }
-}
-
 extension CGImage {
     func resize(to size: CGSize) -> CGImage? {
         let width = Int(size.width)
@@ -145,107 +138,6 @@ extension UIImage {
     func rotated(to orientation: UIImage.Orientation) -> UIImage? {
         guard let cgImage = self.cgImage else { return nil }
         return UIImage(cgImage: cgImage, scale: 1.0, orientation: orientation)
-    }
-}
-
-extension UIImage.Orientation {
-    var debugDescription: String {
-        switch self {
-        case .up: return "up (0)"
-        case .down: return "down (2)"
-        case .left: return "left (4)"
-        case .right: return "right (3)"
-        case .upMirrored: return "upMirrored (1)"
-        case .downMirrored: return "downMirrored (5)"
-        case .leftMirrored: return "leftMirrored (7)"
-        case .rightMirrored: return "rightMirrored (6)"
-        @unknown default: return "unknown (\(self.rawValue))"
-        }
-    }
-}
-extension UIDeviceOrientation {
-    var name: String {
-        switch self {
-        case .portrait: return "portrait"
-        case .portraitUpsideDown: return "portraitUpsideDown"
-        case .landscapeLeft: return "landscapeLeft"
-        case .landscapeRight: return "landscapeRight"
-        case .faceUp: return "faceUp"
-        case .faceDown: return "faceDown"
-        case .unknown: return "unknown"
-        @unknown default: return "unknown"
-        }
-    }
-    
-    // Convert UIDeviceOrientation to AVCaptureVideoOrientation
-    var videoOrientation: AVCaptureVideoOrientation {
-        switch self {
-        case .portrait: return .portrait
-        case .portraitUpsideDown: return .portraitUpsideDown
-        case .landscapeLeft: return .landscapeRight  // They're opposite
-        case .landscapeRight: return .landscapeLeft  // They're opposite
-        default: return .portrait
-        }
-    }
-}
-
-extension View{
-    func calcAspect(orientation: UIImage.Orientation, texture: MTLTexture?) -> CGFloat {
-        guard let texture = texture else { return 1 }
-        switch orientation {
-        case .up:
-            return CGFloat(texture.width) / CGFloat(texture.height)
-        case .down:
-            return CGFloat(texture.width) / CGFloat(texture.height)
-        case .left:
-            return  CGFloat(texture.height) / CGFloat(texture.width)
-        case .right:
-            return  CGFloat(texture.height) / CGFloat(texture.width)
-        default:
-            return CGFloat(texture.width) / CGFloat(texture.height)
-        }
-    }
-    
-    var rotationAngle: Double {
-        var angle = 0.0
-        switch viewOrientation {
-        
-        case .up:
-            angle = -Double.pi / 2
-        case .down:
-            angle = Double.pi / 2
-        case .left:
-            angle = Double.pi
-        case .right:
-            angle = 0
-        default:
-            angle = 0
-        }
-        return angle
-    }
-
-    var viewOrientation: UIImage.Orientation {
-        var result = UIImage.Orientation.up
-       
-        guard let currentWindowScene = UIApplication.shared.connectedScenes.first(
-            where: { $0.activationState == .foregroundActive }) as? UIWindowScene
-        else { return result }
-        
-        let interfaceOrientation = currentWindowScene.interfaceOrientation
-        switch interfaceOrientation {
-        case .portrait:
-            result = .right
-        case .portraitUpsideDown:
-            result = .left
-        case .landscapeLeft:
-            result = .down
-        case .landscapeRight:
-            result = .up
-        default:
-            result = .up
-        }
-            
-        return result
     }
 }
 

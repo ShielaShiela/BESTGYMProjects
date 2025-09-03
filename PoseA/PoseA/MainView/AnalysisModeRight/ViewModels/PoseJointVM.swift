@@ -428,20 +428,6 @@ class PoseJointLandscapeVM {
         default: return 0
         }
     }
-
-    private func calculateAngle2D(for joint: String, keypoints: [KeypointData]) -> Float {
-        switch joint {
-        case "L Shoulder": return angleBetween(keypoints[11], keypoints[5], keypoints[7])
-        case "R Shoulder": return angleBetween(keypoints[12], keypoints[6], keypoints[8])
-        case "L Elbow": return angleBetween(keypoints[5], keypoints[7], keypoints[9])
-        case "R Elbow": return angleBetween(keypoints[6], keypoints[8], keypoints[10])
-        case "L Hip": return angleBetween(keypoints[5], keypoints[11], keypoints[13])
-        case "R Hip": return angleBetween(keypoints[6], keypoints[12], keypoints[14])
-        case "L Knee": return angleBetween(keypoints[11], keypoints[13], keypoints[15])
-        case "R Knee": return angleBetween(keypoints[12], keypoints[14], keypoints[16])
-        default: return 0
-        }
-    }
 }
 
 private func calculateAngleFromFrame(for joint: String, frame: [Int: xyzChartData]) -> Float {

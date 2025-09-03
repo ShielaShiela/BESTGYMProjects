@@ -7,7 +7,9 @@
 
 import Foundation
 
-enum DeviceOrientationModel {
+enum DeviceOrientationModel: Equatable {
     case portrait
-    case landscape
+    case landscapeLeft
+    case landscapeRight
+    case portraitUpsideDown
 }

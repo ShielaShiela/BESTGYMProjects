@@ -74,7 +74,7 @@ class VitPoseProcessor {
     // MARK: - Initialization
     init() {
         self.modelConfig = MLModelConfiguration()
-        self.modelConfig.computeUnits = .all
+        self.modelConfig.computeUnits = .cpuAndGPU
         
         do {
             self.vitposeModel = try VitPoseh(configuration: modelConfig)

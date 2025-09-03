@@ -126,7 +126,7 @@ struct ROIFrameOverlayView: View {
                         }
                         .onEnded { value in
                             switch value {
-                            case .second(true, let drag?):
+                            case .second(true, _?):
                                 if isDragging {
                                     let displayRect = CGRect(
                                         x: min(startPoint.x, currentPoint.x),

@@ -23,9 +23,6 @@ struct CameraPreviewView: UIViewRepresentable {
     func updateUIView(_ uiView: CameraPreviewVM, context: Context) {
         // Make sure the session is assigned
         uiView.session = cameraManager.controller.captureSession
-        
-        // Update the pose keypoints
-        uiView.poseKeypoints = cameraManager.poseKeypoints
     }
 }
 

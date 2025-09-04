@@ -177,7 +177,7 @@ func updateTracks(with detections: [PoseBox], roi: CGRect?) -> [TrackedPose] {
     for (i, det) in detections.enumerated() where !matchedDets.contains(i) {
         let c = center(of: det.bbox)
         let kf = KalmanFilter(x: Double(c.x), y: Double(c.y))
-        var nt = TrackedPose(
+        let nt = TrackedPose(
             id: nextTrackID,
             pose: det,
             missedFrames: 0,

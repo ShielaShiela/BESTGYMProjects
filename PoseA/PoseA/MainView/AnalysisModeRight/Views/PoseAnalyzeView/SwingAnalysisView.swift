@@ -42,20 +42,21 @@ struct SwingAnalysisView: View {
                            height: 30,
                            alignment: .leading)
                 
-                // Double Charts
+                // X-Y Charts
                 ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataFirst,
                                    pointData: self.chartBuilderViewModel.pointData,
                                    currentFrame: mediaManager.currentFrameIndex,
-                                   xAxisUnit: self.appState.distanceUnit,
-                                   yAxisUnit: self.appState.distanceUnit)
+                                   xAxisUnit: self.appState.distanceUnit.id,
+                                   yAxisUnit: self.appState.distanceUnit.id)
                     .frame(width: geometry.size.width, height: (geometry.size.height - 50) * 0.5)
                     .background(Color(.systemGray6))
                     .cornerRadius(10)
-
+                
+                // Angular Velocity Charts
                 ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataSecond,
                                    currentFrame: mediaManager.currentFrameIndex,
-                                   xAxisUnit: self.appState.timeUnit,
-                                   yAxisUnit: self.appState.distanceUnit)
+                                   xAxisUnit: self.appState.timeUnit.id,
+                                   yAxisUnit: self.appState.angleUnit.id)
                     .frame(width: geometry.size.width, height: (geometry.size.height - 50) * 0.5)
                     .background(Color(.systemGray6))
                     .cornerRadius(10)

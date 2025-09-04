@@ -29,19 +29,21 @@ struct SettingsView: View {
                     
                     Section(header: Text("Analysis Settings")) {
                         Picker("Angle Unit", selection: $appState.angleUnit) {
-                            Text("deg").tag("deg")
-                            Text("rad").tag("rad")
+                            ForEach(AngleUnit.allCases) { unit in
+                                Text(unit.rawValue).tag(unit)
+                            }
                         }
                         
                         Picker("Distance Unit", selection: $appState.distanceUnit) {
-                            Text("pixel").tag("px")
-                            Text("centimeter").tag("cm")
-                            Text("meter").tag("m")
+                            ForEach(DistanceUnit.allCases) { unit in
+                                Text(unit.rawValue).tag(unit)
+                            }
                         }
                         
                         Picker("Time Unit", selection: $appState.timeUnit) {
-                            Text("frame(N)").tag("n")
-                            Text("second").tag("s")
+                            ForEach(TimeUnit.allCases) { unit in
+                                Text(unit.rawValue).tag(unit)
+                            }
                         }
 
                         Toggle("Analysis Data Smoothing", isOn: $appState.analysisFilterMode)

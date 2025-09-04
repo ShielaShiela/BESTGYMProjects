@@ -10,14 +10,20 @@ import SwiftUI
 // Use Frame Cache - Preloading is Faster than Switching Methods
 class FrameCache {
     private var cache = NSCache<NSNumber, UIImage>()
-    private let preloadCount = 10  // Preload ahead 10 frames
+    private let preloadCount = 3
+
+    init() {
+        // Rough budget: 100 MB for cached frames
+        cache.totalCostLimit = 100 * 1024 * 1024
+    }
 
     func image(for index: Int) -> UIImage? {
-        return cache.object(forKey: NSNumber(value: index))
+        cache.object(forKey: NSNumber(value: index))
     }
 
     func setImage(_ image: UIImage, for index: Int) {
-        cache.setObject(image, forKey: NSNumber(value: index))
+        let cost = Int(image.size.width * image.size.height * 4) // 4 bytes per pixel
+        cache.setObject(image, forKey: NSNumber(value: index), cost: cost)
     }
 
     func preload(from index: Int, using loader: @escaping (Int) -> UIImage?) {
@@ -25,17 +31,18 @@ class FrameCache {
             for i in index..<(index + self.preloadCount) {
                 if self.cache.object(forKey: NSNumber(value: i)) == nil,
                    let img = loader(i) {
-                    self.cache.setObject(img, forKey: NSNumber(value: i))
+                    let cost = Int(img.size.width * img.size.height * 4)
+                    self.cache.setObject(img, forKey: NSNumber(value: i), cost: cost)
                 }
             }
         }
     }
 
-
     func clear() {
         cache.removeAllObjects()
     }
 }
+
 
 @Observable
 class MediaPlayerVM {

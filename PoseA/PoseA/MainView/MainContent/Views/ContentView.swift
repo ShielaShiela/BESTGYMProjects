@@ -172,6 +172,7 @@ struct BESTGYMPoseApp: View {
         .onAppear {
             // Ensure initialization
             _ = OrientationCache.shared
+            appState.loadUserPreferences()
         }
         
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in

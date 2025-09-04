@@ -21,6 +21,9 @@ struct PoseAnalysisView: View {
     private let selectedView: RightViewModel
     private let exceptionOptions: Set<String> = ["L Ankle", "R Ankle", "L Wrist", "R Wrist"]
     
+    // Define Variable Units
+    @State private var AxisUnits: String = ""
+    
     // MARK: - Initialization
     
     init (appState: MainAppState, selectedView: RightViewModel, poseJointVM: PoseJointLandscapeVM, mediaManager: MediaManagerVM) {
@@ -88,8 +91,8 @@ struct PoseAnalysisView: View {
                         if self.chartBuilderViewModel.chartDataSecond.isEmpty {
                             ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataFirst,
                                                currentFrame: mediaManager.currentFrameIndex,
-                                               xAxisUnit: self.appState.timeUnit,
-                                               yAxisUnit: selectedView == .angle ? self.appState.angleUnit : self.appState.distanceUnit)
+                                               xAxisUnit: self.appState.timeUnit.id,
+                                               yAxisUnit: AxisUnits)
                                 .frame(width: geometry.size.width, height: (geometry.size.height - 50))
                                 .background(Color(.systemGray6))
                                 .cornerRadius(10)
@@ -97,16 +100,16 @@ struct PoseAnalysisView: View {
                             // Double Charts
                             ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataFirst,
                                                currentFrame: mediaManager.currentFrameIndex,
-                                               xAxisUnit: self.appState.timeUnit,
-                                               yAxisUnit: selectedView == .angle ? self.appState.angleUnit : self.appState.distanceUnit)
+                                               xAxisUnit: self.appState.timeUnit.id,
+                                               yAxisUnit: AxisUnits)
                                 .frame(width: geometry.size.width, height: (geometry.size.height - 50) * 0.5)
                                 .background(Color(.systemGray6))
                                 .cornerRadius(10)
 
                             ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataSecond,
                                                currentFrame: mediaManager.currentFrameIndex,
-                                               xAxisUnit: self.appState.timeUnit,
-                                               yAxisUnit: selectedView == .angle ? self.appState.angleUnit : self.appState.distanceUnit)
+                                               xAxisUnit: self.appState.timeUnit.id,
+                                               yAxisUnit: AxisUnits)
                                 .frame(width: geometry.size.width, height: (geometry.size.height - 50) * 0.5)
                                 .background(Color(.systemGray6))
                                 .cornerRadius(10)
@@ -134,5 +137,17 @@ struct PoseAnalysisView: View {
         self.chartBuilderViewModel.clearAllData()
         self.chartBuilderViewModel.BuildChartData(selectedView: selectedView,
                                                   selectedOptions: selectedOptions)
+        
+        switch(selectedView) {
+        case .angle:
+            self.AxisUnits = self.appState.angleUnit.id
+        case .trajectoryAxes:
+            self.AxisUnits = self.appState.distanceUnit.id
+        case .velocity:
+            self.AxisUnits = self.appState.distanceUnit.id + "/" + self.appState.timeUnit.id
+        case .acceleration:
+            self.AxisUnits = self.appState.distanceUnit.id + "/" + self.appState.timeUnit.id + "2"
+        default: self.AxisUnits = String("")
+        }
     }
 }

@@ -85,8 +85,8 @@ class MediaManagerVM {
         Task {
             await self.fileLoaderViewModel.loadVideoFile(from: url)
 
-            await self.watchMediaAvailability()
-
+            await self.watchMediaAvailability(expectKeypoints: false)
+            
             if fileLoaderViewModel.isDataLoaded {
                 self.isDataTemp = true
                 completion(nil)
@@ -125,28 +125,28 @@ class MediaManagerVM {
                     includingPropertiesForKeys: [.isDirectoryKey, .contentAccessDateKey],
                     options: [.skipsHiddenFiles]
                 )
-
+                
                 log("Found \(contents.count) items in folder \(url.lastPathComponent)", level: .debug)
                 
                 let keypointFiles = contents.filter {
                     let filename = $0.lastPathComponent.lowercased()
                     return $0.pathExtension.lowercased() == "json" &&
-                           (filename.contains("keypoint") || filename.contains("pose"))
+                    (filename.contains("keypoint") || filename.contains("pose"))
                 }
                 
                 // Check for frame directories
                 let frameDirectories = contents.filter {
                     var isDir: ObjCBool = false
                     return fileManager.fileExists(atPath: $0.path, isDirectory: &isDir) &&
-                           isDir.boolValue &&
-                           $0.lastPathComponent.hasPrefix("frame_")
+                    isDir.boolValue &&
+                    $0.lastPathComponent.hasPrefix("frame_")
                 }
-            
+                
                 // If Data Structure Detected
                 if !frameDirectories.isEmpty {
                     // Load LiDAR recording with frame folders
                     self.fileLoaderViewModel.loadVideoFolder(from: url)
-
+                    
                     // Check for keypoints in LiDAR folder
                     if !keypointFiles.isEmpty && autoDetectKeypoints{
                         let keypointURL = keypointFiles.first!
@@ -163,20 +163,21 @@ class MediaManagerVM {
                             break // Exit early if found
                         }
                     }
-
+                    
                     if self.isDataLIDAR {
                         log("Depth data found in at least one frame directory.", level: .info)
                     } else {
                         log("No depth data found in any frame directory.", level: .info)
                     }
                 }
+                    
+                Task {
+                    await self.watchMediaAvailability(expectKeypoints: (!keypointFiles.isEmpty && autoDetectKeypoints))
+                    self.isDataTemp = false
+                }
+        
             } catch {
                 log("Error loading folder: \(error.localizedDescription)", level: .error)
-            }
-            
-            Task {
-                await self.watchMediaAvailability()
-                self.isDataTemp = false
             }
 
         } else {
@@ -275,10 +276,11 @@ class MediaManagerVM {
     // MARK: - Required Helper Functions
 
     @MainActor
-    func watchMediaAvailability() {
+    func watchMediaAvailability(expectKeypoints: Bool) {
         // Task is required because we use `await`/delay
         Task {
             while !isKeypointAvailable {
+                if !expectKeypoints { break }
                 if fileLoaderViewModel.isKeyLoaded {
                     isKeypointAvailable = true
                     log("Successfully loaded Keypoints frame data.", level: .debug)

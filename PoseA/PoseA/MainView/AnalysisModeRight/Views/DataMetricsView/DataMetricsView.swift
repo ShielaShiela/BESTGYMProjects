@@ -17,7 +17,6 @@ struct DataMetricsView: View {
     private let options: [String] = ["Trajectory", "Velocity", "Acceleration", "Angle", "Swing"]
     
     @State private var expandedJoints: Set<String> = []
-    private var dataUnits: String = ""
         
     // MARK: - Initialization
     init(appState: MainAppState, poseJointVM: PoseJointLandscapeVM) {
@@ -100,6 +99,8 @@ struct ExpandableJointView: View {
     var isExpanded: Bool
     var toggleExpand: () -> Void
 
+    @State private var dataUnits: String = ""
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -120,17 +121,14 @@ struct ExpandableJointView: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 4) {
-                    if selectedOptions == "Angle" {
-                        Text("Max: \(String(format: "%.2f", jointData.dataMetrics.maxX))" + " \(appState.angleUnit)")
-                        Text("Min: \(String(format: "%.2f", jointData.dataMetrics.minX))" + " \(appState.angleUnit)")
-                    } else if selectedOptions == "Swing" {
-                        Text("Max: \(String(format: "%.2f", jointData.dataMetrics.maxX))")
-                        Text("Min: \(String(format: "%.2f", jointData.dataMetrics.minX))")
+                    if selectedOptions == "Angle" || selectedOptions == "Swing" {
+                        Text("Max: \(String(format: "%.2f ", jointData.dataMetrics.maxX))" + getDataUnits(selectedOption: selectedOptions, jointName: jointData.joint))
+                        Text("Min: \(String(format: "%.2f ", jointData.dataMetrics.minX))" + getDataUnits(selectedOption: selectedOptions, jointName: jointData.joint))
                     } else{
-                        Text("Max X: \(String(format: "%.2f", jointData.dataMetrics.maxX))" + " \(appState.distanceUnit)")
-                        Text("Min X: \(String(format: "%.2f", jointData.dataMetrics.minX))" + " \(appState.distanceUnit)")
-                        Text("Max Y: \(String(format: "%.2f", jointData.dataMetrics.maxY))" + " \(appState.distanceUnit)")
-                        Text("Min Y: \(String(format: "%.2f", jointData.dataMetrics.minY))" + " \(appState.distanceUnit)")
+                        Text("Max X: \(String(format: "%.2f ", jointData.dataMetrics.maxX))" + getDataUnits(selectedOption: selectedOptions, jointName: jointData.joint))
+                        Text("Min X: \(String(format: "%.2f ", jointData.dataMetrics.minX))" + getDataUnits(selectedOption: selectedOptions, jointName: jointData.joint))
+                        Text("Max Y: \(String(format: "%.2f ", jointData.dataMetrics.maxY))" + getDataUnits(selectedOption: selectedOptions, jointName: jointData.joint))
+                        Text("Min Y: \(String(format: "%.2f ", jointData.dataMetrics.minY))" + getDataUnits(selectedOption: selectedOptions, jointName: jointData.joint))
                     }
                 }
                 .font(.caption)
@@ -143,5 +141,28 @@ struct ExpandableJointView: View {
         .background(Color(.systemGray6))
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+    }
+    
+    private func getDataUnits(selectedOption: String?, jointName: String) -> String {
+        switch(selectedOption) {
+        case "Angle":
+            return self.appState.angleUnit.id
+        case "Trajectory":
+            return self.appState.distanceUnit.id
+        case "Velocity":
+            return self.appState.distanceUnit.id + "/" + self.appState.timeUnit.id
+        case "Acceleration":
+            return self.appState.distanceUnit.id + "/" + self.appState.timeUnit.id + "2"
+        case "Swing":
+            if jointName == "Swing Angle" {
+                return self.appState.angleUnit.id
+            } else if jointName == "Swing Angle Velocity" {
+                return self.appState.angleUnit.id + "/" + self.appState.timeUnit.id
+            } else {
+                return ""
+            }
+            
+        default: return String("")
+        }
     }
 }

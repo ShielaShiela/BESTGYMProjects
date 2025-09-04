@@ -25,9 +25,9 @@ class MainAppState: ObservableObject {
     
     // Analysis Settings
     @Published var analysisFilterMode = true
-    @Published var angleUnit: String = "rad"
-    @Published var distanceUnit: String = "px"
-    @Published var timeUnit: String = "n"
+    @Published var angleUnit: AngleUnit = .deg
+    @Published var distanceUnit: DistanceUnit = .px
+    @Published var timeUnit: TimeUnit = .n
     @Published var autoDetectKeypoints: Bool = true
 
     // Pickers Status
@@ -86,5 +86,6 @@ extension MainAppState {
     // Save preferences to UserDefaults
     func saveUserPreferences() {
         UserDefaults.standard.set(autoDetectKeypoints, forKey: "AutoDetectKeypoints")
+
     }
 }

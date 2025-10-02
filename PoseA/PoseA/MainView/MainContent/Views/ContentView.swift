@@ -105,8 +105,10 @@ struct BESTGYMPoseApp: View {
                                         self.appState.sourceFileName = url.lastPathComponent
                                         self.appState.sourceURL = url
                                         self.appState.isProcessing = false
-                                        self.appState.showKeypoints = true
+                                        self.appState.showKeypoints = false
                                         self.appState.isVideoSource = !mediaManager.isDataLIDAR
+                                        self.appState.isTempFiles = mediaManager.isDataTemp
+
                                     }
                                 }
                             }

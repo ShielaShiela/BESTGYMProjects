@@ -117,22 +117,22 @@ class MediaManagerVM {
         // Load File
         if isDirectory.boolValue {
             // It's a folder
-            // Start accessing the main folder - keep it alive for all operations
             do {
-                // Get all items in the folder (no need to access each individually)
+                // Get all items in the folder
                 let contents = try fileManager.contentsOfDirectory(
                     at: url,
                     includingPropertiesForKeys: [.isDirectoryKey, .contentAccessDateKey],
                     options: [.skipsHiddenFiles]
                 )
                 
-                log("Found \(contents.count) items in folder \(url.lastPathComponent)", level: .debug)
-                
                 let keypointFiles = contents.filter {
                     let filename = $0.lastPathComponent.lowercased()
+                    log("\(filename)", level: .debug)
                     return $0.pathExtension.lowercased() == "json" &&
-                    (filename.contains("keypoint") || filename.contains("pose"))
+                    (filename.contains("keypoint"))
                 }
+                
+                log("\(keypointFiles)Found \(contents.count) items in folder \(url.lastPathComponent)", level: .debug)
                 
                 // Check for frame directories
                 let frameDirectories = contents.filter {
@@ -142,13 +142,19 @@ class MediaManagerVM {
                     $0.lastPathComponent.hasPrefix("frame_")
                 }
                 
-                // If Data Structure Detected
+                // Check for video files in the folder
+                let videoFiles = contents.filter {
+                    let ext = $0.pathExtension.lowercased()
+                    return ext == "mp4" || ext == "mov" || ext == "m4v"
+                }
+                
+                // If Data Structure Detected (LiDAR with frame folders)
                 if !frameDirectories.isEmpty {
                     // Load LiDAR recording with frame folders
                     self.fileLoaderViewModel.loadVideoFolder(from: url)
                     
                     // Check for keypoints in LiDAR folder
-                    if !keypointFiles.isEmpty && autoDetectKeypoints{
+                    if !keypointFiles.isEmpty && autoDetectKeypoints {
                         let keypointURL = keypointFiles.first!
                         log("Found keypoint file in folder: \(keypointURL.lastPathComponent)", level: .debug)
                         
@@ -169,15 +175,59 @@ class MediaManagerVM {
                     } else {
                         log("No depth data found in any frame directory.", level: .info)
                     }
-                }
                     
-                Task {
-                    await self.watchMediaAvailability(expectKeypoints: (!keypointFiles.isEmpty && autoDetectKeypoints))
+                    // Single watchMediaAvailability call for LiDAR data
+                    Task {
+                        await self.watchMediaAvailability(expectKeypoints: (!keypointFiles.isEmpty && autoDetectKeypoints))
+                        self.isDataTemp = false
+                    }
+                }
+                // Regular video folder (no frame directories, but has video file)
+                else if !videoFiles.isEmpty {
+                    let videoURL = videoFiles.first!
+                    log("Found video file in folder: \(videoURL.lastPathComponent)", level: .debug)
+                    self.isDataLIDAR = false
                     self.isDataTemp = false
+                    
+                    // Prepare keypoint URL before Task if needed
+                    let keypointURL: URL? = if !keypointFiles.isEmpty && autoDetectKeypoints {
+                        keypointFiles.first
+                    } else {
+                        nil
+                    }
+                    
+                    // Load video and wait for it to complete before checking availability
+                    Task {
+                        // IMPORTANT: Wait for video to load first
+                        await self.fileLoaderViewModel.loadVideoFile(from: videoURL)
+                        
+                        log("Video file loaded, checking for keypoints...", level: .debug)
+                        
+                        // Check for keypoints AFTER video is loaded
+                        if let keypointURL = keypointURL {
+                            log("Loading keypoint file: \(keypointURL.lastPathComponent)", level: .debug)
+                            self.fileLoaderViewModel.loadKeypoints(from: keypointURL)
+                        } else {
+                            log("No keypoint file to load", level: .debug)
+                        }
+                        
+                        // Add a small delay to ensure keypoints are processed
+                        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                        
+                        // Now check media availability with correct expectKeypoints value
+                        await self.watchMediaAvailability(expectKeypoints: (keypointURL != nil))
+                        self.isDataTemp = false
+                        
+                        log("Media availability check completed", level: .debug)
+                    }
+                }
+                else {
+                    return "No valid video data found in folder"
                 }
         
             } catch {
                 log("Error loading folder: \(error.localizedDescription)", level: .error)
+                return "Error loading folder: \(error.localizedDescription)"
             }
 
         } else {
@@ -187,7 +237,12 @@ class MediaManagerVM {
             case "json":
                 self.fileLoaderViewModel.loadKeypoints(from: url)
             case "mp4", "mov", "m4v":
-//                await self.fileLoaderViewModel.loadVideoFile(from: url)
+                Task {
+                    await self.fileLoaderViewModel.loadVideoFile(from: url)
+                    // Watch for media availability after loading
+                    await self.watchMediaAvailability(expectKeypoints: false)
+                    self.isDataTemp = false
+                }
                 break
             default:
                 return "Unsupported file format: \(fileExtension)"
@@ -301,5 +356,6 @@ class MediaManagerVM {
             }
         }
     }
+   
 }
      

@@ -148,15 +148,15 @@ class FileLoaderVM: ObservableObject {
 
 
     // MARK: - Load Keypoint Files
+    // MARK: - Load Keypoint Files
     func loadKeypoints(from MLOutput: [Int: [KeypointData]]) {
         // Set Keypoints
         self.keypointsByFrame = MLOutput
         // Set Data Status
         self.isKeyLoaded = !MLOutput.isEmpty
     }
-    
+
     func loadKeypoints(from url: URL) {
-        // Perform all heavy operations on background thread
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
 
@@ -165,34 +165,71 @@ class FileLoaderVM: ObservableObject {
                     var keypointsFrame: [Int: [KeypointData]] = [:]
                     let data = try Data(contentsOf: url)
                     
-                    // Try parsing as a dictionary of KeypointData
-                    if let jsonObject = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                    // Try to decode as different formats
+                    var formatRecognized = false
+                    
+                    // FORMAT 1: NEW - Real-time pose data array (top-level array)
+                    if let jsonArray = try? JSONDecoder().decode([PoseFrameData].self, from: data) {
+                        formatRecognized = true
                         keypointsFrame.removeAll()
                         
-                        // Check for different JSON structures
+                        // Convert PoseFrameData array to keypointsByFrame format
+                        for frameData in jsonArray {
+                            var allKeypoints: [KeypointData] = []
+                            for pose in frameData.poses {
+                                allKeypoints.append(contentsOf: pose.keypoints)
+                            }
+                            keypointsFrame[frameData.frameIndex] = allKeypoints
+                        }
+                        log("Loaded real-time pose data format: \(jsonArray.count) frames", level: .info)
+                    }
+                    // FORMAT 2 & 3: OLD - Try as dictionary object
+                    else if let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                        keypointsFrame.removeAll()
+                        
+                        // FORMAT 2: Original "frames" structure
                         if let framesData = jsonObject["frames"] as? [String: [[String: Any]]] {
-                            // Format with "frames" key
+                            formatRecognized = true
+                            
                             for (key, points) in framesData {
                                 if key.hasPrefix("frame_"),
                                    let frameIndexString = key.split(separator: "_").last,
                                    let frameIndex = Int(frameIndexString) {
                                     
-                                    keypointsFrame[frameIndex] = parseKeypointsFromDictionary(points, frameIndex: frameIndex)
+                                    keypointsFrame[frameIndex] = self.parseKeypointsFromDictionary(points, frameIndex: frameIndex)
                                 }
                             }
-                        } else {
-                            log("Unrecognized JSON format", level: .error)
+                            log("Loaded legacy keypoint format: \(framesData.count) frames", level: .info)
                         }
-                    } else {
-                        log("Invalid JSON format", level: .error)
+                        // FORMAT 3: SINGLE FRAME - Direct keypoints array
+                        else if let keypointsArray = jsonObject["keypoints"] as? [[String: Any]],
+                                let frameInfo = jsonObject["frameInfo"] as? [String: Any],
+                                let frameIndex = frameInfo["index"] as? Int {
+                            formatRecognized = true
+                            
+                            keypointsFrame[frameIndex] = self.parseKeypointsFromDictionary(keypointsArray, frameIndex: frameIndex)
+                            log("Loaded single frame keypoint format", level: .info)
+                        }
+                    }
+                    
+                    if !formatRecognized {
+                        log("Unrecognized JSON format. File structure does not match any known format.", level: .error)
+                        
+                        // Debug: Print first 500 characters of JSON
+                        if let jsonString = String(data: data, encoding: .utf8) {
+                            let preview = String(jsonString.prefix(500))
+                            log("JSON preview: \(preview)", level: .debug)
+                        }
                     }
                     
                     // Update Published Variables
-                    DispatchQueue.main.async { [self] in
-                        // Set Data Value
+                    DispatchQueue.main.async {
                         self.keypointsByFrame = keypointsFrame
-                        // Set Data Status
                         self.isKeyLoaded = !keypointsFrame.isEmpty
+                        
+                        if !keypointsFrame.isEmpty {
+                            log("Successfully loaded \(keypointsFrame.count) frames with keypoints", level: .info)
+                        }
                     }
                     
                 } else {
@@ -200,9 +237,8 @@ class FileLoaderVM: ObservableObject {
                 }
                 
             } catch {
-                // Removing old "double try methods" -> REDUNDANT
-                log("Error scanning directories.", level: .error)
-                DispatchQueue.main.async { [self] in
+                log("Error loading keypoints: \(error.localizedDescription)", level: .error)
+                DispatchQueue.main.async {
                     self.isKeyLoaded = false
                 }
             }

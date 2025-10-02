@@ -86,6 +86,13 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     private let frameWriterQueue = DispatchQueue(label: "com.bestgym.frameWriterQueue")
     private let videoWriterQueue = DispatchQueue(label: "com.bestgym.videoWriterQueue")
     
+    //Add for Keypoint Saving
+    private var poseDataBuffer: [PoseFrameData] = []
+    private let poseDataQueue = DispatchQueue(label: "com.yourapp.posedata", qos: .userInitiated)
+    private let poseBufferLimit = 100 // Write to file every 100 frames
+    
+    
+    
     // MARK: - Initialization
     init(configuration: CameraConfiguration = CameraConfiguration()) {
         self.cameraConfiguration = configuration
@@ -306,6 +313,8 @@ extension CameraManagerVM {
             // BETA: - YOLO Pose Detection
             if isPoseProcessingEnabled {
                 poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
+                    guard let self = self else {return}
+                    
                     // Run tracker
                     // Inside your process callback:
 //                    let tracked = updateTracks(with: poses, roi: nil)   // barROI can be nil if unknown
@@ -321,13 +330,35 @@ extension CameraManagerVM {
                     
                     if !poses.isEmpty {
                         DispatchQueue.main.async {
-                            self?.poseKeypoints = poses
-                            self?.fpsModel = fps
+                            self.poseKeypoints = poses
+                            self.fpsModel = fps
                         }
                     } else {
                         DispatchQueue.main.async {
-                            self?.poseKeypoints = []
-                            self?.fpsModel = fps
+                            self.poseKeypoints = []
+                            self.fpsModel = fps
+                        }
+                    }
+                    
+                    // 🎯 This saves pose data when recording
+                    if self.isRecording {  // 👈 NOW THIS WORKS
+                        let timestamp = CMTimeGetSeconds(pts)
+                        let frameData = PoseFrameData(
+                            frameIndex: self.frameCount,
+                            timestamp: timestamp,
+                            poses: poses,
+                            pts: pts
+                        )
+                        
+                        self.poseDataQueue.async { [weak self] in
+                            guard let self = self else { return }
+                            self.poseDataBuffer.append(frameData)
+                            
+                            // Auto-save every 100 frames
+                            if self.poseDataBuffer.count >= self.poseBufferLimit,
+                               let folder = self.recordingFolder {
+                                self.savePoseDataBuffer(to: folder)
+                            }
                         }
                     }
                 }
@@ -435,6 +466,11 @@ extension CameraManagerVM {
         // Set preparing flag
         isPreparingRecording = true
         
+        // Clear pose data buffer for new recording
+        poseDataQueue.async { [weak self] in
+            self?.poseDataBuffer.removeAll()
+        }
+        
         // Move all file operations to background
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -528,6 +564,17 @@ extension CameraManagerVM {
             // Process completion on background thread
             DispatchQueue.global(qos: .userInitiated).async {
                 log("Stopping recording...", level: .info)
+                
+                // In your recording stop function, add this AFTER saving the buffer:
+                self.savePoseDataBuffer(to: folder)
+
+                // Wait for pose data queue to finish
+                self.poseDataQueue.sync {
+                    log("All pose data saved", level: .info)
+                }
+
+                // NEW: Consolidate all pose data into single keypoint.json
+                self.consolidatePoseData(in: folder)
                 
                 // Call our improved metadata saver
                 self.saveRecordingMetadata(
@@ -776,6 +823,80 @@ extension CameraManagerVM {
 
         } catch {
             log("Failed to save metadata: \(error)", level: .error)
+        }
+    }
+    
+    // MARK: - Pose Data Saving
+    private func savePoseDataBuffer(to folder: URL) {
+        guard !poseDataBuffer.isEmpty else { return }
+        
+        poseDataQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            
+            do {
+                // Save the buffer to a timestamped file
+                let timestamp = Int(Date().timeIntervalSince1970)
+                let filename = "pose_data_\(timestamp).json"
+                let fileURL = folder.appendingPathComponent(filename)
+                
+                let jsonData = try encoder.encode(self.poseDataBuffer)
+                try jsonData.write(to: fileURL)
+                log("Saved \(self.poseDataBuffer.count) pose frames to \(filename)", level: .info)
+                
+                // Clear buffer after saving
+                self.poseDataBuffer.removeAll()
+            } catch {
+                log("Error saving pose data: \(error.localizedDescription)", level: .error)
+            }
+        }
+    }
+    
+    // NEW: Final consolidation after recording stops
+    func consolidatePoseData(in folder: URL) {
+        poseDataQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            do {
+                // Find all pose_data_*.json files
+                let fileManager = FileManager.default
+                let files = try fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+                let poseFiles = files.filter { $0.lastPathComponent.hasPrefix("pose_data_") && $0.pathExtension == "json" }
+                
+                guard !poseFiles.isEmpty else { return }
+                
+                // Load and merge all pose data
+                var allFrames: [PoseFrameData] = []
+                let decoder = JSONDecoder()
+                
+                for file in poseFiles.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+                    let data = try Data(contentsOf: file)
+                    let frames = try decoder.decode([PoseFrameData].self, from: data)
+                    allFrames.append(contentsOf: frames)
+                }
+                
+                // Sort by frame index
+                allFrames.sort { $0.frameIndex < $1.frameIndex }
+                
+                // Save consolidated file
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let consolidatedData = try encoder.encode(allFrames)
+                let consolidatedURL = folder.appendingPathComponent("keypoint.json")
+                try consolidatedData.write(to: consolidatedURL)
+                
+                log("Consolidated \(allFrames.count) frames from \(poseFiles.count) files", level: .info)
+                
+                // Optionally delete intermediate files
+                for file in poseFiles {
+                    try? fileManager.removeItem(at: file)
+                }
+                
+            } catch {
+                log("Error consolidating pose data: \(error.localizedDescription)", level: .error)
+            }
         }
     }
 }

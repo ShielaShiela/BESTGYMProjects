@@ -95,14 +95,11 @@ struct FrameView: View {
                             .frame(width: geometry.size.width, height: geometry.size.height)
                         
                         // Keypoints
-                        if let keypoints = keypoints,
-                           !keypoints.isEmpty,
-                           appState.showKeypoints,
-                           !ROIModel.isROIMode {
-                            KeypointOverlayView(
-                                keypoints: keypoints,
-                                containerSize: geometry.size,
-                                imageSize: imageSize
+                        // 2. 🎯 Keypoint overlay using your existing PoseOverlayView
+                        if let keypoints = keypoints, !keypoints.isEmpty {
+                            PoseOverlayView(
+                                poses: [convertToPoseBox(keypoints)],
+                                videoSize: image.size
                             )
                         }
                         
@@ -164,6 +161,38 @@ struct FrameView: View {
             return CGSize(width: width, height: height)
         }
     }
+    
+    private func convertToPoseBox(_ keypoints: [KeypointData]) -> PoseBox {
+            // Calculate bounding box from keypoints
+            let xs = keypoints.map { $0.x }
+            let ys = keypoints.map { $0.y }
+            
+            guard let minX = xs.min(), let maxX = xs.max(),
+                  let minY = ys.min(), let maxY = ys.max() else {
+                // Fallback if no valid coordinates
+                return PoseBox(
+                    bbox: .zero,
+                    confidence: 0,
+                    keypoints: keypoints
+                )
+            }
+            
+            let bbox = CGRect(
+                x: minX,
+                y: minY,
+                width: maxX - minX,
+                height: maxY - minY
+            )
+            
+            // Calculate average confidence
+            let avgConfidence = keypoints.reduce(0.0) { $0 + $1.confidence } / Float(keypoints.count)
+            
+            return PoseBox(
+                bbox: bbox,
+                confidence: avgConfidence,
+                keypoints: keypoints
+            )
+        }
 }
 
 struct ConditionalGestureModifier<G: Gesture>: ViewModifier {

@@ -6,6 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		971157E82E868B85003A7525 /* best.mlmodelc in Resources */ = {isa = PBXBuildFile; fileRef = 971157E72E868B85003A7525 /* best.mlmodelc */; };
+		971157E92E868B85003A7525 /* best.mlmodelc in Resources */ = {isa = PBXBuildFile; fileRef = 971157E72E868B85003A7525 /* best.mlmodelc */; };
+		971157EA2E868B85003A7525 /* best.mlmodelc in Resources */ = {isa = PBXBuildFile; fileRef = 971157E72E868B85003A7525 /* best.mlmodelc */; };
+		971157EC2E868C18003A7525 /* VitPoseh.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 971157EB2E868C18003A7525 /* VitPoseh.mlpackage */; };
+		971157ED2E868C18003A7525 /* VitPoseh.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 971157EB2E868C18003A7525 /* VitPoseh.mlpackage */; };
+		971157EE2E868C18003A7525 /* VitPoseh.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 971157EB2E868C18003A7525 /* VitPoseh.mlpackage */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		97BAF65C2D7543FC008E34D4 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,23 +33,27 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		971157E72E868B85003A7525 /* best.mlmodelc */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = best.mlmodelc; sourceTree = "<group>"; };
+		971157EB2E868C18003A7525 /* VitPoseh.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = VitPoseh.mlpackage; sourceTree = "<group>"; };
 		97BAF6492D7543FA008E34D4 /* PoseA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PoseA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		97BAF65B2D7543FC008E34D4 /* PoseATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PoseATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		97BAF6652D7543FC008E34D4 /* PoseAUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PoseAUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		97BAF6B82D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseATests" target */ = {
+		971157F32E8690C4003A7525 /* Exceptions for "PoseA" folder in "PoseATests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Modules/ImageProcessingManager/MLModel/VitPoseh.mlpackage,
+				Modules/ImageProcessingManager/Models/best.mlpackage,
+				"Modules/ImageProcessingManager/Models/yolo11l-pose.mlpackage",
 			);
 			target = 97BAF65A2D7543FC008E34D4 /* PoseATests */;
 		};
-		97BAF6B92D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseAUITests" target */ = {
+		971157F42E8690C4003A7525 /* Exceptions for "PoseA" folder in "PoseAUITests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Modules/ImageProcessingManager/MLModel/VitPoseh.mlpackage,
+				Modules/ImageProcessingManager/Models/best.mlpackage,
+				"Modules/ImageProcessingManager/Models/yolo11l-pose.mlpackage",
 			);
 			target = 97BAF6642D7543FC008E34D4 /* PoseAUITests */;
 		};
@@ -58,8 +71,8 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				97BAF6ED2D756979008E34D4 /* Exceptions for "PoseA" folder in "PoseA" target */,
-				97BAF6B82D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseATests" target */,
-				97BAF6B92D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseAUITests" target */,
+				971157F32E8690C4003A7525 /* Exceptions for "PoseA" folder in "PoseATests" target */,
+				971157F42E8690C4003A7525 /* Exceptions for "PoseA" folder in "PoseAUITests" target */,
 			);
 			path = PoseA;
 			sourceTree = "<group>";
@@ -108,6 +121,8 @@
 				97BAF65E2D7543FC008E34D4 /* PoseATests */,
 				97BAF6682D7543FC008E34D4 /* PoseAUITests */,
 				97BAF64A2D7543FA008E34D4 /* Products */,
+				971157E72E868B85003A7525 /* best.mlmodelc */,
+				971157EB2E868C18003A7525 /* VitPoseh.mlpackage */,
 			);
 			sourceTree = "<group>";
 		};
@@ -242,6 +257,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				971157E82E868B85003A7525 /* best.mlmodelc in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -249,6 +265,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				971157EA2E868B85003A7525 /* best.mlmodelc in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -256,6 +273,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				971157E92E868B85003A7525 /* best.mlmodelc in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -266,6 +284,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				971157EE2E868C18003A7525 /* VitPoseh.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -273,6 +292,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				971157EC2E868C18003A7525 /* VitPoseh.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -280,6 +300,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				971157ED2E868C18003A7525 /* VitPoseh.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -431,7 +452,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"PoseA/Preview Content\"";
-				DEVELOPMENT_TEAM = 5V56SGKV78;
+				DEVELOPMENT_TEAM = 82Y8T3KXH8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PoseA/Info.plist;
@@ -482,7 +503,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"PoseA/Preview Content\"";
-				DEVELOPMENT_TEAM = 5V56SGKV78;
+				DEVELOPMENT_TEAM = 82Y8T3KXH8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PoseA/Info.plist;

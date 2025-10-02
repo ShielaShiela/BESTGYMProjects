@@ -17,6 +17,7 @@ import os.log
 
 protocol CaptureDataReceiver: AnyObject {
     func onNewBasicData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, pts: CMTime)
+    func onNewDepthData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, depthPixelBuffer: CVPixelBuffer?, pts: CMTime)
 }
 
 class CameraControllerUI: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -68,6 +69,7 @@ class CameraControllerUI: NSObject, ObservableObject, AVCaptureVideoDataOutputSa
     
     // Metal Environment
     private var converter: NV12ToBGRAMetalConverter?
+    private var rotator: PixelBufferRotation?
     
     // MARK: - Initialization
     override init() {
@@ -87,6 +89,7 @@ class CameraControllerUI: NSObject, ObservableObject, AVCaptureVideoDataOutputSa
         // Metal
         do {
             converter = try NV12ToBGRAMetalConverter(device: MTLCreateSystemDefaultDevice()!)
+            rotator = try PixelBufferRotation(device: MTLCreateSystemDefaultDevice()!)
         } catch {
             log("Failed to create NV12 converter: \(error)", level: .error)
         }
@@ -255,54 +258,38 @@ extension CameraControllerUI: AVCaptureDataOutputSynchronizerDelegate {
         guard let pixelBuffer = syncedVideoData.sampleBuffer.imageBuffer,
               let cameraCalibrationData = syncedDepthData.depthData.cameraCalibrationData else { return }
         
-        let colorImage = generateUIImage(from: pixelBuffer)
         let pts = CMSampleBufferGetPresentationTimeStamp(syncedVideoData.sampleBuffer)
 
-        // Convert the depth data to the expected format.
-        let convertedDepth = syncedDepthData.depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat16)
-       
-       // Package the captured data.
-        let data = FrameDataModel(depth: convertedDepth.depthDataMap.texture(withFormat: .r16Float, planeIndex: 0, addToCache: textureCache),
-                                  colorY: pixelBuffer.texture(withFormat: .r8Unorm, planeIndex: 0, addToCache: textureCache),
-                                  colorCbCr: pixelBuffer.texture(withFormat: .rg8Unorm, planeIndex: 1, addToCache: textureCache),
-                                  cameraIntrinsics: cameraCalibrationData.intrinsicMatrix,
-                                  cameraReferenceDimensions: cameraCalibrationData.intrinsicMatrixReferenceDimensions,
-                                  originalDepth: syncedDepthData.depthData,
-                                  colorImage: colorImage)
-    
-
-        delegate?.onNewBasicData(capturedData: data, pixelBuffer: pixelBuffer, pts: pts)
-        
-        
-    
-        if let assetWriter = assetWriter, assetWriter.status == .writing {
-            if let videoInput = assetWriter.inputs.first,
-               let depthInput = assetWriter.inputs.last,
-               videoInput.isReadyForMoreMediaData && depthInput.isReadyForMoreMediaData {
-                
-                videoInput.append(syncedVideoData.sampleBuffer)
-                
-                // Convert the depth data to a suitable format for writing
-                let depthDataMap = syncedDepthData.depthData.depthDataMap
-                let depthWidth = CVPixelBufferGetWidth(depthDataMap)
-                let depthHeight = CVPixelBufferGetHeight(depthDataMap)
-                let depthFormat = kCVPixelFormatType_DepthFloat32
-                
-                var depthPixelBuffer: CVPixelBuffer?
-                CVPixelBufferCreate(kCFAllocatorDefault, depthWidth, depthHeight, depthFormat, nil, &depthPixelBuffer)
-                
-                if let depthPixelBuffer = depthPixelBuffer {
-                    CVPixelBufferLockBaseAddress(depthPixelBuffer, [])
-                    let depthPtr = CVPixelBufferGetBaseAddress(depthPixelBuffer)
-                    let depthSize = CVPixelBufferGetDataSize(depthDataMap)
-                    memcpy(depthPtr, CVPixelBufferGetBaseAddress(depthDataMap), depthSize)
-                    CVPixelBufferUnlockBaseAddress(depthPixelBuffer, [])
-                    
-                    let depthSampleBuffer = createSampleBuffer(from: depthPixelBuffer, timestamp: syncedDepthData.timestamp)
-                    depthInput.append(depthSampleBuffer)
-                }
+        // Determine current device orientation and map to rotation
+        let rotation:UInt = {
+            switch OrientationCache.shared.orientation {
+            case .portrait: return 90
+            case .landscapeRight: return 0
+            case .landscapeLeft: return 180
+            case .portraitUpsideDown: return 270
             }
-        }
+        }()
+        
+        // Rotate everything to match video orientation
+        let convertedDepth = syncedDepthData.depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat16)
+        let DepthPixelBuffer = rotator?.rotate(pixelBuffer: convertedDepth.depthDataMap, rotation: rotation)
+        let MTLDepthTexture = DepthPixelBuffer!.texture(withFormat: .r16Float, planeIndex: 0, addToCache: textureCache)
+        
+        // Adjust intrinsics for rotation
+        let rotatedIntrinsics = rotateIntrinsics(cameraCalibrationData.intrinsicMatrix,
+                                                 width: CVPixelBufferGetWidth(pixelBuffer),
+                                                 height: CVPixelBufferGetHeight(pixelBuffer),
+                                                 rotation: rotation)
+        
+        // Use Metal to convert NV12 -> BGRA with rotation
+        let BGRAPixelBuffer = converter?.nv12ToBGRAPixelBuffer(nv12PixelBuffer: pixelBuffer, rotation: rotation)
+        
+        // Package the captured data.
+        let data = FrameDataModel(depth: MTLDepthTexture,
+                                  cameraIntrinsics: rotatedIntrinsics,
+                                  cameraReferenceDimensions: cameraCalibrationData.intrinsicMatrixReferenceDimensions)
+
+        delegate?.onNewDepthData(capturedData: data, pixelBuffer: BGRAPixelBuffer, depthPixelBuffer: DepthPixelBuffer, pts: pts)
     }
     
     private func setupLiDARInput(frameRate: CameraConfiguration.FrameRate) throws {
@@ -414,26 +401,6 @@ extension CameraControllerUI {
         // Get presentation timestamp
         let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         
-        // Get camera intrinsics from sample buffer if available
-        var cameraIntrinsics = matrix_float3x3()
-        let cameraReferenceDimensions = CGSize(
-            width: CGFloat(CVPixelBufferGetWidth(pixelBuffer)),
-            height: CGFloat(CVPixelBufferGetHeight(pixelBuffer))
-        )
-        
-        if let cameraIntrinsicMatrix = CMGetAttachment(sampleBuffer, key: kCMSampleBufferAttachmentKey_CameraIntrinsicMatrix, attachmentModeOut: nil) as? Data {
-            let matrixSize = MemoryLayout<matrix_float3x3>.size
-            if cameraIntrinsicMatrix.count >= matrixSize {
-                cameraIntrinsics = cameraIntrinsicMatrix.withUnsafeBytes { $0.load(as: matrix_float3x3.self) }
-            }
-        }
-        
-        // Create basic frame data without depth
-        let data = FrameDataModel(
-            cameraIntrinsics: cameraIntrinsics,
-            cameraReferenceDimensions: cameraReferenceDimensions
-        )
-                
         // Determine current device orientation and map to rotation
         let rotation:UInt = {
             switch OrientationCache.shared.orientation {
@@ -443,8 +410,30 @@ extension CameraControllerUI {
             case .portraitUpsideDown: return 270
             }
         }()
+        
+        // Get camera intrinsics from sample buffer if available
+        var cameraIntrinsics = matrix_float3x3()
+        
+        if let cameraIntrinsicMatrix = CMGetAttachment(sampleBuffer, key: kCMSampleBufferAttachmentKey_CameraIntrinsicMatrix, attachmentModeOut: nil) as? Data {
+            let matrixSize = MemoryLayout<matrix_float3x3>.size
+            if cameraIntrinsicMatrix.count >= matrixSize {
+                cameraIntrinsics = cameraIntrinsicMatrix.withUnsafeBytes { $0.load(as: matrix_float3x3.self) }
+                // Adjust intrinsics for rotation
+                cameraIntrinsics = rotateIntrinsics(cameraIntrinsics,
+                                                    width: CVPixelBufferGetWidth(pixelBuffer),
+                                                    height: CVPixelBufferGetHeight(pixelBuffer),
+                                                    rotation: rotation)
+            }
+        }
+                
         // Use Metal to convert NV12 -> BGRA with rotation
         let BGRAPixelBuffer = converter?.nv12ToBGRAPixelBuffer(nv12PixelBuffer: pixelBuffer, rotation: rotation)
+        
+        // Create basic frame data without depth
+        let data = FrameDataModel(
+            cameraIntrinsics: cameraIntrinsics
+        )
+        
         // Send to delegate
         delegate?.onNewBasicData(capturedData: data, pixelBuffer: BGRAPixelBuffer, pts: pts)
     }
@@ -516,17 +505,36 @@ extension CameraControllerUI {
             log("Failed to add basic video output", level: .error)
         }
     }
-}
 
-// MARK: Photo Capture Delegate
-extension CameraControllerUI: AVCapturePhotoCaptureDelegate {
-    func generateUIImage(from pixelBuffer: CVPixelBuffer) -> UIImage? {
-        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let context = CIContext(options: nil)
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
-            print("Failed to create CGImage from CIImage")
-            return nil
+    private func rotateIntrinsics(_ K: simd_float3x3,
+                                  width: Int,
+                                  height: Int,
+                                  rotation: UInt) -> simd_float3x3 {
+        var out = K
+        let cx = K[0,2]
+        let cy = K[1,2]
+        let fx = K[0,0]
+        let fy = K[1,1]
+        
+        if rotation == 0 {
+            out = K
+        } else if rotation == 90 {
+            // swap roles of x and y, and flip x
+            out[0,0] = fy
+            out[1,1] = fx
+            out[0,2] = Float(height) - cy
+            out[1,2] = cx
+        } else if rotation == 180 {
+            out[0,2] = Float(width) - cx
+            out[1,2] = Float(height) - cy
+        } else if rotation == 270 {
+            out[0,0] = fy
+            out[1,1] = fx
+            out[0,2] = cy
+            out[1,2] = Float(width) - cx
         }
-        return UIImage(cgImage: cgImage)
+        
+        return out
     }
+
 }

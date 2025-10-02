@@ -78,7 +78,16 @@ struct SettingsView: View {
                         }
                     }
                     
-                    Section(header: Text("Camera Options")) {
+                    if appState.useLiDAR {
+                        Section(header: Text("LiDAR Options")) {
+                            Toggle("LiDAR Depth View", isOn: $appState.isLidarDepthView)
+                                .onChange(of: appState.isLidarDepthView) {
+                                    appState.saveUserPreferences()
+                                }
+                        }
+                    }
+                    
+                    Section(header: Text("Real-Time Options")) {
                         Toggle("Real-time Pose Detection (BETA)", isOn: $appState.realtimeDetection)
                             .onChange(of: appState.realtimeDetection) {
                                 appState.saveUserPreferences()

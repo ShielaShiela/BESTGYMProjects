@@ -33,9 +33,13 @@ struct PoseOverlayView: View {
     }
         
     private func drawPose(_ pose: PoseBox, in ctx: GraphicsContext, canvasSize: CGSize) {
+        let mapper = CoordinateMapper(containerSize: canvasSize,
+                                      imageSize: videoSize,
+                                      scaleMode: .aspectFill)
+
         // Keypoints
         let keypoints = pose.keypoints
-        let pts = keypoints.map { mapNormalizedPointToCanvas(CGPoint(x: $0.x, y: $0.y), canvasSize: canvasSize) }
+        let pts = keypoints.map { mapper.mapPoint(CGPoint(x: $0.x, y: $0.y), normalized: false) }
         
         // Skeleton lines
         for (a, b) in cocoConnections where a < pts.count && b < pts.count {
@@ -53,26 +57,13 @@ struct PoseOverlayView: View {
         }
         
         // Bounding box
-        let rect = mapNormalizedRectToCanvas(pose.bbox, canvasSize: canvasSize)
+        let p1 = mapper.mapPoint(CGPoint(x: pose.bbox.minX, y: pose.bbox.minY), normalized: false)
+        let p2 = mapper.mapPoint(CGPoint(x: pose.bbox.maxX, y: pose.bbox.maxY), normalized: false)
+        let rect = CGRect(x: p1.x, y: p1.y, width: p2.x - p1.x, height: p2.y - p1.y)
         ctx.stroke(Path(rect), with: .color(.green.opacity(0.5)), lineWidth: 4)
     }
     
     // MARK: - Mapping
-    
-    private func mapNormalizedPointToCanvas(_ p: CGPoint, canvasSize: CGSize) -> CGPoint {
-        let s = max(canvasSize.width / videoSize.width, canvasSize.height / videoSize.height)
-        let scaledW = videoSize.width * s
-        let scaledH = videoSize.height * s
-        let offsetX = (canvasSize.width - scaledW) / 2.0
-        let offsetY = (canvasSize.height - scaledH) / 2.0
-        return CGPoint(x: offsetX + p.x * scaledW, y: offsetY + p.y * scaledH)
-    }
-    
-    private func mapNormalizedRectToCanvas(_ r: CGRect, canvasSize: CGSize) -> CGRect {
-        let p1 = mapNormalizedPointToCanvas(CGPoint(x: r.minX, y: r.minY), canvasSize: canvasSize)
-        let p2 = mapNormalizedPointToCanvas(CGPoint(x: r.maxX, y: r.maxY), canvasSize: canvasSize)
-        return CGRect(x: p1.x, y: p1.y, width: p2.x - p1.x, height: p2.y - p1.y)
-    }
     
     private func connectionColor(from: Int, to: Int) -> Color {
         if (0...4).contains(from) && (0...4).contains(to) {

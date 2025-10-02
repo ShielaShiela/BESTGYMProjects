@@ -41,6 +41,7 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     
     @Published var isLiDARSupported: Bool = false
     @Published var isLiDAREnabled: Bool = false
+    @Published var isLiDARViewEnabled: Bool = false
     @Published var isPoseProcessingEnabled: Bool = false
     @Published var poseProcessingModelURL: String = "yolo11n-pose"
     
@@ -65,13 +66,12 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     private var firstPTS: CMTime? = nil
     private var frameBuffer = [(CVPixelBuffer, CMTime)]()
 
-    // Depth detection
-    @Published var depthValue: Float?
-    @Published var centerDepthValue: Float?
-    private var centerDepthTimer: Timer?
-
     // Image Processing
     @Published var poseKeypoints: [PoseBox] = []
+    @Published var camIntrinsics: matrix_float3x3 = matrix_identity_float3x3
+    @Published var depthMap: CVPixelBuffer? = nil
+    @Published var depthTexture: MTLTexture? = nil
+    
     private var poseProcessor: YOLOPoseProcessor?
     private var isProcessingPose = false // Mutex Lock
 
@@ -271,13 +271,31 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
 // MARK: - CaptureDataReceiver Protocol
 extension CameraManagerVM {
     // TODO: - onNewDepthData implementation for LiDAR Camera
-    func onNewDepthData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, pts: CMTime) {
-        self.systemFPS.tick()
-        DispatchQueue.main.async {
-            self.fpsStream = self.systemFPS.fps
+    func onNewDepthData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, depthPixelBuffer: CVPixelBuffer?, pts: CMTime) {
+        if let currentBuffer = pixelBuffer {
+            // Update FPS
+            self.systemFPS.tick()
+            DispatchQueue.main.async {
+                self.fpsStream = self.systemFPS.fps
+                self.depthTexture = capturedData.depth
+            }
+            
+            // BETA: - YOLO Pose Detection
+            if isPoseProcessingEnabled {
+                poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
+                    DispatchQueue.main.async {
+                        if !poses.isEmpty {
+                            self?.poseKeypoints = poses
+                        } else {
+                            self?.poseKeypoints = []
+                        }
+                        self?.fpsModel = fps
+                        self?.camIntrinsics = capturedData.cameraIntrinsics
+                        self?.depthMap = depthPixelBuffer
+                    }
+                }
+            }
         }
-        
-        
     }
     
     // onNewBasicData implementation for Basic Camera
@@ -306,88 +324,25 @@ extension CameraManagerVM {
             // BETA: - YOLO Pose Detection
             if isPoseProcessingEnabled {
                 poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
-                    // Run tracker
-                    // Inside your process callback:
-//                    let tracked = updateTracks(with: poses, roi: nil)   // barROI can be nil if unknown
-//                    if let athlete = pickSwinger(from: tracked, roi: nil), shouldRender(athlete) {
-//                        DispatchQueue.main.async {
-//                            self?.poseKeypoints = [athlete.pose]
-//                        }
-//                    } else {
-//                        DispatchQueue.main.async {
-//                            self?.poseKeypoints = []   // don’t render stale predictions
-//                        }
-//                    }
-                    
                     if !poses.isEmpty {
                         DispatchQueue.main.async {
                             self?.poseKeypoints = poses
                             self?.fpsModel = fps
+                            self?.camIntrinsics = capturedData.cameraIntrinsics
                         }
                     } else {
                         DispatchQueue.main.async {
                             self?.poseKeypoints = []
                             self?.fpsModel = fps
+                            self?.camIntrinsics = capturedData.cameraIntrinsics
                         }
                     }
                 }
             }
-
-
         }
     }
 }
 
-// MARK: - Depth Detection
-extension CameraManagerVM {
-    func startCenterDepthDetection() {
-        centerDepthTimer?.invalidate()
-        
-        centerDepthTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            self?.updateCenterDepthValue()
-        }
-        
-        updateCenterDepthValue()
-    }
-    
-    func stopCenterDepthDetection() {
-        centerDepthTimer?.invalidate()
-        centerDepthTimer = nil
-        
-        DispatchQueue.main.async {
-            self.centerDepthValue = nil
-        }
-    }
-    
-    private func updateCenterDepthValue() {
-        guard isLiveCapture,
-              !isRecording,
-              isLiDAREnabled,
-              let depthTexture = capturedData.database.depth else {
-            DispatchQueue.main.async {
-                self.centerDepthValue = nil
-            }
-            return
-        }
-        
-        let centerX = depthTexture.width / 2
-        let centerY = depthTexture.height / 2
-        let region = MTLRegionMake2D(centerX, centerY, 1, 1)
-        
-        var depthValue: Float16 = 0.0
-        depthTexture.getBytes(&depthValue, bytesPerRow: MemoryLayout<Float16>.size, from: region, mipmapLevel: 0)
-        
-        DispatchQueue.main.async {
-            let floatValue = Float(depthValue)
-            
-            if floatValue > 0.05 && floatValue < 10.0 {
-                self.centerDepthValue = floatValue
-            } else {
-                self.centerDepthValue = nil
-            }
-        }
-    }
-}
 
 // MARK: - Data Management
 extension CameraManagerVM {
@@ -409,11 +364,7 @@ extension CameraManagerVM {
 //    }
     
     func clearAllFrames() {
-        log("Starting comprehensive cleanup...", level: .info)
-        
         capturedData = FrameDataVM()
-        depthValue = nil
-        
         log("Cleanup complete", level: .info)
     }
 }

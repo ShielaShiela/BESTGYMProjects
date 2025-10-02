@@ -23,19 +23,12 @@ struct KeypointLineVM: View {
                 return
             }
             
-            let fromPoint = transformPoint(
-                x: fromKeypoint.x,
-                y: fromKeypoint.y,
-                containerSize: containerSize,
-                imageSize: imageSize
-            )
+            let mapper = CoordinateMapper(containerSize: containerSize,
+                                          imageSize: imageSize,
+                                          scaleMode: .aspectFit)
             
-            let toPoint = transformPoint(
-                x: toKeypoint.x,
-                y: toKeypoint.y,
-                containerSize: containerSize,
-                imageSize: imageSize
-            )
+            let fromPoint = mapper.mapPoint(CGPoint(x: fromKeypoint.x, y: fromKeypoint.y))
+            let toPoint = mapper.mapPoint(CGPoint(x: toKeypoint.x, y: toKeypoint.y))
             
             path.move(to: fromPoint)
             path.addLine(to: toPoint)

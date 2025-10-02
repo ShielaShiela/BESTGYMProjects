@@ -129,7 +129,7 @@ final class FrameDataIOService {
     }
 
     private func saveMetadata(_ data: FrameDataModel, to folderURL: URL, filter depthfilter:  Bool) throws {
-        let intrinsics = matrixToArray(data.cameraIntrinsics)
+        let intrinsics = data.cameraIntrinsics.toArray()
 
         let metadata: [String: Any] = [
             "cameraIntrinsics": intrinsics,

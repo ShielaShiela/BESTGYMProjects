@@ -9,6 +9,13 @@ import SwiftUI
 
 // MARK: ------------------------------- Chart Data Structure BEGIN -------------------------------
 
+struct ChartData: Identifiable, Equatable {
+    var id: String { joint }
+    var joint: String
+    var dataPoints: [PointData]
+    var dataMetrics: dataMetrics
+}
+
 struct PointData: Identifiable, Equatable {
     let id = UUID()
     let x: Double

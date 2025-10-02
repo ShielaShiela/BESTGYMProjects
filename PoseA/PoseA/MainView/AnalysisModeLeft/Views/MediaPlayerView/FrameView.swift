@@ -30,7 +30,11 @@ struct FrameView: View {
             // Define Layer
             let containerSize = geometry.size
             let imageSize = image?.size ?? CGSize.zero
-            let fittedSize = fittedImageSize(imageSize: imageSize, containerSize: containerSize)
+            
+            let mapper = CoordinateMapper(containerSize: containerSize,
+                                          imageSize: imageSize,
+                                          scaleMode: .aspectFit)
+            let fittedSize = mapper.displaySize
             
             // Define Gesture Condition
             let zoomEnabled = appState.isZoomMode
@@ -147,21 +151,6 @@ struct FrameView: View {
             
 
             .allowsHitTesting(zoomEnabled || childEnabled)
-        }
-    }
-    
-    private func fittedImageSize(imageSize: CGSize, containerSize: CGSize) -> CGSize {
-        let imageAspect = imageSize.width / imageSize.height
-        let containerAspect = containerSize.width / containerSize.height
-
-        if imageAspect > containerAspect {
-            let width = containerSize.width
-            let height = width / imageAspect
-            return CGSize(width: width, height: height)
-        } else {
-            let height = containerSize.height
-            let width = height * imageAspect
-            return CGSize(width: width, height: height)
         }
     }
 }

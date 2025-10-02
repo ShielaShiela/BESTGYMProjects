@@ -25,7 +25,8 @@ struct AnalysisModeRightView: View {
         self.MLModel = MLModel
         
         // Initialize the PoseJointLandscapeVM with the provided BoxModel and mediaManager
-        self._poseJointVM = State(wrappedValue: PoseJointLandscapeVM(BoxModel: BoxModel,
+        self._poseJointVM = State(wrappedValue: PoseJointLandscapeVM(appState: appState,
+                                                                     BoxModel: BoxModel,
                                                                      mediaManager: mediaManager))
     }
     
@@ -42,7 +43,7 @@ struct AnalysisModeRightView: View {
                                     mediaManager: mediaManager)
                     .frame(height: geometry.size.height)
                     .padding(.horizontal)
-                
+                    
                 case .dataMetrics:
                     DataMetricsView(appState: appState,
                                     poseJointVM: poseJointVM)
@@ -55,7 +56,7 @@ struct AnalysisModeRightView: View {
                                       mediaManager: mediaManager)
                     .frame(height: geometry.size.height)
                     .padding(.horizontal)
-                
+                    
                 default:
                     // Pose Analysis View
                     PoseAnalysisView(appState: appState,
@@ -96,7 +97,7 @@ struct AnalysisModeRightView: View {
                                             .font(.system(size: 10))
                                             .padding(2)
                                     }
-
+                                    
                                     Button(action: { selectedView = .trajectoryAxes }) {
                                         Text("Single Axes Analysis")
                                             .font(.system(size: 10))
@@ -164,6 +165,12 @@ struct AnalysisModeRightView: View {
                     }
                 }
             }
+            .onChange(of: appState.angleUnit) { oldValue, newValue in
+                if oldValue != newValue && appState.isAnalysisAvailable {
+                    appState.isAnalysisAvailable = false
+                    updateAnalysis()
+                }
+            }
         }
     }
     
@@ -174,11 +181,14 @@ struct AnalysisModeRightView: View {
             return
         }
         
+        // Change Screen
+        self.selectedView = .info
+        
         // Set App to Processing Mode
         DispatchQueue.main.async {
             appState.isProcessing = true
             appState.isAnalysisAvailable = false
-            appState.processingStatus = "Processing Frame..."
+            appState.processingStatus = "Processing Data..."
         }
         
         if !appState.isAnalysisAvailable && mediaManager.isKeypointAvailable && mediaManager.isMediaAvailable {

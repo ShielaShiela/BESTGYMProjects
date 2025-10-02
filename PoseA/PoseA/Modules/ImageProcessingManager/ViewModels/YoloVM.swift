@@ -140,8 +140,8 @@ final class YOLOPoseProcessor {
                 return
             }
             
-            let diff = (CFAbsoluteTimeGetCurrent() - start) * 1000
-            print("⏱ inference time: \(String(format: "%.2f", diff)) ms")
+//            let diff = (CFAbsoluteTimeGetCurrent() - start) * 1000
+//            print("⏱ inference time: \(String(format: "%.2f", diff)) ms")
 
             let poses = self.decodeOutputFast(multiArray)
             self.modelFPS.tick()
@@ -192,14 +192,10 @@ final class YOLOPoseProcessor {
                 let w  = ptr[2 * strides[1] + boxIdx * strides[2]]
                 let h  = ptr[3 * strides[1] + boxIdx * strides[2]]
                 
-                let tl = modelToCameraCoords(x: CGFloat(cx - w * 0.5),
-                                             y: CGFloat(cy - h * 0.5),
-                                             origSize: camInputSize,
-                                             modelSize: modelInputSize)
-                let br = modelToCameraCoords(x: CGFloat(cx + w * 0.5),
-                                             y: CGFloat(cy + h * 0.5),
-                                             origSize: camInputSize,
-                                             modelSize: modelInputSize)
+                let tl = normalizePoint(x: CGFloat(cx - w * 0.5),
+                                        y: CGFloat(cy - h * 0.5))
+                let br = normalizePoint(x: CGFloat(cx + w * 0.5),
+                                        y: CGFloat(cy + h * 0.5))
                 let rect = CGRect(x: tl.x, y: tl.y, width: br.x - tl.x, height: br.y - tl.y)
 
                 var keypoints: [KeypointData] = []
@@ -210,10 +206,8 @@ final class YOLOPoseProcessor {
                     let ky = ptr[(6 + k * 3) * strides[1] + boxIdx * strides[2]]
                     let kc = ptr[(7 + k * 3) * strides[1] + boxIdx * strides[2]]
                     
-                    let mapped = modelToCameraCoords(x: CGFloat(kx),
-                                                     y: CGFloat(ky),
-                                                     origSize: camInputSize,
-                                                     modelSize: modelInputSize)
+                    let mapped = normalizePoint(x: CGFloat(kx),
+                                                y: CGFloat(ky))
                     
                     keypoints.append(KeypointData(name: keypointNames[k],
                                                   x: mapped.x,
@@ -234,8 +228,8 @@ final class YOLOPoseProcessor {
             }
         }
         
-        let diff = (CFAbsoluteTimeGetCurrent() - start) * 1000
-        print("⏱ decode time: \(String(format: "%.2f", diff)) ms")
+//        let diff = (CFAbsoluteTimeGetCurrent() - start) * 1000
+//        print("⏱ decode time: \(String(format: "%.2f", diff)) ms")
         
         // Optional: run NMS
         var filtered: [PoseBox] = []
@@ -245,14 +239,10 @@ final class YOLOPoseProcessor {
     }
 
     // MARK: - Reuse your existing helpers (unchanged)
-    private func modelToCameraCoords(
-        x: CGFloat, y: CGFloat,
-        origSize: CGSize, modelSize: CGSize) -> CGPoint {
+    private func normalizePoint(x: CGFloat, y: CGFloat) -> CGPoint {
         // Scale
-        let scaledX = (x / modelSize.width)
-        let scaledY = (y / modelSize.height)
-            
-        // Rotate coordinates back to camera orientation
+        let scaledX = (x / modelInputSize.width * camInputSize.width)
+        let scaledY = (y / modelInputSize.height * camInputSize.height)
         return CGPoint(x: scaledX, y: scaledY)
     }
 
@@ -280,8 +270,8 @@ final class YOLOPoseProcessor {
                 }
             }
         }
-        let diff = (CFAbsoluteTimeGetCurrent() - start) * 1000
-        print("⏱ decode time: \(String(format: "%.2f", diff)) ms")
+//        let diff = (CFAbsoluteTimeGetCurrent() - start) * 1000
+//        print("⏱ decode time: \(String(format: "%.2f", diff)) ms")
         
         return results
     }

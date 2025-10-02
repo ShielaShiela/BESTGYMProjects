@@ -134,13 +134,6 @@ extension CGImage {
     }
 }
 
-extension UIImage {
-    func rotated(to orientation: UIImage.Orientation) -> UIImage? {
-        guard let cgImage = self.cgImage else { return nil }
-        return UIImage(cgImage: cgImage, scale: 1.0, orientation: orientation)
-    }
-}
-
 // Shared Style Modifier
 extension View {
     func toolbarCapsuleStyle() -> some View {

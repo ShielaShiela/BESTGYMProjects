@@ -15,12 +15,11 @@ struct KeypointDotVM: View {
     let imageSize: CGSize
     
     var body: some View {
-        let position = transformPoint(
-            x: keypoint.x,
-            y: keypoint.y,
-            containerSize: containerSize,
-            imageSize: imageSize
-        )
+        let mapper = CoordinateMapper(containerSize: containerSize,
+                                      imageSize: imageSize,
+                                      scaleMode: .aspectFit)
+        
+        let position = mapper.mapPoint(CGPoint(x: keypoint.x, y: keypoint.y))
         
         let color = keypointColor(name: keypoint.name)
         // Fix: Convert Float to CGFloat explicitly

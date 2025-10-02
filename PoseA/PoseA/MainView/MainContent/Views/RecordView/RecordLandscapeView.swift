@@ -12,6 +12,14 @@ struct RecordLandscapeView: View {
     @ObservedObject var cameraManager: CameraManagerVM
     
     @State var showInfoView: Bool = false
+    @State var pointPickerVM: PointPickerViewModel = PointPickerViewModel()
+    @State var rtPoseJointVM: RealtimePoseJointViewModel
+    
+    init(appState: MainAppState, cameraManager: CameraManagerVM) {
+        self.appState = appState
+        self.cameraManager = cameraManager
+        self._rtPoseJointVM = State(wrappedValue: RealtimePoseJointViewModel(cameraManager: cameraManager))
+    }
     
     var body: some View {
         ZStack {
@@ -197,24 +205,39 @@ struct RecordLandscapeView: View {
                     if cameraManager.isCameraReady {
                         ZStack {
                             // Camera Preview
-                            CameraPreviewView(cameraManager: self.cameraManager)
+                            CameraPreviewView(appState: self.appState, cameraManager: self.cameraManager)
+                            
+                            // Pose Information Overlay
+                            PoseInformationView(rtPoseJointVM: rtPoseJointVM)
                             
                             // Realtime Detection
                             if appState.realtimeDetection {
                                 // Pose Overlay
-                                PoseOverlayView(poses: self.cameraManager.poseKeypoints,
-                                                videoSize: isLandscape ? CGSize(width: self.cameraManager.cameraConfiguration.resolution.width,
-                                                                                height: self.cameraManager.cameraConfiguration.resolution.height) :
-                                                    CGSize(width: self.cameraManager.cameraConfiguration.resolution.height,
-                                                           height: self.cameraManager.cameraConfiguration.resolution.width))
+                                if let nearest = rtPoseJointVM.nearestPose {
+                                    PoseOverlayView(poses: [nearest],
+                                                    videoSize: isLandscape ? CGSize(width: self.cameraManager.cameraConfiguration.resolution.width,
+                                                                                    height: self.cameraManager.cameraConfiguration.resolution.height) :
+                                                                            CGSize(width: self.cameraManager.cameraConfiguration.resolution.height,
+                                                                                   height: self.cameraManager.cameraConfiguration.resolution.width))
+                                } else {
+                                    PoseOverlayView(poses: self.cameraManager.poseKeypoints,
+                                                    videoSize: isLandscape ? CGSize(width: self.cameraManager.cameraConfiguration.resolution.width,
+                                                                                    height: self.cameraManager.cameraConfiguration.resolution.height) :
+                                                                            CGSize(width: self.cameraManager.cameraConfiguration.resolution.height,
+                                                                                   height: self.cameraManager.cameraConfiguration.resolution.width))
+                                }
                                 
-                                // Pose Information Overlay
-                                PoseInformationView()
+//                                // Pose Information Overlay
+//                                PoseInformationView()
                                 
                                 // Point Picker Overlay for Horizontal Bar
                                 if appState.realtimeViewMode == "side-view" {
-                                    PointPickerView()
-                                        .allowsHitTesting(true)
+                                    PointPickerView(pointPickerVM: $pointPickerVM,
+                                                    imageSize: isLandscape ? CGSize(width: self.cameraManager.cameraConfiguration.resolution.width,
+                                                                                    height: self.cameraManager.cameraConfiguration.resolution.height) :
+                                                                            CGSize(width: self.cameraManager.cameraConfiguration.resolution.height,
+                                                                                   height: self.cameraManager.cameraConfiguration.resolution.width))
+                                    .allowsHitTesting(true)
                                 }
                             }
                         }
@@ -224,17 +247,14 @@ struct RecordLandscapeView: View {
                         .position(x: isLandscape ? geometry.size.width * 0.45 : geometry.size.width * 0.5,
                                   y: isLandscape ? geometry.size.height * 0.5 : geometry.size.height * 0.45)
                     
-                        .onAppear {
-                            cameraManager.startCenterDepthDetection()
-                        }
-                        .onDisappear {
-                            cameraManager.stopCenterDepthDetection()
-                        }
                         .onChange(of: appState.realtimeDetection) {
                             cameraManager.toogleRealtimeDetection()
                         }
                         .onChange(of: appState.realtimeModel) { oldValue, newValue in
                             cameraManager.setRealtimeModelVersion(newValue)
+                        }
+                        .onChange(of: pointPickerVM.pointImage) { _, newPoint in
+                            rtPoseJointVM.updatePoint(point: newPoint)
                         }
                         .transition(.opacity) // Optional smooth fade-in
                     }
@@ -298,8 +318,11 @@ struct RecordLandscapeView: View {
                                 .toggleStyle(SwitchToggleStyle(tint: .yellow.opacity(0.7)))
                                 .position(x: isLandscape ? geo.size.width * 0.5 : geo.size.width * 0.15,
                                           y: isLandscape ? geo.size.height * 0.85 : geo.size.height * 0.55 )
-                                .onChange(of: appState.useLiDAR) {
+                                .onChange(of: appState.useLiDAR) { old_value, new_value in
                                     cameraManager.toggleLiDAR()
+                                    if old_value == true && new_value == false {
+                                        appState.isLidarDepthView = false
+                                    }
                                 }
                                 .disabled(!cameraManager.isLiDARSupported)
                             

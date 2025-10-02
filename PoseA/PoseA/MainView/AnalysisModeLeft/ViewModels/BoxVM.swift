@@ -55,74 +55,35 @@ class BoxViewModel {
     // MARK: - Coordinate Conversions
 
     func updateImageSpace(from containerSize: CGSize, imageSize: CGSize) {
-        self.pointsImage = toImageSpace(containerSize: containerSize, imageSize: imageSize)
-        log("Box Image updated: \(self.pointsImage)", level: .debug)
+        guard !pointsDisplay.isEmpty else {
+            self.pointsImage = []
+            return
+        }
 
+        let mapper = CoordinateMapper(containerSize: containerSize,
+                                      imageSize: imageSize,
+                                      scaleMode: .aspectFit)
+
+        self.pointsImage =  pointsDisplay.map { displayPoint in
+            mapper.mapPointInverse(displayPoint)
+        }
+        
+        log("Box Image updated: \(self.pointsImage)", level: .debug)
     }
 
     func updateDisplaySpace(from containerSize: CGSize, imageSize: CGSize) {
-        self.pointsDisplay = toDisplaySpace(containerSize: containerSize, imageSize: imageSize)
+        guard !pointsDisplay.isEmpty else {
+            self.pointsDisplay = []
+            return
+        }
+        
+        let mapper = CoordinateMapper(containerSize: containerSize,
+                                      imageSize: imageSize,
+                                      scaleMode: .aspectFit)
+
+        self.pointsDisplay =  pointsImage.map { imagePoint in
+            mapper.mapPoint(imagePoint)
+        }
         log("Box Display updated: \(self.pointsDisplay)", level: .debug)
-
-    }
-
-    private func toImageSpace(containerSize: CGSize, imageSize: CGSize) -> [CGPoint] {
-        guard !pointsDisplay.isEmpty else { return [] }
-
-        let imageAspectRatio = imageSize.width / imageSize.height
-        let containerAspectRatio = containerSize.width / containerSize.height
-
-        var displaySize: CGSize
-        var offsetX: CGFloat = 0
-        var offsetY: CGFloat = 0
-
-        if imageAspectRatio > containerAspectRatio {
-            // Fit to width
-            displaySize = CGSize(width: containerSize.width, height: containerSize.width / imageAspectRatio)
-            offsetY = (containerSize.height - displaySize.height) / 2
-        } else {
-            // Fit to height
-            displaySize = CGSize(width: containerSize.height * imageAspectRatio, height: containerSize.height)
-            offsetX = (containerSize.width - displaySize.width) / 2
-        }
-
-        let scaleX = imageSize.width / displaySize.width
-        let scaleY = imageSize.height / displaySize.height
-
-        return pointsDisplay.map { displayPoint in
-            CGPoint(
-                x: (displayPoint.x - offsetX) * scaleX,
-                y: (displayPoint.y - offsetY) * scaleY
-            )
-        }
-    }
-
-    private func toDisplaySpace(containerSize: CGSize, imageSize: CGSize) -> [CGPoint] {
-        guard !pointsImage.isEmpty else { return [] }
-
-        let imageAspectRatio = imageSize.width / imageSize.height
-        let containerAspectRatio = containerSize.width / containerSize.height
-
-        var displaySize: CGSize
-        var offsetX: CGFloat = 0
-        var offsetY: CGFloat = 0
-
-        if imageAspectRatio > containerAspectRatio {
-            displaySize = CGSize(width: containerSize.width, height: containerSize.width / imageAspectRatio)
-            offsetY = (containerSize.height - displaySize.height) / 2
-        } else {
-            displaySize = CGSize(width: containerSize.height * imageAspectRatio, height: containerSize.height)
-            offsetX = (containerSize.width - displaySize.width) / 2
-        }
-
-        let scaleX = displaySize.width / imageSize.width
-        let scaleY = displaySize.height / imageSize.height
-
-        return pointsImage.map { imagePoint in
-            CGPoint(
-                x: imagePoint.x * scaleX + offsetX,
-                y: imagePoint.y * scaleY + offsetY
-            )
-        }
     }
 }

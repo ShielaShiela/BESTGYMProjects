@@ -7,13 +7,6 @@
 
 import SwiftUI
 
-struct ChartData: Identifiable, Equatable {
-    var id: String { joint }
-    var joint: String
-    var dataPoints: [PointData]
-    var dataMetrics: dataMetrics
-}
-
 @Observable
 class ChartBuilderLandscapeVM {
     // MARK: - Properties

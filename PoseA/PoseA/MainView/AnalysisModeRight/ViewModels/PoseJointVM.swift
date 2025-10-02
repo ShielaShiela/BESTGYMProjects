@@ -11,6 +11,7 @@ import Foundation
 @Observable
 class PoseJointLandscapeVM {
     // MARK: - Properties
+    
     var angleCompleteData: [JointData] = []
     var positionCompleteData: [JointData] = []
     var velocityCompleteData: [JointData] = []
@@ -21,6 +22,8 @@ class PoseJointLandscapeVM {
     
     private var BoxModel: BoxViewModel
     private var mediaManager: MediaManagerVM
+    private var appState: MainAppState
+
     private let fps: Float = 30.0
     private let processingQueue = DispatchQueue(label: "com.posea.processing", qos: .userInitiated)
     
@@ -38,7 +41,8 @@ class PoseJointLandscapeVM {
     
     // MARK: - Init
     
-    init(BoxModel: BoxViewModel, mediaManager: MediaManagerVM) {
+    init(appState: MainAppState, BoxModel: BoxViewModel, mediaManager: MediaManagerVM) {
+        self.appState = appState
         self.BoxModel = BoxModel
         self.mediaManager = mediaManager
     }
@@ -53,10 +57,8 @@ class PoseJointLandscapeVM {
             }
             // Compute Derivative
             self.buildVelocityAndAcceleration()
-            
             // Compute Joint Angles
             self.buildAngles()
-            
             // Compute Swing Data
             self.estimateBar {
                 self.calculateSwingAngle()
@@ -175,9 +177,14 @@ class PoseJointLandscapeVM {
             
             let angularVelocity = i > 0 ? unwrappedDelta / dt : 0.0
             turns = abs(accumulatedAngle / (.pi * 2))
-
-            resultsAngle.append(xyzChartData(x: i, y: angleFromY * 180 / .pi))
-            resultsVelocity.append(xyzChartData(x: i, y: angularVelocity * 180 / .pi))
+            
+            if appState.angleUnit == .deg {
+                resultsAngle.append(xyzChartData(x: i, y: angleFromY * 180 / .pi))
+                resultsVelocity.append(xyzChartData(x: i, y: angularVelocity * 180 / .pi))
+            } else if appState.angleUnit == .rad {
+                resultsAngle.append(xyzChartData(x: i, y: angleFromY))
+                resultsVelocity.append(xyzChartData(x: i, y: angularVelocity))
+            }
 
         }
             
@@ -426,56 +433,67 @@ class PoseJointLandscapeVM {
         default: return 0
         }
     }
-}
-
-private func calculateAngleFromFrame(for joint: String, frame: [Int: xyzChartData]) -> Float {
-    func get(_ i: Int) -> xyzChartData? {
-        return frame[i]
-    }
     
-    switch joint {
-    case "L Shoulder":
-        guard let a = get(11), let b = get(5), let c = get(7) else { return 0 }
-        return angleBetween(a, b, c)
-    case "R Shoulder":
-        guard let a = get(12), let b = get(6), let c = get(8) else { return 0 }
-        return angleBetween(a, b, c)
-    case "L Elbow":
-        guard let a = get(5), let b = get(7), let c = get(9) else { return 0 }
-        return angleBetween(a, b, c)
-    case "R Elbow":
-        guard let a = get(6), let b = get(8), let c = get(10) else { return 0 }
-        return angleBetween(a, b, c)
-    case "L Hip":
-        guard let a = get(5), let b = get(11), let c = get(13) else { return 0 }
-        return angleBetween(a, b, c)
-    case "R Hip":
-        guard let a = get(6), let b = get(12), let c = get(14) else { return 0 }
-        return angleBetween(a, b, c)
-    case "L Knee":
-        guard let a = get(11), let b = get(13), let c = get(15) else { return 0 }
-        return angleBetween(a, b, c)
-    case "R Knee":
-        guard let a = get(12), let b = get(14), let c = get(16) else { return 0 }
-        return angleBetween(a, b, c)
-    default:
-        return 0
+    private func calculateAngleFromFrame(for joint: String, frame: [Int: xyzChartData]) -> Float {
+        func get(_ i: Int) -> xyzChartData? {
+            return frame[i]
+        }
+        
+        switch joint {
+        case "L Shoulder":
+            guard let a = get(11), let b = get(5), let c = get(7) else { return 0 }
+            return angleBetween(a, b, c)
+        case "R Shoulder":
+            guard let a = get(12), let b = get(6), let c = get(8) else { return 0 }
+            return angleBetween(a, b, c)
+        case "L Elbow":
+            guard let a = get(5), let b = get(7), let c = get(9) else { return 0 }
+            return angleBetween(a, b, c)
+        case "R Elbow":
+            guard let a = get(6), let b = get(8), let c = get(10) else { return 0 }
+            return angleBetween(a, b, c)
+        case "L Hip":
+            guard let a = get(5), let b = get(11), let c = get(13) else { return 0 }
+            return angleBetween(a, b, c)
+        case "R Hip":
+            guard let a = get(6), let b = get(12), let c = get(14) else { return 0 }
+            return angleBetween(a, b, c)
+        case "L Knee":
+            guard let a = get(11), let b = get(13), let c = get(15) else { return 0 }
+            return angleBetween(a, b, c)
+        case "R Knee":
+            guard let a = get(12), let b = get(14), let c = get(16) else { return 0 }
+            return angleBetween(a, b, c)
+        default:
+            return 0
+        }
+    }
+
+    private func angleBetween(_ a: xyzChartData, _ b: xyzChartData, _ c: xyzChartData) -> Float {
+        let ab = CGVector(dx: Double(a.x - b.x), dy: Double(a.y - b.y))
+        let cb = CGVector(dx: Double(c.x - b.x), dy: Double(c.y - b.y))
+
+        let dot = ab.dx * cb.dx + ab.dy * cb.dy
+        let cross = ab.dx * cb.dy - ab.dy * cb.dx
+        
+        var angle: Double = 0
+        if appState.angleUnit == .deg {
+            angle = atan2(cross, dot) * 180 / .pi // [-180, 180]
+
+            if angle < 0 {
+                angle += 360 // Wrap to [0, 360]
+            }
+        } else if appState.angleUnit == .rad {
+            angle = atan2(cross, dot) // [-pi, pi]
+
+            if angle < 0 {
+                angle += .pi * 2 // Wrap to [0, 2pi]
+            }
+        }
+
+        return Float(angle)
     }
 }
 
-private func angleBetween(_ a: xyzChartData, _ b: xyzChartData, _ c: xyzChartData) -> Float {
-    let ab = CGVector(dx: Double(a.x - b.x), dy: Double(a.y - b.y))
-    let cb = CGVector(dx: Double(c.x - b.x), dy: Double(c.y - b.y))
 
-    let dot = ab.dx * cb.dx + ab.dy * cb.dy
-    let cross = ab.dx * cb.dy - ab.dy * cb.dx
-
-    var angle = atan2(cross, dot) * 180 / .pi // [-180, 180]
-
-    if angle < 0 {
-        angle += 360 // Wrap to [0, 360]
-    }
-
-    return Float(angle)
-}
-// MARK: ------------------------------ Pose Joint Dataase Class END ------------------------------
+// MARK: ------------------------------ Pose Joint Database Class END ------------------------------

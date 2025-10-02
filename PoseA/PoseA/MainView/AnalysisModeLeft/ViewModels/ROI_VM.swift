@@ -68,40 +68,14 @@ class ROIViewModel {
             return .zero
         }
             
-        // Calculate the actual display size of the image within the container
-        let imageAspectRatio = imageSize.width / imageSize.height
-        let containerAspectRatio = containerSize.width / containerSize.height
+        let mapper = CoordinateMapper(containerSize: containerSize,
+                                      imageSize: imageSize,
+                                      scaleMode: .aspectFit)
         
-        var displaySize: CGSize
-        var offsetX: CGFloat = 0
-        var offsetY: CGFloat = 0
+        let p1 = mapper.mapPointInverse(CGPoint(x: roiDisplaySpace.minX, y: roiDisplaySpace.minY), normalized: true)
+        let p2 = mapper.mapPointInverse(CGPoint(x: roiDisplaySpace.maxX, y: roiDisplaySpace.maxY), normalized: true)
         
-        if imageAspectRatio > containerAspectRatio {
-            // Image is wider than container - fit to width
-            displaySize = CGSize(
-                width: containerSize.width,
-                height: containerSize.width / imageAspectRatio
-            )
-            offsetY = (containerSize.height - displaySize.height) / 2
-        } else {
-            // Image is taller than container - fit to height
-            displaySize = CGSize(
-                width: containerSize.height * imageAspectRatio,
-                height: containerSize.height
-            )
-            offsetX = (containerSize.width - displaySize.width) / 2
-        }
-        
-        // Convert display coordinates to image coordinates
-        let scaleX = imageSize.width / displaySize.width
-        let scaleY = imageSize.height / displaySize.height
-        
-        return CGRect(
-            x: (roiDisplaySpace.origin.x - offsetX) * scaleX,
-            y: (roiDisplaySpace.origin.y - offsetY) * scaleY,
-            width: roiDisplaySpace.width * scaleX,
-            height: roiDisplaySpace.height * scaleY
-        )
+        return CGRect(x: p1.x, y: p1.y, width: p2.x - p1.x, height: p2.y - p1.y)
     }
     
     // Convert image space to display coordinates
@@ -112,39 +86,13 @@ class ROIViewModel {
             return .zero
         }
         
-        // Calculate the actual display size of the image within the container
-        let imageAspectRatio = imageSize.width / imageSize.height
-        let containerAspectRatio = containerSize.width / containerSize.height
+        let mapper = CoordinateMapper(containerSize: containerSize,
+                                      imageSize: imageSize,
+                                      scaleMode: .aspectFit)
+        
+        let p1 = mapper.mapPoint(CGPoint(x: roiImageSpace.minX, y: roiImageSpace.minY), normalized: true)
+        let p2 = mapper.mapPoint(CGPoint(x: roiImageSpace.maxX, y: roiImageSpace.maxY), normalized: true)
 
-        var displaySize: CGSize
-        var offsetX: CGFloat = 0
-        var offsetY: CGFloat = 0
-
-        if imageAspectRatio > containerAspectRatio {
-            // Image fits to width
-            displaySize = CGSize(
-                width: containerSize.width,
-                height: containerSize.width / imageAspectRatio
-            )
-            offsetY = (containerSize.height - displaySize.height) / 2
-        } else {
-            // Image fits to height
-            displaySize = CGSize(
-                width: containerSize.height * imageAspectRatio,
-                height: containerSize.height
-            )
-            offsetX = (containerSize.width - displaySize.width) / 2
-        }
-
-        // Calculate scaling factor from image to display space
-        let scaleX = displaySize.width / imageSize.width
-        let scaleY = displaySize.height / imageSize.height
-
-        return CGRect(
-            x: roiImageSpace.origin.x * scaleX + offsetX,
-            y: roiImageSpace.origin.y * scaleY + offsetY,
-            width: roiImageSpace.width * scaleX,
-            height: roiImageSpace.height * scaleY
-        )
+        return CGRect(x: p1.x, y: p1.y, width: p2.x - p1.x, height: p2.y - p1.y)
     }
 }

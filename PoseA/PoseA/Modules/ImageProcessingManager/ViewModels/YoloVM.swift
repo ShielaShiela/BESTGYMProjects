@@ -293,4 +293,40 @@ final class YOLOPoseProcessor {
         let unionArea = a.width * a.height + b.width * b.height - interArea
         return Float(interArea / unionArea)
     }
+    
+    func getDepth(at imagePoint: CGPoint, from frameData: FrameDataModel) -> Float? {
+        guard let depthTexture = frameData.depth else {
+            return nil
+        }
+        
+        assert(depthTexture.pixelFormat == .r16Float, "Expected r16Float pixel format")
+        
+        let depthWidth = depthTexture.width
+        let depthHeight = depthTexture.height
+        let imageSize = frameData.colorImage?.size ?? CGSize(width: depthWidth, height: depthHeight)
+        
+        // Map image point to depth coordinates
+        let depthX = Int(imagePoint.x / imageSize.width * CGFloat(depthWidth))
+        let depthY = Int(imagePoint.y / imageSize.height * CGFloat(depthHeight))
+        
+        guard depthX >= 0, depthX < depthWidth, depthY >= 0, depthY < depthHeight else {
+            return nil
+        }
+        
+        var depthValue = Float16(0)
+        let region = MTLRegionMake2D(depthX, depthY, 1, 1)
+        
+        depthTexture.getBytes(&depthValue, bytesPerRow: 0, from: region, mipmapLevel: 0)
+        
+        let depth = Float(depthValue)
+        
+        // Filter out invalid depth values (typically 0 or extremely large values)
+        guard depth > 0.1 && depth < 20.0 else {  // Adjust range based on your use case
+            return nil
+        }
+        
+        return depth
+    }
+    
+    
 }

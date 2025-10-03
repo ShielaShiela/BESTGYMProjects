@@ -284,8 +284,88 @@ extension CameraManagerVM {
             self.fpsStream = self.systemFPS.fps
         }
         
+//        guard let currentBuffer = pixelBuffer else { return }
+//            
+//        // Update camera data on main thread (lightweight)
+//        DispatchQueue.main.async {
+//            self.capturedData.database.cameraIntrinsics = capturedData.cameraIntrinsics
+//            self.capturedData.database.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
+//        }
+//        
+//        // BETA: - YOLO Pose Detection with Depth
+//        if isPoseProcessingEnabled {
+//            poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
+//                guard let self = self else { return }
+//                
+//                if !poses.isEmpty {
+//                    DispatchQueue.main.async {
+//                        self.poseKeypoints = poses
+//                        self.fpsModel = fps
+//                    }
+//                } else {
+//                    DispatchQueue.main.async {
+//                        self.poseKeypoints = []
+//                        self.fpsModel = fps
+//                    }
+//                }
+//                
+//                // Save pose data WITH DEPTH when recording
+//                if self.isRecording && !self.isPreparingRecording {
+//                    let timestamp = CMTimeGetSeconds(pts)
+//                    let intrinsics = capturedData.cameraIntrinsics
+//                    let currentFrameCount = self.frameCount
+//                    
+//                    let posesWithDepth: [PoseBox] = poses.map { pose in
+//                        let keypointPoints = pose.keypoints.map { CGPoint(x: $0.x, y: $0.y) }
+//                        
+//                        // Get batch average depth
+//                        let depths = self.getBatchDepth(for: keypointPoints, from: capturedData)
+//                        
+//                        // Map keypoints with depth (use 0.0 if depth is nil)
+//                        let keypointsWithDepth = zip(pose.keypoints, depths).map { keypoint, depth in
+//                            KeypointData(
+//                                name: keypoint.name,
+//                                x: keypoint.x,
+//                                y: keypoint.y,
+//                                confidence: keypoint.confidence,
+//                                depth: depth ?? 0.0,  // Use 0.0 as sentinel for invalid/missing depth
+//                                frameIndex: currentFrameCount
+//                            )
+//                        }
+//                        
+//                        return PoseBox(
+//                            bbox: pose.bbox,
+//                            confidence: pose.confidence,
+//                            keypoints: keypointsWithDepth,
+//                            hasDepthData: true
+//                        )
+//                    }
+//                    
+//                    let frameData = PoseFrameData(
+//                        frameIndex: currentFrameCount,
+//                        timestamp: timestamp,
+//                        poses: posesWithDepth,
+//                        pts: pts,
+//                        hasDepthData: true,
+//                        cameraIntrinsics: intrinsics
+//                    )
+//                    
+//                    self.poseDataQueue.async { [weak self] in
+//                        guard let self = self else { return }
+//                        self.poseDataBuffer.append(frameData)
+//                        
+//                        if self.poseDataBuffer.count >= self.poseBufferLimit,
+//                           let folder = self.recordingFolder {
+//                            self.savePoseDataBuffer(to: folder)
+//                        }
+//                    }
+//                }
+//            }
+//        }
         
     }
+    
+    
     
     // onNewBasicData implementation for Basic Camera
     func onNewBasicData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, pts: CMTime) {
@@ -309,24 +389,10 @@ extension CameraManagerVM {
                     self.frameSemaphore.signal()
                 }
             }
-            
             // BETA: - YOLO Pose Detection
             if isPoseProcessingEnabled {
                 poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
-                    guard let self = self else {return}
-                    
-                    // Run tracker
-                    // Inside your process callback:
-//                    let tracked = updateTracks(with: poses, roi: nil)   // barROI can be nil if unknown
-//                    if let athlete = pickSwinger(from: tracked, roi: nil), shouldRender(athlete) {
-//                        DispatchQueue.main.async {
-//                            self?.poseKeypoints = [athlete.pose]
-//                        }
-//                    } else {
-//                        DispatchQueue.main.async {
-//                            self?.poseKeypoints = []   // don’t render stale predictions
-//                        }
-//                    }
+                    guard let self = self else { return }
                     
                     if !poses.isEmpty {
                         DispatchQueue.main.async {
@@ -340,21 +406,45 @@ extension CameraManagerVM {
                         }
                     }
                     
-                    // 🎯 This saves pose data when recording
-                    if self.isRecording {  // 👈 NOW THIS WORKS
+                    // Save pose data WITHOUT depth when recording
+                    if self.isRecording && !self.isPreparingRecording {
                         let timestamp = CMTimeGetSeconds(pts)
+                        let intrinsics = capturedData.cameraIntrinsics
+                        let currentFrameCount = self.frameCount
+                        
+                        let posesWithoutDepth: [PoseBox] = poses.map { pose in
+                            let keypointsWithoutDepth = pose.keypoints.map { keypoint in
+                                KeypointData(
+                                    name: keypoint.name,
+                                    x: keypoint.x,
+                                    y: keypoint.y,
+                                    confidence: keypoint.confidence,
+                                    depth: 0.0,  // 0.0 indicates no depth data
+                                    frameIndex: currentFrameCount
+                                )
+                            }
+                            
+                            return PoseBox(
+                                bbox: pose.bbox,
+                                confidence: pose.confidence,
+                                keypoints: keypointsWithoutDepth,
+                                hasDepthData: false
+                            )
+                        }
+                        
                         let frameData = PoseFrameData(
-                            frameIndex: self.frameCount,
+                            frameIndex: currentFrameCount,
                             timestamp: timestamp,
-                            poses: poses,
-                            pts: pts
+                            poses: posesWithoutDepth,
+                            pts: pts,
+                            hasDepthData: false,
+                            cameraIntrinsics: intrinsics
                         )
                         
                         self.poseDataQueue.async { [weak self] in
                             guard let self = self else { return }
                             self.poseDataBuffer.append(frameData)
                             
-                            // Auto-save every 100 frames
                             if self.poseDataBuffer.count >= self.poseBufferLimit,
                                let folder = self.recordingFolder {
                                 self.savePoseDataBuffer(to: folder)
@@ -363,8 +453,92 @@ extension CameraManagerVM {
                     }
                 }
             }
+//            // BETA: - YOLO Pose Detection
+//            if isPoseProcessingEnabled {
+//                poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
+//                    guard let self = self else {return}
+//                    
+//                    // Run tracker
+//                    // Inside your process callback:
+////                    let tracked = updateTracks(with: poses, roi: nil)   // barROI can be nil if unknown
+////                    if let athlete = pickSwinger(from: tracked, roi: nil), shouldRender(athlete) {
+////                        DispatchQueue.main.async {
+////                            self?.poseKeypoints = [athlete.pose]
+////                        }
+////                    } else {
+////                        DispatchQueue.main.async {
+////                            self?.poseKeypoints = []   // don’t render stale predictions
+////                        }
+////                    }
+//                    
+//                    if !poses.isEmpty {
+//                        DispatchQueue.main.async {
+//                            self.poseKeypoints = poses
+//                            self.fpsModel = fps
+//                        }
+//                    } else {
+//                        DispatchQueue.main.async {
+//                            self.poseKeypoints = []
+//                            self.fpsModel = fps
+//                        }
+//                    }
+//                    
+//                    // 🎯 This saves pose data when recording
+//                    if self.isRecording {  // 👈 NOW THIS WORKS
+//                        let timestamp = CMTimeGetSeconds(pts)
+//                        let frameData = PoseFrameData(
+//                            frameIndex: self.frameCount,
+//                            timestamp: timestamp,
+//                            poses: poses,
+//                            pts: pts
+//                        )
+//                        
+//                        self.poseDataQueue.async { [weak self] in
+//                            guard let self = self else { return }
+//                            self.poseDataBuffer.append(frameData)
+//                            
+//                            // Auto-save every 100 frames
+//                            if self.poseDataBuffer.count >= self.poseBufferLimit,
+//                               let folder = self.recordingFolder {
+//                                self.savePoseDataBuffer(to: folder)
+//                            }
+//                        }
+//                    }
+//                }
+//            }
 
 
+        }
+    }
+    
+    // Optimized batch depth extraction (avoids repeated texture access)
+    private func extractBatchDepthOptimized(
+        for points: [CGPoint],
+        depthTexture: MTLTexture?,
+        imageSize: CGSize
+    ) -> [Float?] {
+        guard let depthTexture = depthTexture else {
+            return Array(repeating: nil, count: points.count)
+        }
+        
+        let depthWidth = depthTexture.width
+        let depthHeight = depthTexture.height
+        
+        return points.map { point in
+            let depthX = Int(point.x / imageSize.width * CGFloat(depthWidth))
+            let depthY = Int(point.y / imageSize.height * CGFloat(depthHeight))
+            
+            guard depthX >= 0, depthX < depthWidth, depthY >= 0, depthY < depthHeight else {
+                return nil
+            }
+            
+            var depthValue = Float16(0)
+            let region = MTLRegionMake2D(depthX, depthY, 1, 1)
+            depthTexture.getBytes(&depthValue, bytesPerRow: 0, from: region, mipmapLevel: 0)
+            
+            let depth = Float(depthValue)
+            // Filter invalid values
+            return (depth > 0.1 && depth < 20.0) ? depth : nil
         }
     }
 }
@@ -863,7 +1037,7 @@ extension CameraManagerVM {
                 // Find all pose_data_*.json files
                 let fileManager = FileManager.default
                 let files = try fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
-                let poseFiles = files.filter { $0.lastPathComponent.hasPrefix("pose_data_") && $0.pathExtension == "json" }
+                let poseFiles = files.filter { $0.lastPathComponent.hasPrefix("keypoint_") && $0.pathExtension == "json" }
                 
                 guard !poseFiles.isEmpty else { return }
                 
@@ -900,3 +1074,70 @@ extension CameraManagerVM {
         }
     }
 }
+//MARK :: for getting depth data for the point
+extension CameraManagerVM {
+    /// Batch extract depth for multiple keypoints (more efficient)
+    func getBatchDepth(for keypoints: [CGPoint], from frameData: FrameDataModel) -> [Float?] {
+        guard let depthTexture = frameData.depth else {
+            return Array(repeating: nil, count: keypoints.count)
+        }
+        
+        let depthWidth = depthTexture.width
+        let depthHeight = depthTexture.height
+        let imageSize = frameData.colorImage?.size ?? CGSize(width: depthWidth, height: depthHeight)
+        
+        return keypoints.map { point in
+            let depthX = Int(point.x / imageSize.width * CGFloat(depthWidth))
+            let depthY = Int(point.y / imageSize.height * CGFloat(depthHeight))
+            
+            guard depthX >= 0, depthX < depthWidth, depthY >= 0, depthY < depthHeight else {
+                return nil
+            }
+            
+            var depthValue = Float16(0)
+            let region = MTLRegionMake2D(depthX, depthY, 1, 1)
+            depthTexture.getBytes(&depthValue, bytesPerRow: 0, from: region, mipmapLevel: 0)
+            
+            let depth = Float(depthValue)
+            return (depth > 0.1 && depth < 20.0) ? depth : nil
+        }
+    }
+    
+    /// Get average depth around a point (more robust to noise)
+    func getAverageDepth(at imagePoint: CGPoint, radius: Int = 2, from frameData: FrameDataModel) -> Float? {
+        guard let depthTexture = frameData.depth else {
+            return nil
+        }
+        
+        let depthWidth = depthTexture.width
+        let depthHeight = depthTexture.height
+        let imageSize = frameData.colorImage?.size ?? CGSize(width: depthWidth, height: depthHeight)
+        
+        let centerX = Int(imagePoint.x / imageSize.width * CGFloat(depthWidth))
+        let centerY = Int(imagePoint.y / imageSize.height * CGFloat(depthHeight))
+        
+        var validDepths: [Float] = []
+        
+        for dy in -radius...radius {
+            for dx in -radius...radius {
+                let x = centerX + dx
+                let y = centerY + dy
+                
+                guard x >= 0, x < depthWidth, y >= 0, y < depthHeight else { continue }
+                
+                var depthValue = Float16(0)
+                let region = MTLRegionMake2D(x, y, 1, 1)
+                depthTexture.getBytes(&depthValue, bytesPerRow: 0, from: region, mipmapLevel: 0)
+                
+                let depth = Float(depthValue)
+                if depth > 0.1 && depth < 20.0 {
+                    validDepths.append(depth)
+                }
+            }
+        }
+        
+        guard !validDepths.isEmpty else { return nil }
+        return validDepths.reduce(0, +) / Float(validDepths.count)
+    }
+}
+

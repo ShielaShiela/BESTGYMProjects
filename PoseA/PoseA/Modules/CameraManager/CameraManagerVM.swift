@@ -91,7 +91,15 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     private let poseDataQueue = DispatchQueue(label: "com.yourapp.posedata", qos: .userInitiated)
     private let poseBufferLimit = 100 // Write to file every 100 frames
     
-    
+    //video writers
+    private var assetWriter: AVAssetWriter?
+    private var colorWriterInput: AVAssetWriterInput?
+    private var depthWriterInput: AVAssetWriterInput?
+    private var colorPixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
+    private var depthPixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
+    private let colorWriterQueue = DispatchQueue(label: "com.yourapp.colorwriter", qos: .userInteractive)
+    private let depthWriterQueue = DispatchQueue(label: "com.yourapp.depthwriter", qos: .userInteractive)
+
     
     // MARK: - Initialization
     init(configuration: CameraConfiguration = CameraConfiguration()) {
@@ -278,92 +286,588 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
 // MARK: - CaptureDataReceiver Protocol
 extension CameraManagerVM {
     // TODO: - onNewDepthData implementation for LiDAR Camera
-    func onNewDepthData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, pts: CMTime) {
-        self.systemFPS.tick()
-        DispatchQueue.main.async {
-            self.fpsStream = self.systemFPS.fps
-        }
-        
-//        guard let currentBuffer = pixelBuffer else { return }
-//            
-//        // Update camera data on main thread (lightweight)
+//    func onNewDepthData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, pts: CMTime) {
+//        self.systemFPS.tick()
 //        DispatchQueue.main.async {
-//            self.capturedData.database.cameraIntrinsics = capturedData.cameraIntrinsics
-//            self.capturedData.database.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
+//            self.fpsStream = self.systemFPS.fps
 //        }
 //        
-//        // BETA: - YOLO Pose Detection with Depth
-//        if isPoseProcessingEnabled {
-//            poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
-//                guard let self = self else { return }
-//                
-//                if !poses.isEmpty {
-//                    DispatchQueue.main.async {
-//                        self.poseKeypoints = poses
-//                        self.fpsModel = fps
-//                    }
-//                } else {
-//                    DispatchQueue.main.async {
-//                        self.poseKeypoints = []
-//                        self.fpsModel = fps
-//                    }
-//                }
-//                
-//                // Save pose data WITH DEPTH when recording
-//                if self.isRecording && !self.isPreparingRecording {
-//                    let timestamp = CMTimeGetSeconds(pts)
-//                    let intrinsics = capturedData.cameraIntrinsics
-//                    let currentFrameCount = self.frameCount
+//        
+//        DispatchQueue.main.async {
+//            self.frameCount += 1
+//        }
+//        
+//    }
+    
+    func onNewDepthData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, depthData: AVDepthData?, pts: CMTime) {
+        if let currentBuffer = pixelBuffer {
+            // Update FPS
+            self.systemFPS.tick()
+            DispatchQueue.main.async {
+                self.fpsStream = self.systemFPS.fps
+            }
+            
+            // Write frames to videos if recording
+            if isRecording && !isPreparingRecording {
+                // Increment frame count FIRST and capture it synchronously
+                let currentFrameCount = self.frameCount + 1
+                
+                DispatchQueue.main.async {
+                    // Update camera data
+                    self.capturedData.database.cameraIntrinsics = capturedData.cameraIntrinsics
+                    self.capturedData.database.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
+                    
+                    // Update frame count
+                    self.frameCount = currentFrameCount
+                }
+                
+                // Track first PTS and start sessions
+                // Track first PTS and start sessions
+                let isFirstFrame = (self.firstPTS == nil)
+                if isFirstFrame {
+                    self.firstPTS = pts
+                    
+                    if let colorWriter = self.assetWriter {
+                        colorWriter.startSession(atSourceTime: pts)  // ✅ Start at actual PTS
+                        log("🎬 Started color writer session at \(CMTimeGetSeconds(pts))s", level: .info)
+                    }
+                    if let depthWriter = self.videoWriter {
+                        depthWriter.startSession(atSourceTime: pts)  // ✅ Start at actual PTS
+                        log("🎬 Started depth writer session at \(CMTimeGetSeconds(pts))s", level: .info)
+                    }
+                }
+
+                // ✅ Use absolute presentation time (no subtraction)
+                let presentationTime = pts
+
+                // Write RGB frame
+                // Write RGB frame
+                if let colorInput = self.colorWriterInput,
+                   let colorAdaptor = self.colorPixelBufferAdaptor {
+                    
+                    // Capture the buffer and time outside the async block
+                    let bufferToWrite = currentBuffer
+                    let timeToWrite = presentationTime
+                    let frameNum = currentFrameCount
+                    
+                    colorWriterQueue.async { [weak self] in
+                        guard let self = self else { return }
+                        
+                        // Wait for input to be ready (with timeout)
+                        var waitCount = 0
+                        while !colorInput.isReadyForMoreMediaData && waitCount < 100 {
+                            usleep(1000) // Wait 1ms
+                            waitCount += 1
+                        }
+                        
+                        guard colorInput.isReadyForMoreMediaData else {
+                            log("⚠️ Color input timeout for frame \(frameNum)", level: .warn)
+                            return
+                        }
+                        
+                        if colorAdaptor.append(bufferToWrite, withPresentationTime: timeToWrite) {
+                            if frameNum % 30 == 0 || frameNum == 1 {
+                                log("✅ RGB frame \(frameNum) written at \(CMTimeGetSeconds(timeToWrite))s", level: .info)
+                            }
+                        } else {
+                            log("❌ Failed to append RGB frame \(frameNum)", level: .error)
+                        }
+                    }
+                }
+
+                // Write Depth frame
+                if let depthInput = self.depthWriterInput,
+                   let depthAdaptor = self.depthPixelBufferAdaptor,
+                   let depth = depthData {
+                    
+                    let depthMapToConvert = depth.depthDataMap
+                    let timeToWrite = presentationTime
+                    let frameNum = currentFrameCount
+                    
+                    depthWriterQueue.async { [weak self] in
+                        guard let self = self else { return }
+                        
+                        // Convert depth map
+                        guard let depthPixelBuffer = self.convertDepthToGrayscalePixelBuffer(depthMapToConvert) else {
+                            log("Failed to convert depth map for frame \(frameNum)", level: .error)
+                            return
+                        }
+                        
+                        // Wait for input to be ready
+                        var waitCount = 0
+                        while !depthInput.isReadyForMoreMediaData && waitCount < 100 {
+                            usleep(1000) // Wait 1ms
+                            waitCount += 1
+                        }
+                        
+                        guard depthInput.isReadyForMoreMediaData else {
+                            log("⚠️ Depth input timeout for frame \(frameNum)", level: .warn)
+                            return
+                        }
+                        
+                        if depthAdaptor.append(depthPixelBuffer, withPresentationTime: timeToWrite) {
+                            if frameNum % 30 == 0 || frameNum == 1 {
+                                log("✅ Depth frame \(frameNum) written at \(CMTimeGetSeconds(timeToWrite))s", level: .info)
+                            }
+                        } else {
+                            log("❌ Failed to append depth frame \(frameNum)", level: .error)
+                        }
+                    }
+                }
+
+
+                // ✅ Save raw depth map for this frame
+                if let depth = depthData, let folder = self.recordingFolder {
+                    DispatchQueue.global(qos: .utility).async { [weak self] in
+                        self?.saveRawDepthMap(depth, frameIndex: currentFrameCount, to: folder)
+                    }
+                }
+
+                
+
+                
+                // BETA: - YOLO Pose Detection with Depth
+                if isPoseProcessingEnabled {
+                    poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
+                        guard let self = self else { return }
+                        
+                        if !poses.isEmpty {
+                            DispatchQueue.main.async {
+                                self.poseKeypoints = poses
+                                self.fpsModel = fps
+                            }
+                        } else {
+                            DispatchQueue.main.async {
+                                self.poseKeypoints = []
+                                self.fpsModel = fps
+                            }
+                        }
+                        
+                        // Save pose data WITH depth when recording
+                        if self.isRecording && !self.isPreparingRecording {
+                            let timestamp = CMTimeGetSeconds(pts)
+                            let intrinsics = capturedData.cameraIntrinsics
+                            
+                            // Extract depth map
+                            var depthMap: CVPixelBuffer?
+                            if let depth = depthData {
+                                depthMap = depth.depthDataMap
+                            }
+                            
+                            // Process poses with depth
+                            let posesWithDepth: [PoseBox] = poses.map { pose in
+                                let keypointsWithDepth = pose.keypoints.map { keypoint in
+                                    var depthValue: Float = 0.0
+                                    
+                                    if let depthBuffer = depthMap {
+                                        depthValue = self.getDepthValue(
+                                            at: CGPoint(x: CGFloat(keypoint.x), y: CGFloat(keypoint.y)),
+                                            from: depthBuffer,
+                                            referenceDimensions: capturedData.cameraReferenceDimensions
+                                        )
+                                    }
+                                    
+                                    return KeypointData(
+                                        name: keypoint.name,
+                                        x: keypoint.x,
+                                        y: keypoint.y,
+                                        confidence: keypoint.confidence,
+                                        depth: depthValue,
+                                        frameIndex: currentFrameCount  // Use captured frame count
+                                    )
+                                }
+                                
+                                return PoseBox(
+                                    bbox: pose.bbox,
+                                    confidence: pose.confidence,
+                                    keypoints: keypointsWithDepth,
+                                    hasDepthData: true  // Set to true for LiDAR
+                                )
+                            }
+                            
+                            let frameData = PoseFrameData(
+                                frameIndex: currentFrameCount,  // Use captured frame count
+                                timestamp: timestamp,
+                                poses: posesWithDepth,
+                                pts: pts,
+                                hasDepthData: true,  // Set to true for LiDAR
+                                cameraIntrinsics: intrinsics
+                            )
+                            
+                            self.poseDataQueue.async { [weak self] in
+                                guard let self = self else { return }
+                                self.poseDataBuffer.append(frameData)
+                                
+                                if self.poseDataBuffer.count % 30 == 0 {
+                                    log("LiDAR pose buffer: \(self.poseDataBuffer.count) frames", level: .info)
+                                }
+                                
+                                if self.poseDataBuffer.count >= self.poseBufferLimit,
+                                   let folder = self.recordingFolder {
+                                    self.savePoseDataBuffer(to: folder)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // If pose processing is disabled but still recording
+                    // Save frame info without pose data
+                    if self.isRecording && !self.isPreparingRecording {
+                        let timestamp = CMTimeGetSeconds(pts)
+                        let intrinsics = capturedData.cameraIntrinsics
+                        
+                        let frameData = PoseFrameData(
+                            frameIndex: currentFrameCount,  // Use captured frame count
+                            timestamp: timestamp,
+                            poses: [],
+                            pts: pts,
+                            hasDepthData: true,  // Set to true for LiDAR
+                            cameraIntrinsics: intrinsics
+                        )
+                        
+                        self.poseDataQueue.async { [weak self] in
+                            guard let self = self else { return }
+                            self.poseDataBuffer.append(frameData)
+                            
+                            if self.poseDataBuffer.count >= self.poseBufferLimit,
+                               let folder = self.recordingFolder {
+                                self.savePoseDataBuffer(to: folder)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+//    private func convertDepthToGrayscalePixelBuffer(_ depthMap: CVPixelBuffer) -> CVPixelBuffer? {
+//        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+//        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+//        
+//        let width = CVPixelBufferGetWidth(depthMap)
+//        let height = CVPixelBufferGetHeight(depthMap)
+//        let pixelFormat = CVPixelBufferGetPixelFormatType(depthMap)
+//        
+//        // Create output pixel buffer (BGRA for video compatibility)
+//        var outputPixelBuffer: CVPixelBuffer?
+//        let options: [String: Any] = [
+//            kCVPixelBufferCGImageCompatibilityKey as String: true,
+//            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+//        ]
+//        
+//        let status = CVPixelBufferCreate(
+//            kCFAllocatorDefault,
+//            width,
+//            height,
+//            kCVPixelFormatType_32BGRA,
+//            options as CFDictionary,
+//            &outputPixelBuffer
+//        )
+//        
+//        guard status == kCVReturnSuccess, let output = outputPixelBuffer else {
+//            log("Failed to create output pixel buffer", level: .error)
+//            return nil
+//        }
+//        
+//        CVPixelBufferLockBaseAddress(output, [])
+//        defer { CVPixelBufferUnlockBaseAddress(output, []) }
+//        
+//        let outputBaseAddress = CVPixelBufferGetBaseAddress(output)
+//        let outputBytesPerRow = CVPixelBufferGetBytesPerRow(output)
+//        
+//        // ✅ Use fixed depth range (more reliable than calculating min/max)
+//        let minDepthRange: Float = 0.0
+//        let maxDepthRange: Float = 5.0  // Adjust based on your scene depth
+//        
+//        let baseAddress = CVPixelBufferGetBaseAddress(depthMap)!
+//        let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
+//        
+//        if pixelFormat == kCVPixelFormatType_DepthFloat32 {
+//            let floatBuffer = baseAddress.assumingMemoryBound(to: Float32.self)
+//            let outputPtr = outputBaseAddress!.assumingMemoryBound(to: UInt8.self)
+//            
+//            for y in 0..<height {
+//                for x in 0..<width {
+//                    let depthIndex = y * (bytesPerRow / MemoryLayout<Float32>.stride) + x
+//                    let depth = floatBuffer[depthIndex]
 //                    
-//                    let posesWithDepth: [PoseBox] = poses.map { pose in
-//                        let keypointPoints = pose.keypoints.map { CGPoint(x: $0.x, y: $0.y) }
-//                        
-//                        // Get batch average depth
-//                        let depths = self.getBatchDepth(for: keypointPoints, from: capturedData)
-//                        
-//                        // Map keypoints with depth (use 0.0 if depth is nil)
-//                        let keypointsWithDepth = zip(pose.keypoints, depths).map { keypoint, depth in
-//                            KeypointData(
-//                                name: keypoint.name,
-//                                x: keypoint.x,
-//                                y: keypoint.y,
-//                                confidence: keypoint.confidence,
-//                                depth: depth ?? 0.0,  // Use 0.0 as sentinel for invalid/missing depth
-//                                frameIndex: currentFrameCount
-//                            )
-//                        }
-//                        
-//                        return PoseBox(
-//                            bbox: pose.bbox,
-//                            confidence: pose.confidence,
-//                            keypoints: keypointsWithDepth,
-//                            hasDepthData: true
-//                        )
+//                    // Normalize depth to 0-255 range
+//                    let normalized: UInt8
+//                    if depth > 0 && depth.isFinite {
+//                        // Clamp to range
+//                        let clamped = min(max(depth, minDepthRange), maxDepthRange)
+//                        // Invert so closer = brighter (optional, comment out if you want far = bright)
+//                        let inverted = maxDepthRange - clamped
+//                        let normalizedFloat = inverted / (maxDepthRange - minDepthRange)
+//                        normalized = UInt8(normalizedFloat * 255.0)
+//                    } else {
+//                        normalized = 0  // Invalid depth = black
 //                    }
 //                    
-//                    let frameData = PoseFrameData(
-//                        frameIndex: currentFrameCount,
-//                        timestamp: timestamp,
-//                        poses: posesWithDepth,
-//                        pts: pts,
-//                        hasDepthData: true,
-//                        cameraIntrinsics: intrinsics
-//                    )
-//                    
-//                    self.poseDataQueue.async { [weak self] in
-//                        guard let self = self else { return }
-//                        self.poseDataBuffer.append(frameData)
-//                        
-//                        if self.poseDataBuffer.count >= self.poseBufferLimit,
-//                           let folder = self.recordingFolder {
-//                            self.savePoseDataBuffer(to: folder)
-//                        }
-//                    }
+//                    // Write to BGRA output (B, G, R, A)
+//                    let outputIndex = y * outputBytesPerRow + x * 4
+//                    outputPtr[outputIndex] = normalized     // B
+//                    outputPtr[outputIndex + 1] = normalized // G
+//                    outputPtr[outputIndex + 2] = normalized // R
+//                    outputPtr[outputIndex + 3] = 255        // A (full opacity)
 //                }
 //            }
+//            
+//        } else if pixelFormat == kCVPixelFormatType_DepthFloat16 {
+//            let float16Buffer = baseAddress.assumingMemoryBound(to: UInt16.self)
+//            let outputPtr = outputBaseAddress!.assumingMemoryBound(to: UInt8.self)
+//            
+//            for y in 0..<height {
+//                for x in 0..<width {
+//                    let depthIndex = y * (bytesPerRow / MemoryLayout<UInt16>.stride) + x
+//                    let depthRaw = float16Buffer[depthIndex]
+//                    
+//                    // ✅ Proper Float16 to Float32 conversion
+//                    // Use the bits directly with proper conversion
+//                    let depth = Float(Float16(bitPattern: depthRaw))
+//                    
+//                    let normalized: UInt8
+//                    if depth > 0 && depth.isFinite {
+//                        let clamped = min(max(depth, minDepthRange), maxDepthRange)
+//                        // Invert so closer = brighter
+//                        let inverted = maxDepthRange - clamped
+//                        let normalizedFloat = inverted / (maxDepthRange - minDepthRange)
+//                        normalized = UInt8(normalizedFloat * 255.0)
+//                    } else {
+//                        normalized = 0
+//                    }
+//                    
+//                    let outputIndex = y * outputBytesPerRow + x * 4
+//                    outputPtr[outputIndex] = normalized
+//                    outputPtr[outputIndex + 1] = normalized
+//                    outputPtr[outputIndex + 2] = normalized
+//                    outputPtr[outputIndex + 3] = 255
+//                }
+//            }
+//        } else {
+//            log("Unsupported depth pixel format: \(pixelFormat)", level: .error)
+//            return nil
 //        }
+//        
+//        return output
+//    }
+    private func convertDepthToGrayscalePixelBuffer(_ depthMap: CVPixelBuffer) -> CVPixelBuffer? {
+        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
         
+        let width = CVPixelBufferGetWidth(depthMap)
+        let height = CVPixelBufferGetHeight(depthMap)
+        let pixelFormat = CVPixelBufferGetPixelFormatType(depthMap)
+        
+        // Create output pixel buffer (BGRA for video compatibility)
+        var outputPixelBuffer: CVPixelBuffer?
+        let options: [String: Any] = [
+            kCVPixelBufferCGImageCompatibilityKey as String: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+        ]
+        
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width,
+            height,
+            kCVPixelFormatType_32BGRA,
+            options as CFDictionary,
+            &outputPixelBuffer
+        )
+        
+        guard status == kCVReturnSuccess, let output = outputPixelBuffer else {
+            log("Failed to create output pixel buffer", level: .error)
+            return nil
+        }
+        
+        CVPixelBufferLockBaseAddress(output, [])
+        defer { CVPixelBufferUnlockBaseAddress(output, []) }
+        
+        let outputBaseAddress = CVPixelBufferGetBaseAddress(output)
+        let outputBytesPerRow = CVPixelBufferGetBytesPerRow(output)
+        
+        let baseAddress = CVPixelBufferGetBaseAddress(depthMap)!
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
+        
+        // ✅ STEP 1: Calculate actual min/max from the depth data
+        var minDepth: Float = Float.greatestFiniteMagnitude
+        var maxDepth: Float = 0.0
+        var validPixelCount = 0
+        
+        if pixelFormat == kCVPixelFormatType_DepthFloat32 {
+            let floatBuffer = baseAddress.assumingMemoryBound(to: Float32.self)
+            
+            // First pass: find min/max
+            for y in 0..<height {
+                for x in 0..<width {
+                    let index = y * (bytesPerRow / MemoryLayout<Float32>.stride) + x
+                    let depth = floatBuffer[index]
+                    
+                    // Only consider valid depth values (0.1m to 10m range is typical for LiDAR)
+                    if depth > 0.1 && depth < 10.0 && depth.isFinite {
+                        minDepth = min(minDepth, depth)
+                        maxDepth = max(maxDepth, depth)
+                        validPixelCount += 1
+                    }
+                }
+            }
+            
+            // Fallback if no valid depth found
+            if validPixelCount == 0 || minDepth >= maxDepth {
+                log("⚠️ No valid depth data found, using default range", level: .warn)
+                minDepth = 0.0
+                maxDepth = 5.0
+            } else {
+                // Add small margin to prevent edge cases
+                let margin = (maxDepth - minDepth) * 0.05
+                minDepth = max(0.1, minDepth - margin)
+                maxDepth = min(10.0, maxDepth + margin)
+            }
+            
+            log("📊 Depth range: \(String(format: "%.2f", minDepth))m - \(String(format: "%.2f", maxDepth))m (\(validPixelCount) valid pixels)", level: .debug)
+            
+            // Second pass: normalize to grayscale
+            let outputPtr = outputBaseAddress!.assumingMemoryBound(to: UInt8.self)
+            let depthRange = maxDepth - minDepth
+            
+            for y in 0..<height {
+                for x in 0..<width {
+                    let depthIndex = y * (bytesPerRow / MemoryLayout<Float32>.stride) + x
+                    let depth = floatBuffer[depthIndex]
+                    
+                    let normalized: UInt8
+                    if depth > 0.1 && depth.isFinite {
+                        // Clamp to calculated range
+                        let clamped = min(max(depth, minDepth), maxDepth)
+                        // Invert so closer = brighter
+                        let inverted = maxDepth - clamped
+                        let normalizedFloat = inverted / depthRange
+                        normalized = UInt8(normalizedFloat * 255.0)
+                    } else {
+                        normalized = 0  // Invalid = black
+                    }
+                    
+                    // Write to BGRA
+                    let outputIndex = y * outputBytesPerRow + x * 4
+                    outputPtr[outputIndex] = normalized
+                    outputPtr[outputIndex + 1] = normalized
+                    outputPtr[outputIndex + 2] = normalized
+                    outputPtr[outputIndex + 3] = 255
+                }
+            }
+            
+        } else if pixelFormat == kCVPixelFormatType_DepthFloat16 {
+            let float16Buffer = baseAddress.assumingMemoryBound(to: UInt16.self)
+            
+            // First pass: find min/max
+            for y in 0..<height {
+                for x in 0..<width {
+                    let index = y * (bytesPerRow / MemoryLayout<UInt16>.stride) + x
+                    let depthRaw = float16Buffer[index]
+                    let depth = Float(Float16(bitPattern: depthRaw))
+                    
+                    if depth > 0.1 && depth < 10.0 && depth.isFinite {
+                        minDepth = min(minDepth, depth)
+                        maxDepth = max(maxDepth, depth)
+                        validPixelCount += 1
+                    }
+                }
+            }
+            
+            // Fallback
+            if validPixelCount == 0 || minDepth >= maxDepth {
+                log("⚠️ No valid depth data found, using default range", level: .warn)
+                minDepth = 0.0
+                maxDepth = 5.0
+            } else {
+                let margin = (maxDepth - minDepth) * 0.05
+                minDepth = max(0.1, minDepth - margin)
+                maxDepth = min(10.0, maxDepth + margin)
+            }
+            
+            log("📊 Depth range: \(String(format: "%.2f", minDepth))m - \(String(format: "%.2f", maxDepth))m", level: .debug)
+            
+            // Second pass: normalize
+            let outputPtr = outputBaseAddress!.assumingMemoryBound(to: UInt8.self)
+            let depthRange = maxDepth - minDepth
+            
+            for y in 0..<height {
+                for x in 0..<width {
+                    let depthIndex = y * (bytesPerRow / MemoryLayout<UInt16>.stride) + x
+                    let depthRaw = float16Buffer[depthIndex]
+                    let depth = Float(Float16(bitPattern: depthRaw))
+                    
+                    let normalized: UInt8
+                    if depth > 0.1 && depth.isFinite {
+                        let clamped = min(max(depth, minDepth), maxDepth)
+                        let inverted = maxDepth - clamped
+                        let normalizedFloat = inverted / depthRange
+                        normalized = UInt8(normalizedFloat * 255.0)
+                    } else {
+                        normalized = 0
+                    }
+                    
+                    let outputIndex = y * outputBytesPerRow + x * 4
+                    outputPtr[outputIndex] = normalized
+                    outputPtr[outputIndex + 1] = normalized
+                    outputPtr[outputIndex + 2] = normalized
+                    outputPtr[outputIndex + 3] = 255
+                }
+            }
+            
+        } else {
+            log("Unsupported depth pixel format: \(pixelFormat)", level: .error)
+            return nil
+        }
+        
+        return output
     }
+
+
+
+
+    // Helper function to extract depth value at a specific pixel location
+    private func getDepthValue(at point: CGPoint, from depthMap: CVPixelBuffer, referenceDimensions: CGSize) -> Float {
+        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+        
+        let width = CVPixelBufferGetWidth(depthMap)
+        let height = CVPixelBufferGetHeight(depthMap)
+        
+        // Scale point from reference dimensions to depth map dimensions
+        let scaleX = CGFloat(width) / referenceDimensions.width
+        let scaleY = CGFloat(height) / referenceDimensions.height
+        
+        let scaledX = Int(point.x * scaleX)
+        let scaledY = Int(point.y * scaleY)
+        
+        // Bounds check
+        guard scaledX >= 0, scaledX < width, scaledY >= 0, scaledY < height else {
+            return 0.0
+        }
+        
+        let pixelFormat = CVPixelBufferGetPixelFormatType(depthMap)
+        
+        if pixelFormat == kCVPixelFormatType_DepthFloat32 {
+            let baseAddress = CVPixelBufferGetBaseAddress(depthMap)
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
+            let floatBuffer = baseAddress!.assumingMemoryBound(to: Float32.self)
+            let index = scaledY * (bytesPerRow / MemoryLayout<Float32>.stride) + scaledX
+            return floatBuffer[index]
+        } else if pixelFormat == kCVPixelFormatType_DepthFloat16 {
+            let baseAddress = CVPixelBufferGetBaseAddress(depthMap)
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
+            let float16Buffer = baseAddress!.assumingMemoryBound(to: UInt16.self)
+            let index = scaledY * (bytesPerRow / MemoryLayout<UInt16>.stride) + scaledX
+            // Convert Float16 to Float32
+            return Float(float16Buffer[index])
+        }
+        
+        return 0.0
+    }
+
+
     
     
     
@@ -452,7 +956,37 @@ extension CameraManagerVM {
                         }
                     }
                 }
+            // In onNewBasicData, after the isPoseProcessingEnabled block
+            } else {
+                // If pose processing is disabled but still recording
+                // Save frame info without pose data
+                if self.isRecording && !self.isPreparingRecording {
+                    let timestamp = CMTimeGetSeconds(pts)
+                    let intrinsics = capturedData.cameraIntrinsics
+                    let currentFrameCount = self.frameCount
+                    
+                    let frameData = PoseFrameData(
+                        frameIndex: currentFrameCount,
+                        timestamp: timestamp,
+                        poses: [],
+                        pts: pts,
+                        hasDepthData: false,
+                        cameraIntrinsics: intrinsics
+                    )
+                    
+                    self.poseDataQueue.async { [weak self] in
+                        guard let self = self else { return }
+                        self.poseDataBuffer.append(frameData)
+                        
+                        if self.poseDataBuffer.count >= self.poseBufferLimit,
+                           let folder = self.recordingFolder {
+                            self.savePoseDataBuffer(to: folder)
+                        }
+                    }
+                }
             }
+
+            
 //            // BETA: - YOLO Pose Detection
 //            if isPoseProcessingEnabled {
 //                poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
@@ -636,6 +1170,7 @@ extension CameraManagerVM {
         log("Starting standard recording with orientation: \(getOrientationName(OrientationCache.shared.orientation))", level: .info)
         log("Current camera configuration: \(cameraConfiguration.resolution.description) (\(cameraConfiguration.resolution.width)x\(cameraConfiguration.resolution.height)) at \(cameraConfiguration.frameRate.description) FPS", level: .info)
         log("Target frame rate: \(cameraConfiguration.frameRate.rawValue) FPS", level: .info)
+        log("LiDAR enabled: \(isLiDAREnabled)", level: .info)
         
         // Set preparing flag
         isPreparingRecording = true
@@ -663,8 +1198,16 @@ extension CameraManagerVM {
             
             let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             let dateFolderPath = documentsPath.appendingPathComponent(dateString)
-            let personFolderPath = dateFolderPath.appendingPathComponent(athleteName)
-            let recordingFolder = personFolderPath.appendingPathComponent("Recording_\(actionType)_\(timeString)")
+            let personFolderPath = dateFolderPath.appendingPathComponent(self.athleteName)
+            
+            // Different folder naming for LiDAR vs standard recording
+            let folderName: String
+            if self.isLiDAREnabled {
+                folderName = "LiDAR_Recording_\(self.actionType)_\(timeString)"
+            } else {
+                folderName = "Recording_\(self.actionType)_\(timeString)"
+            }
+            let recordingFolder = personFolderPath.appendingPathComponent(folderName)
             
             do {
                 // Create directories
@@ -675,6 +1218,7 @@ extension CameraManagerVM {
                 let orientationInfo = """
                 Orientation: \(OrientationCache.shared.orientation)
                 Interface Idiom: \(UIDevice.current.userInterfaceIdiom.rawValue)
+                LiDAR Enabled: \(self.isLiDAREnabled)
                 """
                 try orientationInfo.write(to: orientationPath, atomically: true, encoding: .utf8)
             
@@ -683,119 +1227,130 @@ extension CameraManagerVM {
                     self.recordingFolder = recordingFolder
                     self.recordingStartTime = Date()
                     self.frameCount = 0
+                    self.firstPTS = nil  // Reset firstPTS for new recording
                     self.recordingOrientation = OrientationCache.shared.orientation
                     
-                    log("recording started to folder: \(recordingFolder.lastPathComponent)", level: .info)
+                    log("Recording started to folder: \(recordingFolder.lastPathComponent)", level: .info)
                     
                     // Setup video writer and only start recording when ready
                     if !self.isLiDAREnabled {
+                        // Standard recording
                         self.setupVideoWriterInBackground(at: recordingFolder) { success in
                             DispatchQueue.main.async {
                                 self.isPreparingRecording = false
                                 if success {
                                     self.isRecording = true
                                     self.startWriterLoop()
-                                    log("Recording started successfully", level: .info)
+                                    log("Standard recording started successfully", level: .info)
                                 } else {
                                     log("Failed to setup video writer, recording not started", level: .error)
                                 }
                             }
                         }
                     } else {
-                        DispatchQueue.main.async {
-                            self.isPreparingRecording = false
-                            self.isRecording = true
+                        // LiDAR recording - setup writers first, then start
+                        self.setupLiDARVideoWriters(at: recordingFolder) { success in
+                            DispatchQueue.main.async {
+                                self.isPreparingRecording = false
+                                if success {
+                                    self.isRecording = true
+                                    log("LiDAR recording started successfully (dual video mode)", level: .info)
+                                } else {
+                                    log("Failed to setup LiDAR video writers", level: .error)
+                                }
+                            }
                         }
-                        log("Recording started successfully", level: .info)
                     }
                 }
             } catch {
                 log("Error creating recording folder: \(error.localizedDescription)", level: .error)
                 DispatchQueue.main.async {
                     self.isRecording = false
+                    self.isPreparingRecording = false
                 }
             }
         }
     }
+
     
     // Stop recording with proper cleanup
-    func stopRecording(completion: @escaping (URL?) -> Void) {
-        DispatchQueue.main.async {
-            guard self.isRecording, let folder = self.recordingFolder else {
-                completion(nil)
-                return
-            }
-            
-            // First mark as not recording to prevent new frames
-            self.isRecording = false
-            self.frameSemaphore.signal()
-
-            // Capture all required information before moving to background thread
-            let isLiDAR = self.isLiDAREnabled
-            let frameCount = self.frameCount
-            let recordingOrientation = self.recordingOrientation
-            
-            // Process completion on background thread
-            DispatchQueue.global(qos: .userInitiated).async {
-                log("Stopping recording...", level: .info)
-                
-                // In your recording stop function, add this AFTER saving the buffer:
-                self.savePoseDataBuffer(to: folder)
-
-                // Wait for pose data queue to finish
-                self.poseDataQueue.sync {
-                    log("All pose data saved", level: .info)
-                }
-
-                // NEW: Consolidate all pose data into single keypoint.json
-                self.consolidatePoseData(in: folder)
-                
-                // Call our improved metadata saver
-                self.saveRecordingMetadata(
-                    to: folder,
-                    orientation: recordingOrientation,
-                    frameCount: frameCount,
-                    isLiDAR: self.isLiDAREnabled
-                )
-                
-                self.videoWriterQueue.async { [weak self] in
-                    guard let self = self else { return }
-                    
-                    // Wait until frameWriterQueue is finished
-                    self.frameWriterQueue.sync {
-                        // all frames processed
-                    }
-                    
-                    // For standard recordings, finalize the video
-                    if !isLiDAR {
-                        if let writer = self.videoWriter, let writerInput = self.videoWriterInput {
-                            writerInput.markAsFinished()
-                            writer.finishWriting {
-                                log("Video writing completed", level: .info)
-                                
-                                DispatchQueue.main.async {
-                                    self.videoWriter = nil
-                                    self.videoWriterInput = nil
-                                    self.pixelBufferAdaptor = nil
-                                    self.recordingFolder = nil
-                                    self.frameCount = 0
-                                    self.firstPTS = nil
-                                    self.recordingStartTime = nil
-                                    completion(folder)
-                                }
-                            }
-                        } else {
-                            log("No video writer available for finalization", level: .error)
-                            DispatchQueue.main.async {
-                                self.recordingFolder = nil
-                                completion(folder)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+//    func stopRecording(completion: @escaping (URL?) -> Void) {
+//        DispatchQueue.main.async {
+//            guard self.isRecording, let folder = self.recordingFolder else {
+//                completion(nil)
+//                return
+//            }
+//            
+//            // First mark as not recording to prevent new frames
+//            self.isRecording = false
+//            self.frameSemaphore.signal()
+//
+//            // Capture all required information before moving to background thread
+//            let isLiDAR = self.isLiDAREnabled
+//            let frameCount = self.frameCount
+//            let recordingOrientation = self.recordingOrientation
+//            
+//            // Process completion on background thread
+//            DispatchQueue.global(qos: .userInitiated).async {
+//                log("Stopping recording...", level: .info)
+//                
+//                // In your recording stop function, add this AFTER saving the buffer:
+//                self.savePoseDataBuffer(to: folder)
+//
+//                // Wait for pose data queue to finish
+//                self.poseDataQueue.sync {
+//                    log("All pose data saved", level: .info)
+//                }
+//
+//                // NEW: Consolidate all pose data into single keypoint.json
+//                self.consolidatePoseData(in: folder)
+//                
+//                // Call our improved metadata saver
+//                self.saveRecordingMetadata(
+//                    to: folder,
+//                    orientation: recordingOrientation,
+//                    frameCount: frameCount,
+//                    isLiDAR: self.isLiDAREnabled
+//                )
+//                
+//                self.videoWriterQueue.async { [weak self] in
+//                    guard let self = self else { return }
+//                    
+//                    // Wait until frameWriterQueue is finished
+//                    self.frameWriterQueue.sync {
+//                        // all frames processed
+//                    }
+//                    
+//                    // For standard recordings, finalize the video
+//                    if !isLiDAR {
+//                        if let writer = self.videoWriter, let writerInput = self.videoWriterInput {
+//                            writerInput.markAsFinished()
+//                            writer.finishWriting {
+//                                log("Video writing completed", level: .info)
+//                                
+//                                DispatchQueue.main.async {
+//                                    self.videoWriter = nil
+//                                    self.videoWriterInput = nil
+//                                    self.pixelBufferAdaptor = nil
+//                                    self.recordingFolder = nil
+//                                    self.frameCount = 0
+//                                    self.firstPTS = nil
+//                                    self.recordingStartTime = nil
+//                                    completion(folder)
+//                                }
+//                            }
+//                        } else {
+//                            log("No video writer available for finalization", level: .error)
+//                            DispatchQueue.main.async {
+//                                self.recordingFolder = nil
+//                                completion(folder)
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
     
     private func startWriterLoop() {
         frameWriterQueue.async { [weak self] in
@@ -1029,50 +1584,62 @@ extension CameraManagerVM {
     }
     
     // NEW: Final consolidation after recording stops
-    func consolidatePoseData(in folder: URL) {
-        poseDataQueue.async { [weak self] in
-            guard let self = self else { return }
+    private func consolidatePoseData(in folder: URL) {
+        log("Consolidating pose data files...", level: .info)
+        
+        let fileManager = FileManager.default
+        
+        do {
+            // Find all pose_data_*.json files
+            let files = try fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+            let poseFiles = files.filter { $0.lastPathComponent.hasPrefix("pose_data_") && $0.pathExtension == "json" }
             
-            do {
-                // Find all pose_data_*.json files
-                let fileManager = FileManager.default
-                let files = try fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
-                let poseFiles = files.filter { $0.lastPathComponent.hasPrefix("keypoint_") && $0.pathExtension == "json" }
-                
-                guard !poseFiles.isEmpty else { return }
-                
-                // Load and merge all pose data
-                var allFrames: [PoseFrameData] = []
-                let decoder = JSONDecoder()
-                
-                for file in poseFiles.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-                    let data = try Data(contentsOf: file)
-                    let frames = try decoder.decode([PoseFrameData].self, from: data)
-                    allFrames.append(contentsOf: frames)
-                }
-                
-                // Sort by frame index
-                allFrames.sort { $0.frameIndex < $1.frameIndex }
-                
-                // Save consolidated file
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                let consolidatedData = try encoder.encode(allFrames)
-                let consolidatedURL = folder.appendingPathComponent("keypoint.json")
-                try consolidatedData.write(to: consolidatedURL)
-                
-                log("Consolidated \(allFrames.count) frames from \(poseFiles.count) files", level: .info)
-                
-                // Optionally delete intermediate files
-                for file in poseFiles {
-                    try? fileManager.removeItem(at: file)
-                }
-                
-            } catch {
-                log("Error consolidating pose data: \(error.localizedDescription)", level: .error)
+            guard !poseFiles.isEmpty else {
+                log("No pose data files to consolidate", level: .info)
+                return
             }
+            
+            log("Found \(poseFiles.count) pose data files to consolidate", level: .info)
+            
+            // Collect all frame data from all files
+            var allFrames: [PoseFrameData] = []
+            
+            for file in poseFiles {
+                do {
+                    let data = try Data(contentsOf: file)
+                    let frames = try JSONDecoder().decode([PoseFrameData].self, from: data)
+                    allFrames.append(contentsOf: frames)
+                } catch {
+                    log("Error reading pose file \(file.lastPathComponent): \(error)", level: .error)
+                }
+            }
+            
+            // Sort by frame index to ensure proper order
+            allFrames.sort { $0.frameIndex < $1.frameIndex }
+            
+            log("Consolidated \(allFrames.count) total frames", level: .info)
+            
+            // Save consolidated data as keypoint.json
+            let consolidatedURL = folder.appendingPathComponent("keypoint.json")
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            
+            let consolidatedData = try encoder.encode(allFrames)
+            try consolidatedData.write(to: consolidatedURL)
+            
+            log("Saved consolidated keypoint.json", level: .info)
+            
+            // ✅ DELETE the individual pose_data_*.json files after consolidation
+            for file in poseFiles {
+                try? fileManager.removeItem(at: file)
+                log("Deleted temporary file: \(file.lastPathComponent)", level: .debug)
+            }
+            
+        } catch {
+            log("Error consolidating pose data: \(error)", level: .error)
         }
     }
+
 }
 //MARK :: for getting depth data for the point
 extension CameraManagerVM {
@@ -1139,5 +1706,446 @@ extension CameraManagerVM {
         guard !validDepths.isEmpty else { return nil }
         return validDepths.reduce(0, +) / Float(validDepths.count)
     }
+}
+
+
+extension CameraManagerVM {
+    private func setupLiDARVideoWriters(at folder: URL, completion: @escaping (Bool) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else {
+                completion(false)
+                return
+            }
+            
+            let colorURL = folder.appendingPathComponent("color_video.mp4")
+            let depthURL = folder.appendingPathComponent("depth_video.mp4")
+            
+            do {
+                // Create RGB video writer
+                let colorWriter = try AVAssetWriter(outputURL: colorURL, fileType: .mp4)
+                
+                // Create Depth video writer
+                let depthWriter = try AVAssetWriter(outputURL: depthURL, fileType: .mp4)
+                
+                // Get dimensions from camera configuration (not from capturedData which isn't available yet)
+                let width = self.cameraConfiguration.resolution.width
+                let height = self.cameraConfiguration.resolution.height
+                
+                log("Setting up LiDAR video writers with dimensions: \(width)x\(height)", level: .info)
+                
+                // Validate dimensions
+                guard width > 0 && height > 0 else {
+                    log("Invalid dimensions for video writer: \(width)x\(height)", level: .error)
+                    completion(false)
+                    return
+                }
+                
+                // RGB video settings
+                let colorSettings: [String: Any] = [
+                    AVVideoCodecKey: AVVideoCodecType.h264,
+                    AVVideoWidthKey: width,
+                    AVVideoHeightKey: height,
+                    AVVideoCompressionPropertiesKey: [
+                        AVVideoAverageBitRateKey: 10000000,
+                        AVVideoMaxKeyFrameIntervalKey: 30,
+                        AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
+                    ]
+                ]
+                
+                // Depth video settings (grayscale, higher bitrate for precision)
+                let depthSettings: [String: Any] = [
+                    AVVideoCodecKey: AVVideoCodecType.h264,
+                    AVVideoWidthKey: width,
+                    AVVideoHeightKey: height,
+                    AVVideoCompressionPropertiesKey: [
+                        AVVideoAverageBitRateKey: 12000000,
+                        AVVideoMaxKeyFrameIntervalKey: 30,
+                        AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
+                    ]
+                ]
+                
+                // Create RGB writer input
+                let colorInput = AVAssetWriterInput(mediaType: .video, outputSettings: colorSettings)
+                colorInput.expectsMediaDataInRealTime = true
+                
+                // Create Depth writer input
+                let depthInput = AVAssetWriterInput(mediaType: .video, outputSettings: depthSettings)
+                depthInput.expectsMediaDataInRealTime = true
+                
+                // Create RGB pixel buffer adaptor
+                let colorBufferAttributes: [String: Any] = [
+                    kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA),
+                    kCVPixelBufferWidthKey as String: width,
+                    kCVPixelBufferHeightKey as String: height,
+                    kCVPixelBufferCGImageCompatibilityKey as String: true,
+                    kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+                ]
+                
+                let colorAdaptor = AVAssetWriterInputPixelBufferAdaptor(
+                    assetWriterInput: colorInput,
+                    sourcePixelBufferAttributes: colorBufferAttributes
+                )
+                
+                // Create Depth pixel buffer adaptor
+                let depthBufferAttributes: [String: Any] = [
+                    kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA),
+                    kCVPixelBufferWidthKey as String: width,
+                    kCVPixelBufferHeightKey as String: height,
+                    kCVPixelBufferCGImageCompatibilityKey as String: true,
+                    kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+                ]
+                
+                let depthAdaptor = AVAssetWriterInputPixelBufferAdaptor(
+                    assetWriterInput: depthInput,
+                    sourcePixelBufferAttributes: depthBufferAttributes
+                )
+                
+                // Add inputs to writers
+                guard colorWriter.canAdd(colorInput) && depthWriter.canAdd(depthInput) else {
+                    log("Cannot add inputs to writers", level: .error)
+                    completion(false)
+                    return
+                }
+                
+                colorWriter.add(colorInput)
+                depthWriter.add(depthInput)
+                
+                // Start writing sessions
+                colorWriter.startWriting()
+//                colorWriter.startSession(atSourceTime: .zero)
+                
+                depthWriter.startWriting()
+//                depthWriter.startSession(atSourceTime: .zero)
+                
+                // Update properties on main thread
+                DispatchQueue.main.async {
+                    self.assetWriter = colorWriter
+                    self.colorWriterInput = colorInput
+                    self.colorPixelBufferAdaptor = colorAdaptor
+                    
+                    self.videoWriter = depthWriter
+                    self.depthWriterInput = depthInput
+                    self.depthPixelBufferAdaptor = depthAdaptor
+                    
+                    log("LiDAR video writers set up successfully", level: .info)
+                    completion(true)
+                }
+                
+            } catch {
+                log("Failed to setup LiDAR video writers: \(error)", level: .error)
+                completion(false)
+            }
+        }
+    }
+
+    private func finalizeLiDARVideos(completion: (() -> Void)?) {
+        let group = DispatchGroup()
+        
+        // Finalize RGB video
+        if let colorInput = self.colorWriterInput,
+           let colorWriter = self.assetWriter {
+            group.enter()
+            colorInput.markAsFinished()
+            colorWriter.finishWriting {
+                log("RGB video finalized: \(colorWriter.status.rawValue)", level: .info)
+                group.leave()
+            }
+        }
+        
+        // Finalize Depth video
+        if let depthInput = self.depthWriterInput,
+           let depthWriter = self.videoWriter {
+            group.enter()
+            depthInput.markAsFinished()
+            depthWriter.finishWriting {
+                log("Depth video finalized: \(depthWriter.status.rawValue)", level: .info)
+                group.leave()
+            }
+        }
+        
+        group.notify(queue: .main) {
+            self.assetWriter = nil
+            self.colorWriterInput = nil
+            self.colorPixelBufferAdaptor = nil
+            self.videoWriter = nil
+            self.depthWriterInput = nil
+            self.depthPixelBufferAdaptor = nil
+            
+            log("LiDAR recording stopped and saved", level: .info)
+            completion?()
+        }
+    }
+    
+    // Stop recording with proper cleanup
+    func stopRecording(completion: @escaping (URL?) -> Void) {
+        DispatchQueue.main.async {
+            guard self.isRecording, let folder = self.recordingFolder else {
+                completion(nil)
+                return
+            }
+            
+            // First mark as not recording to prevent new frames
+            self.isRecording = false
+            self.frameSemaphore.signal()
+
+            // Capture all required information before moving to background thread
+            let isLiDAR = self.isLiDAREnabled
+            let frameCount = self.frameCount
+            let recordingOrientation = self.recordingOrientation
+            
+            // Process completion on background thread
+            DispatchQueue.global(qos: .userInitiated).async {
+                log("Stopping recording...", level: .info)
+                
+                // Save any remaining pose data buffer
+                self.savePoseDataBuffer(to: folder)
+
+                // Wait for pose data queue to finish
+                self.poseDataQueue.sync {
+                    log("All pose data saved", level: .info)
+                }
+
+                // Consolidate all pose data into single keypoint.json
+                self.consolidatePoseData(in: folder)
+                
+                // ✅ Save depth metadata
+                if isLiDAR {
+                    self.saveDepthMetadata(to: folder, frameCount: frameCount)
+                }
+                
+                // Save recording metadata
+                self.saveRecordingMetadata(
+                    to: folder,
+                    orientation: recordingOrientation,
+                    frameCount: frameCount,
+                    isLiDAR: isLiDAR
+                )
+                
+                // Handle video finalization based on recording type
+                if isLiDAR {
+                    // LiDAR mode: Finalize both RGB and Depth videos
+                    self.finalizeLiDARVideos(folder: folder, completion: completion)
+                } else {
+                    // Standard mode: Finalize single video
+                    self.finalizeStandardVideo(folder: folder, completion: completion)
+                }
+            }
+        }
+    }
+
+    // MARK: - Video Finalization Helpers
+
+    private func finalizeLiDARVideos(folder: URL, completion: @escaping (URL?) -> Void) {
+        let group = DispatchGroup()
+        
+        var colorFinalized = false
+        var depthFinalized = false
+        
+        // Finalize RGB video
+        if let colorInput = self.colorWriterInput,
+           let colorWriter = self.assetWriter {
+            group.enter()
+            colorInput.markAsFinished()
+            colorWriter.finishWriting {
+                if colorWriter.status == .completed {
+                    log("RGB video finalized successfully", level: .info)
+                    colorFinalized = true
+                } else {
+                    log("RGB video finalization failed: \(colorWriter.error?.localizedDescription ?? "Unknown error")", level: .error)
+                }
+                group.leave()
+            }
+        }
+        
+        // Finalize Depth video
+        if let depthInput = self.depthWriterInput,
+           let depthWriter = self.videoWriter {
+            group.enter()
+            depthInput.markAsFinished()
+            depthWriter.finishWriting {
+                if depthWriter.status == .completed {
+                    log("Depth video finalized successfully", level: .info)
+                    depthFinalized = true
+                } else {
+                    log("Depth video finalization failed: \(depthWriter.error?.localizedDescription ?? "Unknown error")", level: .error)
+                }
+                group.leave()
+            }
+        }
+        
+        group.notify(queue: .main) {
+            log("LiDAR recording stopped. RGB: \(colorFinalized ? "✅" : "❌"), Depth: \(depthFinalized ? "✅" : "❌")", level: .info)
+            
+            // Clean up
+            self.assetWriter = nil
+            self.colorWriterInput = nil
+            self.colorPixelBufferAdaptor = nil
+            self.videoWriter = nil
+            self.depthWriterInput = nil
+            self.depthPixelBufferAdaptor = nil
+            self.recordingFolder = nil
+            self.frameCount = 0
+            self.firstPTS = nil
+            self.recordingStartTime = nil
+            
+            completion(folder)
+        }
+    }
+
+    private func finalizeStandardVideo(folder: URL, completion: @escaping (URL?) -> Void) {
+        self.videoWriterQueue.async { [weak self] in
+            guard let self = self else {
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+                return
+            }
+            
+            // Wait until frameWriterQueue is finished
+            self.frameWriterQueue.sync {
+                // All frames processed
+            }
+            
+            // Finalize the video
+            if let writer = self.videoWriter, let writerInput = self.videoWriterInput {
+                writerInput.markAsFinished()
+                writer.finishWriting {
+                    if writer.status == .completed {
+                        log("Video writing completed successfully", level: .info)
+                    } else {
+                        log("Video writing failed: \(writer.error?.localizedDescription ?? "Unknown error")", level: .error)
+                    }
+                    
+                    DispatchQueue.main.async {
+                        self.videoWriter = nil
+                        self.videoWriterInput = nil
+                        self.pixelBufferAdaptor = nil
+                        self.recordingFolder = nil
+                        self.frameCount = 0
+                        self.firstPTS = nil
+                        self.recordingStartTime = nil
+                        completion(folder)
+                    }
+                }
+            } else {
+                log("No video writer available for finalization", level: .error)
+                DispatchQueue.main.async {
+                    self.recordingFolder = nil
+                    self.frameCount = 0
+                    self.firstPTS = nil
+                    self.recordingStartTime = nil
+                    completion(folder)
+                }
+            }
+        }
+    }
+
+    private func saveRawDepthMap(_ depthData: AVDepthData, frameIndex: Int, to folder: URL) {
+        let depthMap = depthData.depthDataMap
+        
+        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+        
+        let width = CVPixelBufferGetWidth(depthMap)
+        let height = CVPixelBufferGetHeight(depthMap)
+        let pixelFormat = CVPixelBufferGetPixelFormatType(depthMap)
+        
+        // Create depth frames subfolder
+        let depthFramesFolder = folder.appendingPathComponent("depth_frames")
+        try? FileManager.default.createDirectory(at: depthFramesFolder, withIntermediateDirectories: true)
+        
+        let filename = String(format: "depth_%06d.bin", frameIndex)
+        let depthFileURL = depthFramesFolder.appendingPathComponent(filename)
+        
+        // Save as binary file with header
+        var data = Data()
+        
+        // Write header (width, height, format)
+        withUnsafeBytes(of: Int32(width)) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: Int32(height)) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: pixelFormat) { data.append(contentsOf: $0) }
+        
+        // Write depth values
+        let baseAddress = CVPixelBufferGetBaseAddress(depthMap)!
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
+        
+        if pixelFormat == kCVPixelFormatType_DepthFloat32 {
+            let floatBuffer = baseAddress.assumingMemoryBound(to: Float32.self)
+            let totalPixels = width * height
+            let floatData = Data(bytes: floatBuffer, count: totalPixels * MemoryLayout<Float32>.stride)
+            data.append(floatData)
+            
+        } else if pixelFormat == kCVPixelFormatType_DepthFloat16 {
+            let float16Buffer = baseAddress.assumingMemoryBound(to: UInt16.self)
+            let totalPixels = width * height
+            let float16Data = Data(bytes: float16Buffer, count: totalPixels * MemoryLayout<UInt16>.stride)
+            data.append(float16Data)
+        }
+        
+        // Write to file
+        do {
+            try data.write(to: depthFileURL)
+            if frameIndex % 30 == 0 {
+                log("💾 Saved raw depth frame \(frameIndex) (\(data.count / 1024) KB)", level: .info)
+            }
+        } catch {
+            log("Failed to save depth frame \(frameIndex): \(error)", level: .error)
+        }
+    }
+    
+    private func saveDepthMetadata(to folder: URL, frameCount: Int) {
+        let depthFramesFolder = folder.appendingPathComponent("depth_frames")
+        let metadataURL = depthFramesFolder.appendingPathComponent("README.txt")
+        
+        let metadata = """
+        Depth Frame Format
+        ==================
+        
+        Total frames: \(frameCount)
+        File pattern: depth_XXXXXX.bin (6-digit zero-padded frame index)
+        
+        Binary Format:
+        --------------
+        Header (12 bytes):
+          - Width (4 bytes, Int32)
+          - Height (4 bytes, Int32)
+          - Pixel Format (4 bytes, OSType/FourCC)
+        
+        Data:
+          - Float32 array (width × height elements) if format = 1717855600 (kCVPixelFormatType_DepthFloat32)
+          - Float16 array (width × height elements) if format = 1751411059 (kCVPixelFormatType_DepthFloat16)
+          - Values represent distance in meters
+        
+        Reading Example (Python):
+        ------------------------
+        import numpy as np
+        import struct
+        
+        with open('depth_000001.bin', 'rb') as f:
+            width = struct.unpack('i', f.read(4))[0]
+            height = struct.unpack('i', f.read(4))[0]
+            fmt = struct.unpack('I', f.read(4))[0]
+            
+            if fmt == 1717855600:  # Float32
+                depth_data = np.frombuffer(f.read(), dtype=np.float32)
+            else:  # Float16
+                depth_data = np.frombuffer(f.read(), dtype=np.float16)
+            
+            depth_map = depth_data.reshape((height, width))
+            print(f"Depth range: {depth_map.min():.3f}m to {depth_map.max():.3f}m")
+        
+        Camera Intrinsics:
+        ------------------
+        See keypoint.json for per-frame camera intrinsics matrix
+        """
+        
+        do {
+            try metadata.write(to: metadataURL, atomically: true, encoding: .utf8)
+            log("Saved depth frames metadata", level: .info)
+        } catch {
+            log("Failed to save depth metadata: \(error)", level: .error)
+        }
+    }
+
 }
 

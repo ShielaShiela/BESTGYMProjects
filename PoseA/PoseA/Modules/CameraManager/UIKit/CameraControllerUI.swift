@@ -16,7 +16,12 @@ import Metal
 import os.log
 
 protocol CaptureDataReceiver: AnyObject {
+    var isRecording: Bool { get }
+    var isLiDAREnabled: Bool { get }
+    
     func onNewBasicData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, pts: CMTime)
+    func onNewDepthData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, depthData: AVDepthData?, pts: CMTime)
+
 }
 
 class CameraControllerUI: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -245,6 +250,71 @@ class CameraControllerUI: NSObject, ObservableObject, AVCaptureVideoDataOutputSa
 }
 
 extension CameraControllerUI: AVCaptureDataOutputSynchronizerDelegate {
+//    func dataOutputSynchronizer(_ synchronizer: AVCaptureDataOutputSynchronizer,
+//                                didOutput synchronizedDataCollection: AVCaptureSynchronizedDataCollection) {
+//        // Only process depth data if LiDAR is available
+//        guard hasLiDARSupport,
+//              let syncedDepthData = synchronizedDataCollection.synchronizedData(for: depthDataOutput!) as? AVCaptureSynchronizedDepthData,
+//              let syncedVideoData = synchronizedDataCollection.synchronizedData(for: videoDataOutput) as? AVCaptureSynchronizedSampleBufferData else { return }
+//        
+//        guard let pixelBuffer = syncedVideoData.sampleBuffer.imageBuffer,
+//              let cameraCalibrationData = syncedDepthData.depthData.cameraCalibrationData else { return }
+//        
+//        let colorImage = generateUIImage(from: pixelBuffer)
+//        let pts = CMSampleBufferGetPresentationTimeStamp(syncedVideoData.sampleBuffer)
+//
+//        // Convert the depth data to the expected format.
+//        let convertedDepth = syncedDepthData.depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat16)
+//       
+//       // Package the captured data.
+//        let data = FrameDataModel(depth: convertedDepth.depthDataMap.texture(withFormat: .r16Float, planeIndex: 0, addToCache: textureCache),
+//                                  colorY: pixelBuffer.texture(withFormat: .r8Unorm, planeIndex: 0, addToCache: textureCache),
+//                                  colorCbCr: pixelBuffer.texture(withFormat: .rg8Unorm, planeIndex: 1, addToCache: textureCache),
+//                                  cameraIntrinsics: cameraCalibrationData.intrinsicMatrix,
+//                                  cameraReferenceDimensions: cameraCalibrationData.intrinsicMatrixReferenceDimensions,
+//                                  originalDepth: syncedDepthData.depthData,
+//                                  colorImage: colorImage)
+//    
+//
+//        // Call the appropriate delegate method based on whether we're recording with LiDAR
+//        if delegate?.isRecording == true && delegate?.isLiDAREnabled == true {
+//            // When recording with LiDAR, route to onNewDepthData
+//            delegate?.onNewDepthData(capturedData: data, pixelBuffer: pixelBuffer, depthData: syncedDepthData.depthData, pts: pts)
+//        } else {
+//            // Otherwise use basic data callback
+//            delegate?.onNewBasicData(capturedData: data, pixelBuffer: pixelBuffer, pts: pts)
+//        }
+//
+//        if let assetWriter = assetWriter, assetWriter.status == .writing {
+//            if let videoInput = assetWriter.inputs.first,
+//               let depthInput = assetWriter.inputs.last,
+//               videoInput.isReadyForMoreMediaData && depthInput.isReadyForMoreMediaData {
+//                
+//                videoInput.append(syncedVideoData.sampleBuffer)
+//                
+//                // Convert the depth data to a suitable format for writing
+//                let depthDataMap = syncedDepthData.depthData.depthDataMap
+//                let depthWidth = CVPixelBufferGetWidth(depthDataMap)
+//                let depthHeight = CVPixelBufferGetHeight(depthDataMap)
+//                let depthFormat = kCVPixelFormatType_DepthFloat32
+//                
+//                var depthPixelBuffer: CVPixelBuffer?
+//                CVPixelBufferCreate(kCFAllocatorDefault, depthWidth, depthHeight, depthFormat, nil, &depthPixelBuffer)
+//                
+//                if let depthPixelBuffer = depthPixelBuffer {
+//                    CVPixelBufferLockBaseAddress(depthPixelBuffer, [])
+//                    let depthPtr = CVPixelBufferGetBaseAddress(depthPixelBuffer)
+//                    let depthSize = CVPixelBufferGetDataSize(depthDataMap)
+//                    memcpy(depthPtr, CVPixelBufferGetBaseAddress(depthDataMap), depthSize)
+//                    CVPixelBufferUnlockBaseAddress(depthPixelBuffer, [])
+//                    
+//                    let depthSampleBuffer = createSampleBuffer(from: depthPixelBuffer, timestamp: syncedDepthData.timestamp)
+//                    depthInput.append(depthSampleBuffer)
+//                }
+//            }
+//        }
+//    }
+    
     func dataOutputSynchronizer(_ synchronizer: AVCaptureDataOutputSynchronizer,
                                 didOutput synchronizedDataCollection: AVCaptureSynchronizedDataCollection) {
         // Only process depth data if LiDAR is available
@@ -261,7 +331,7 @@ extension CameraControllerUI: AVCaptureDataOutputSynchronizerDelegate {
         // Convert the depth data to the expected format.
         let convertedDepth = syncedDepthData.depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat16)
        
-       // Package the captured data.
+        // Package the captured data.
         let data = FrameDataModel(depth: convertedDepth.depthDataMap.texture(withFormat: .r16Float, planeIndex: 0, addToCache: textureCache),
                                   colorY: pixelBuffer.texture(withFormat: .r8Unorm, planeIndex: 0, addToCache: textureCache),
                                   colorCbCr: pixelBuffer.texture(withFormat: .rg8Unorm, planeIndex: 1, addToCache: textureCache),
@@ -269,12 +339,19 @@ extension CameraControllerUI: AVCaptureDataOutputSynchronizerDelegate {
                                   cameraReferenceDimensions: cameraCalibrationData.intrinsicMatrixReferenceDimensions,
                                   originalDepth: syncedDepthData.depthData,
                                   colorImage: colorImage)
-    
 
-        delegate?.onNewBasicData(capturedData: data, pixelBuffer: pixelBuffer, pts: pts)
+        // ✅ Route to appropriate callback based on recording mode
+        if delegate?.isRecording == true && delegate?.isLiDAREnabled == true {
+            // When recording with LiDAR, use the depth data callback
+            delegate?.onNewDepthData(capturedData: data, pixelBuffer: pixelBuffer, depthData: syncedDepthData.depthData, pts: pts)
+        } else {
+            // For preview or non-LiDAR recording, use basic callback
+            delegate?.onNewBasicData(capturedData: data, pixelBuffer: pixelBuffer, pts: pts)
+        }
         
-        
-    
+        // ❌ REMOVE THIS OLD RECORDING CODE - it's conflicting with your new system
+        // The new system in onNewDepthData handles video writing
+        /*
         if let assetWriter = assetWriter, assetWriter.status == .writing {
             if let videoInput = assetWriter.inputs.first,
                let depthInput = assetWriter.inputs.last,
@@ -282,28 +359,12 @@ extension CameraControllerUI: AVCaptureDataOutputSynchronizerDelegate {
                 
                 videoInput.append(syncedVideoData.sampleBuffer)
                 
-                // Convert the depth data to a suitable format for writing
-                let depthDataMap = syncedDepthData.depthData.depthDataMap
-                let depthWidth = CVPixelBufferGetWidth(depthDataMap)
-                let depthHeight = CVPixelBufferGetHeight(depthDataMap)
-                let depthFormat = kCVPixelFormatType_DepthFloat32
-                
-                var depthPixelBuffer: CVPixelBuffer?
-                CVPixelBufferCreate(kCFAllocatorDefault, depthWidth, depthHeight, depthFormat, nil, &depthPixelBuffer)
-                
-                if let depthPixelBuffer = depthPixelBuffer {
-                    CVPixelBufferLockBaseAddress(depthPixelBuffer, [])
-                    let depthPtr = CVPixelBufferGetBaseAddress(depthPixelBuffer)
-                    let depthSize = CVPixelBufferGetDataSize(depthDataMap)
-                    memcpy(depthPtr, CVPixelBufferGetBaseAddress(depthDataMap), depthSize)
-                    CVPixelBufferUnlockBaseAddress(depthPixelBuffer, [])
-                    
-                    let depthSampleBuffer = createSampleBuffer(from: depthPixelBuffer, timestamp: syncedDepthData.timestamp)
-                    depthInput.append(depthSampleBuffer)
-                }
+                // ... depth writing code ...
             }
         }
+        */
     }
+
     
     private func setupLiDARInput(frameRate: CameraConfiguration.FrameRate) throws {
         guard let device = AVCaptureDevice.default(.builtInLiDARDepthCamera, for: .video, position: currentCameraPosition) else {

@@ -19,7 +19,7 @@ struct BESTGYMPoseApp: View {
     @State private var toolbarVM = ToolbarButtonVM()
     
     // ML Model Related VM
-    @State private var MLModel = VitPoseProcessor()
+//    @State private var MLModel = VitPoseProcessor()
     
     // MARK: - Body
     var body: some View {
@@ -43,8 +43,7 @@ struct BESTGYMPoseApp: View {
                             AnalysisModeRightView(appState: self.appState,
                                                   ROIModel: self.ROIModel,
                                                   BoxModel: self.BoxModel,
-                                                  mediaManager: self.mediaManager,
-                                                  MLModel: self.MLModel)
+                                                  mediaManager: self.mediaManager)
                             .frame(width: geometry.size.width / 2 - 10)
                         }
                         .frame(width: geometry.size.width, height: geometry.size.height)

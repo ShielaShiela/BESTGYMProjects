@@ -10,9 +10,6 @@
 		971157E82E868B85003A7525 /* best.mlmodelc in Resources */ = {isa = PBXBuildFile; fileRef = 971157E72E868B85003A7525 /* best.mlmodelc */; };
 		971157E92E868B85003A7525 /* best.mlmodelc in Resources */ = {isa = PBXBuildFile; fileRef = 971157E72E868B85003A7525 /* best.mlmodelc */; };
 		971157EA2E868B85003A7525 /* best.mlmodelc in Resources */ = {isa = PBXBuildFile; fileRef = 971157E72E868B85003A7525 /* best.mlmodelc */; };
-		971157EC2E868C18003A7525 /* VitPoseh.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 971157EB2E868C18003A7525 /* VitPoseh.mlpackage */; };
-		971157ED2E868C18003A7525 /* VitPoseh.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 971157EB2E868C18003A7525 /* VitPoseh.mlpackage */; };
-		971157EE2E868C18003A7525 /* VitPoseh.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 971157EB2E868C18003A7525 /* VitPoseh.mlpackage */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -34,7 +31,6 @@
 
 /* Begin PBXFileReference section */
 		971157E72E868B85003A7525 /* best.mlmodelc */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = best.mlmodelc; sourceTree = "<group>"; };
-		971157EB2E868C18003A7525 /* VitPoseh.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = VitPoseh.mlpackage; sourceTree = "<group>"; };
 		97BAF6492D7543FA008E34D4 /* PoseA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PoseA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		97BAF65B2D7543FC008E34D4 /* PoseATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PoseATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		97BAF6652D7543FC008E34D4 /* PoseAUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PoseAUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -122,7 +118,6 @@
 				97BAF6682D7543FC008E34D4 /* PoseAUITests */,
 				97BAF64A2D7543FA008E34D4 /* Products */,
 				971157E72E868B85003A7525 /* best.mlmodelc */,
-				971157EB2E868C18003A7525 /* VitPoseh.mlpackage */,
 			);
 			sourceTree = "<group>";
 		};
@@ -284,7 +279,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				971157EE2E868C18003A7525 /* VitPoseh.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -292,7 +286,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				971157EC2E868C18003A7525 /* VitPoseh.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -300,7 +293,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				971157ED2E868C18003A7525 /* VitPoseh.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

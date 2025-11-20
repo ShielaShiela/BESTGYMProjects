@@ -105,8 +105,40 @@ final class YOLOPoseProcessor {
         tryProcessNextFrame(completion: completion)
     }
 
+    func offlineProcess(inputImg: CGImage, completion: @escaping ([PoseBox]) -> Void) {
+        // Get Input Size
+        camInputSize = CGSize(width: inputImg.width, height: inputImg.height)
+        // Resize Image to Model Input Size
+        let handler = VNImageRequestHandler(cgImage: inputImg, orientation: .up, options: [:])
+        // Set VNCore Function
+        let request = VNCoreMLRequest(model: vnModel) { [weak self] request, _ in
+            guard let self = self else { return }
+            guard let results = request.results as? [VNCoreMLFeatureValueObservation],
+                  let multiArray = results.first?.featureValue.multiArrayValue else {
+                DispatchQueue.main.async { completion([]) }
+                return
+            }
+            // Decode Output
+            let poses = self.decodeOutputFast(multiArray)
+            
+            DispatchQueue.main.async {
+                completion(poses)
+            }
+        }
+        request.imageCropAndScaleOption = .scaleFill
+        // Process Image
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try handler.perform([request])
+            } catch {
+                self.isProcessing = false
+                DispatchQueue.main.async { completion([]) }
+            }
+        }
+    }
+    
     private func tryProcessNextFrame(completion: @escaping ([PoseBox], Double, CMTime) -> Void) {
-        let start = CFAbsoluteTimeGetCurrent()
+//        let start = CFAbsoluteTimeGetCurrent()
 
         // Only one frame at a time
         guard !isProcessing else { return }
@@ -139,10 +171,7 @@ final class YOLOPoseProcessor {
                 self.tryProcessNextFrame(completion: completion)
                 return
             }
-            
-//            let diff = (CFAbsoluteTimeGetCurrent() - start) * 1000
-//            print("⏱ inference time: \(String(format: "%.2f", diff)) ms")
-
+    
             let poses = self.decodeOutputFast(multiArray)
             self.modelFPS.tick()
 
@@ -164,10 +193,10 @@ final class YOLOPoseProcessor {
             }
         }
     }
-
+    
     // MARK: - Fast decode
     private func decodeOutputFast(_ multiArray: MLMultiArray) -> [PoseBox] {
-        let start = CFAbsoluteTimeGetCurrent()
+//        let start = CFAbsoluteTimeGetCurrent()
 
         // Access MLMultiArray as a raw pointer
         let ptr = UnsafeMutablePointer<Float>(OpaquePointer(multiArray.dataPointer))
@@ -247,7 +276,7 @@ final class YOLOPoseProcessor {
     }
 
     func filterPoses(_ poses: [PoseBox], minConfidence: Float = 0.5, iouThreshold: Float = 0.5) -> [PoseBox] {
-        let start = CFAbsoluteTimeGetCurrent()
+//        let start = CFAbsoluteTimeGetCurrent()
 
         let boxes = poses.enumerated()
             .filter { $0.element.confidence > minConfidence }

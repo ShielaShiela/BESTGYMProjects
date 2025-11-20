@@ -14,9 +14,9 @@ extern "C" {
 
 typedef struct KalmanFilter1D KalmanFilter1D;
 
-KalmanFilter1D* kalman_create(float dt);
-void kalman_reset(KalmanFilter1D* filter, float angle);
-float kalman_update(KalmanFilter1D* filter, float* measurement);
+KalmanFilter1D* kalman_create(double dt);
+void kalman_reset(KalmanFilter1D* filter, double angle);
+double kalman_update(KalmanFilter1D* filter, double* measurement);
 void kalman_free(KalmanFilter1D* filter);
 
 #ifdef __cplusplus

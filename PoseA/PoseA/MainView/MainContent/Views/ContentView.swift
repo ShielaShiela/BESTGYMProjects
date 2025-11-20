@@ -19,7 +19,7 @@ struct BESTGYMPoseApp: View {
     @State private var toolbarVM = ToolbarButtonVM()
     
     // ML Model Related VM
-    @State private var MLModel = VitPoseProcessor()
+    @State private var MLModel = YOLOPoseProcessor()
     
     // MARK: - Body
     var body: some View {
@@ -85,36 +85,32 @@ struct BESTGYMPoseApp: View {
                     }
                     
                     // File/Folder Picker
-                    .fullScreenCover(isPresented: $appState.isFilePickerPresented) {
+                    .sheet(isPresented: $appState.isFilePickerPresented) {
                         DocumentPickerUI { urls in
                             if let url = urls.first {
-                                // Use loadData Function
                                 appState.isProcessing = true
                                 appState.processingStatus = "Loading data..."
-                                
+
                                 let errMsg = mediaManager.loadMedia(url: url, autoDetectKeypoints: appState.autoDetectKeypoints)
-                                
-                                if let errMsg = errMsg {
-                                    DispatchQueue.main.async {
+
+                                DispatchQueue.main.async {
+                                    if let errMsg = errMsg {
                                         self.appState.errorMessage = errMsg
-                                        self.appState.isProcessing = false
-                                    }
-                                } else {
-                                    DispatchQueue.main.async {
+                                    } else {
                                         self.appState.processingStatus = "Loaded frames from \(url.lastPathComponent)"
                                         self.appState.sourceFileName = url.lastPathComponent
                                         self.appState.sourceURL = url
-                                        self.appState.isProcessing = false
                                         self.appState.showKeypoints = true
                                         self.appState.isVideoSource = !mediaManager.isDataLIDAR
                                     }
+                                    self.appState.isProcessing = false
                                 }
                             }
                         }
                     }
                     
                     // Gallery Picker
-                    .fullScreenCover(isPresented: $appState.isPhotoLibraryPresented) {
+                    .sheet(isPresented: $appState.isPhotoLibraryPresented) {
                         PhotoLibraryVideoPicker(isPresented: $appState.isPhotoLibraryPresented) { url in
                             if let url = url {
                                 // Use loadData Function
@@ -173,6 +169,12 @@ struct BESTGYMPoseApp: View {
             // Ensure initialization
             _ = OrientationCache.shared
             appState.loadUserPreferences()
+            self.setModelVersion(appState.realtimeModel)
+        }
+        .onChange(of: appState.realtimeModel) { oldModel, newModel in
+            if oldModel != newModel {
+                self.setModelVersion(newModel)
+            }
         }
         
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
@@ -315,5 +317,14 @@ struct BESTGYMPoseApp: View {
         mediaManager.clearAllData()
         
         print("Cleanup complete")
+    }
+    
+    private func setModelVersion(_ version: String) {
+        log("pose processing reload the model", level: .info)
+        self.MLModel.loadModel(named: version) { success in
+            if success {
+                log("Model changed to \(version)", level: .info)
+            }
+        }
     }
 }

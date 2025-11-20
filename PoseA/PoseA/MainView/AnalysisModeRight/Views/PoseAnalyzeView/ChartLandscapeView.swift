@@ -23,8 +23,8 @@ struct ChartLandscapeView: View {
     private let offWhite = Color(hex: 0xEBE8EB)
 
     // Initialize mock data for the chart
-    let chartData: [ChartData]
-    let pointData: [PointData]
+    let chartData: [ChartData2D]
+    let pointData: [Point2D]
     let currentFrame: Int?
     
     let xAxisUnit: String
@@ -34,7 +34,7 @@ struct ChartLandscapeView: View {
     @State private var baseXScale: ClosedRange<Double> = 0...0
     @State private var baseYScale: ClosedRange<Double> = 0...190
     
-    init(chartData: [ChartData], pointData: [PointData] = [], currentFrame: Int?, xAxisUnit: String = "", yAxisUnit: String = "") {
+    init(chartData: [ChartData2D], pointData: [Point2D] = [], currentFrame: Int?, xAxisUnit: String = "", yAxisUnit: String = "") {
         self.chartData = chartData
         self.pointData = pointData
         self.currentFrame = currentFrame

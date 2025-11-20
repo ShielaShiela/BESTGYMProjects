@@ -10,16 +10,16 @@ import Foundation
 class KF1DWrapper {
     private var ptr: OpaquePointer?
 
-    init(dt: Float) {
+    init(dt: Double) {
         self.ptr = kalman_create(dt)
     }
 
-    func reset(angle: Float) {
+    func reset(angle: Double) {
         guard let ptr = ptr else { return }
         kalman_reset(ptr, angle)
     }
 
-    func update(measurement: Float?) -> Float {
+    func update(measurement: Double?) -> Double {
         guard let ptr = ptr else { return 0.0 }
         if var z = measurement {
             return kalman_update(ptr, &z)
@@ -38,21 +38,21 @@ class KF1DWrapper {
 class KF3DWrapper {
     private var ptr: OpaquePointer?
 
-    init(dt: Float) {
+    init(dt: Double) {
         ptr = kalman3d_create(dt)
     }
 
-    func reset(x: Float, y: Float, z: Float) {
+    func reset(x: Double, y: Double, z: Double) {
         guard let ptr = ptr else { return }
         kalman3d_reset(ptr, x, y, z)
     }
 
-    func update(x: Float?, y: Float?, z: Float?) {
+    func update(x: Double?, y: Double?, z: Double?) {
         guard let ptr = ptr else { return }
 
-        var vx: Float = x ?? 0
-        var vy: Float = y ?? 0
-        var vz: Float = z ?? 0
+        var vx: Double = x ?? 0
+        var vy: Double = y ?? 0
+        var vz: Double = z ?? 0
 
         withUnsafeMutablePointer(to: &vx) { px in
             withUnsafeMutablePointer(to: &vy) { py in
@@ -67,9 +67,9 @@ class KF3DWrapper {
         }
     }
 
-    func getFilteredPosition() -> (Float, Float, Float)? {
+    func getFilteredPosition() -> (Double, Double, Double)? {
         guard let ptr = ptr else { return nil }
-        var x: Float = 0, y: Float = 0, z: Float = 0
+        var x: Double = 0, y: Double = 0, z: Double = 0
         kalman3d_get_state(ptr, &x, &y, &z)
         return (x, y, z)
     }

@@ -10,15 +10,15 @@
 #include <cmath>
 
 struct KalmanFilter3D {
-    float x[6];      // [x, vx, y, vy, z, vz]
-    float P[6][6];   // Covariance matrix
-    float A[6][6];   // State transition
-    float H[3][6];   // Measurement model
-    float Q[6][6];   // Process noise
-    float R[3][3];   // Measurement noise
+    double x[6];      // [x, vx, y, vy, z, vz]
+    double P[6][6];   // Covariance matrix
+    double A[6][6];   // State transition
+    double H[3][6];   // Measurement model
+    double Q[6][6];   // Process noise
+    double R[3][3];   // Measurement noise
 };
 
-KalmanFilter3D* kalman3d_create(float dt) {
+KalmanFilter3D* kalman3d_create(double dt) {
     KalmanFilter3D* kf = new KalmanFilter3D;
 
     // State transition A
@@ -53,7 +53,7 @@ KalmanFilter3D* kalman3d_create(float dt) {
     return kf;
 }
 
-void kalman3d_reset(KalmanFilter3D* kf, float x, float y, float z) {
+void kalman3d_reset(KalmanFilter3D* kf, double x, double y, double z) {
     memset(kf->x, 0, sizeof(kf->x));
     kf->x[0] = x;
     kf->x[2] = y;
@@ -65,14 +65,14 @@ void kalman3d_reset(KalmanFilter3D* kf, float x, float y, float z) {
     }
 }
 
-void kalman3d_update(KalmanFilter3D* kf, float* mx, float* my, float* mz) {
+void kalman3d_update(KalmanFilter3D* kf, double* mx, double* my, double* mz) {
     // === Predict ===
-    float xp[6] = {0};
+    double xp[6] = {0};
     for (int i = 0; i < 6; i++)
         for (int j = 0; j < 6; j++)
             xp[i] += kf->A[i][j] * kf->x[j];
 
-    float Pp[6][6] = {0};
+    double Pp[6][6] = {0};
     for (int i = 0; i < 6; ++i)
         for (int j = 0; j < 6; ++j)
             for (int k = 0; k < 6; ++k)
@@ -83,9 +83,9 @@ void kalman3d_update(KalmanFilter3D* kf, float* mx, float* my, float* mz) {
 
     // === Update ===
     if (mx && my && mz) {
-        float z[3] = {*mx, *my, *mz};
+        double z[3] = {*mx, *my, *mz};
 
-        float y[3] = {0}; // innovation
+        double y[3] = {0}; // innovation
         for (int i = 0; i < 3; i++)
             for (int j = 0; j < 6; j++)
                 y[i] += kf->H[i][j] * xp[j];
@@ -93,7 +93,7 @@ void kalman3d_update(KalmanFilter3D* kf, float* mx, float* my, float* mz) {
             y[i] = z[i] - y[i];
 
         // Innovation covariance S = HPHᵀ + R
-        float S[3][3] = {0};
+        double S[3][3] = {0};
         for (int i = 0; i < 3; ++i)
             for (int j = 0; j < 3; ++j)
                 for (int k = 0; k < 6; ++k)
@@ -105,7 +105,7 @@ void kalman3d_update(KalmanFilter3D* kf, float* mx, float* my, float* mz) {
 
         // Kalman Gain K = P Hᵀ S⁻¹
         // Note: For simplicity, assume S is diagonal here
-        float K[6][3] = {0};
+        double K[6][3] = {0};
         for (int i = 0; i < 6; ++i)
             for (int j = 0; j < 3; ++j)
                 for (int k = 0; k < 6; ++k)
@@ -120,7 +120,7 @@ void kalman3d_update(KalmanFilter3D* kf, float* mx, float* my, float* mz) {
                 xp[i] += K[i][j] * y[j];
 
         // Update covariance P = (I - K * H) * P
-        float KH[6][6] = {0};
+        double KH[6][6] = {0};
         for (int i = 0; i < 6; ++i)
             for (int j = 0; j < 6; ++j)
                 for (int k = 0; k < 3; ++k)
@@ -139,7 +139,7 @@ void kalman3d_update(KalmanFilter3D* kf, float* mx, float* my, float* mz) {
     }
 }
 
-void kalman3d_get_state(KalmanFilter3D* kf, float* x, float* y, float* z) {
+void kalman3d_get_state(KalmanFilter3D* kf, double* x, double* y, double* z) {
     if (kf && x && y && z) {
         *x = kf->x[0]; // x
         *y = kf->x[2]; // y

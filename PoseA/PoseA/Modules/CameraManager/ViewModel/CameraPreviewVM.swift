@@ -9,6 +9,7 @@ import MetalKit
 import AVFoundation
 
 class CameraPreviewVM: UIView {
+    // MARK: - Video Layer
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
     var videoPreviewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
 
@@ -22,6 +23,7 @@ class CameraPreviewVM: UIView {
         }
     }
 
+    // MARK: - Depth Rendering
     private var depthMTKView: MTKView?
     private var depthRenderer: DepthRenderer?
 
@@ -35,18 +37,19 @@ class CameraPreviewVM: UIView {
         setupDepthView()
     }
 
+    // MARK: - Setup Depth MTKView
     private func setupDepthView() {
         guard let device = MTLCreateSystemDefaultDevice() else {
-            print("❌ Metal device not available")
+            log("Metal device not available", level: .error)
             return
         }
 
-        let mtkView = MTKView(frame: .zero, device: device) // assign device here!
+        let mtkView = MTKView(frame: .zero, device: device)
         mtkView.backgroundColor = .clear
-        mtkView.isPaused = false
-        mtkView.enableSetNeedsDisplay = false
-        mtkView.preferredFramesPerSecond = 30 // or 60
         mtkView.framebufferOnly = false
+        mtkView.isPaused = false                      // continuous rendering mode
+        mtkView.enableSetNeedsDisplay = false
+        mtkView.preferredFramesPerSecond = 30
         addSubview(mtkView)
         self.depthMTKView = mtkView
     }
@@ -56,43 +59,33 @@ class CameraPreviewVM: UIView {
         videoPreviewLayer.frame = bounds
         depthMTKView?.frame = bounds
 
-        // Initialize DepthRenderer only once, after MTKView has valid frame
+        // Initialize DepthRenderer only once
         if depthRenderer == nil, let mtkView = depthMTKView, mtkView.bounds.width > 0 {
             do {
                 depthRenderer = try DepthRenderer(view: mtkView)
             } catch {
-                print("Failed to initialize DepthRenderer:", error)
+                log("Failed to initialize DepthRenderer: \(error)", level: .error)
             }
         }
 
         updateRotation()
     }
 
+    // MARK: - Update depth frame from camera
     func renderDepth(texture: MTLTexture, maxDepth: Float = 8.0) {
-        guard let mtkView = depthMTKView else { return }
-
-        // Lazy init DepthRenderer only once
-        if depthRenderer == nil {
-            guard let device = MTLCreateSystemDefaultDevice() else {
-                return
-            }
-            mtkView.device = device
-            depthRenderer = try? DepthRenderer(view: mtkView)
-        }
-
-        guard let renderer = depthRenderer else {
-            return
-        }
-
-        renderer.draw(texture: texture, in: mtkView, maxDepth: maxDepth)
+        guard let renderer = depthRenderer else { return }
+        renderer.updateInputTexture(texture, maxDepth: maxDepth)
+        depthMTKView?.draw() // manually trigger draw to update
     }
-    
+
+    // MARK: - Depth view visibility
     func toggleDepthView(status: Bool) {
         guard let mtkView = depthMTKView else { return }
         mtkView.isHidden = status
         mtkView.isPaused = status
     }
 
+    // MARK: - Helpers
     private func updateRotation() {
         guard let connection = videoPreviewLayer.connection else { return }
         connection.videoRotationAngle = {
@@ -110,7 +103,6 @@ class CameraPreviewVM: UIView {
             .compactMap({ $0 as? AVCaptureDeviceInput }).first else { return }
         let desc = deviceInput.device.activeFormat.formatDescription
         let dimensions = CMVideoFormatDescriptionGetDimensions(desc)
-        // store camera resolution
         _ = CGSize(width: CGFloat(dimensions.width),
                    height: CGFloat(dimensions.height))
     }

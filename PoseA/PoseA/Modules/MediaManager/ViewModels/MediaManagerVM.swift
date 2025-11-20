@@ -38,7 +38,7 @@ class MediaManagerVM {
         fileLoaderViewModel.isDataLoaded = false
         fileLoaderViewModel.isKeyLoaded = false
         
-        fileLoaderViewModel.keypointsByFrame.removeAll()
+        fileLoaderViewModel.keypointData.removeAll()
         fileLoaderViewModel.FrameImageURLs = []
         fileLoaderViewModel.FrameFolderURLs = []
         
@@ -237,15 +237,15 @@ class MediaManagerVM {
     
     // MARK: - Public Function for Media Player
     
-    func getKeypointsCurrent() -> [KeypointData]? {
+    func getKeypointsCurrent() -> PoseBox? {
         if fileLoaderViewModel.isKeyLoaded {
             return self.getKeypointsByIndex(self.mediaPlayerViewModel.currentFrameIndex)
         } else { return nil }
     }
     
-    func getKeypointsByIndex(_ index: Int) -> [KeypointData]? {
+    func getKeypointsByIndex(_ index: Int) -> PoseBox? {
         if fileLoaderViewModel.isKeyLoaded {
-            return self.fileLoaderViewModel.keypointsByFrame[index] ?? nil
+            return self.fileLoaderViewModel.keypointData[index] ?? nil
         } else { return nil }
     }
     

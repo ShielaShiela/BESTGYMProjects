@@ -27,6 +27,18 @@ struct SettingsView: View {
                             }
                     }
                     
+                    Section(header: Text("ML Model Options")) {
+                        Picker("Choose CoreML Model", selection: $appState.realtimeModel) {
+                            Text("YOLO11n").tag("yolo11n-pose")
+                            Text("YOLO11l").tag("yolo11l-pose")
+                            Text("YOLO11x").tag("yolo11x-pose")
+                            Text("YOLO_TF").tag("yolotf")
+                        }
+                        .onChange(of: appState.realtimeModel) {
+                            appState.saveUserPreferences()
+                        }
+                    }
+                    
                     Section(header: Text("Analysis Settings")) {
                         Picker("Angle Unit", selection: $appState.angleUnit) {
                             ForEach(AngleUnit.allCases) { unit in
@@ -56,6 +68,7 @@ struct SettingsView: View {
                 .navigationBarItems(trailing: Button("Done") {
                     presentationMode.wrappedValue.dismiss()
                 })
+
             } else {
                 Form {
                     Section(header: Text("Recording Options")) {
@@ -93,6 +106,17 @@ struct SettingsView: View {
                                 appState.saveUserPreferences()
                             }
                         
+                        if appState.realtimeDetection {
+                            Picker("Choose View", selection: $appState.realtimeViewMode) {
+                                Text("General").tag("general")
+                                Text("Side View").tag("side-view")
+                                Text("Front View").tag("front-view")
+                                Text("Corner View").tag("corner-view")
+                            }
+                        }
+                    }
+                    
+                    Section(header: Text("ML Model Options")) {
                         Picker("Choose CoreML Model", selection: $appState.realtimeModel) {
                             Text("YOLO11n").tag("yolo11n-pose")
                             Text("YOLO11l").tag("yolo11l-pose")
@@ -102,15 +126,31 @@ struct SettingsView: View {
                         .onChange(of: appState.realtimeModel) {
                             appState.saveUserPreferences()
                         }
-                        
-                        if appState.realtimeDetection {
-                            Picker("Choose View", selection: $appState.realtimeViewMode) {
-                                Text("General").tag("general")
-                                Text("Side View").tag("side-view")
-                                Text("Front View").tag("front-view")
-                                Text("Corner View").tag("corner-view")
+                    }
+                    
+                    Section(header: Text("Analysis Settings")) {
+                        Picker("Angle Unit", selection: $appState.angleUnit) {
+                            ForEach(AngleUnit.allCases) { unit in
+                                Text(unit.rawValue).tag(unit)
                             }
                         }
+                        
+                        Picker("Distance Unit", selection: $appState.distanceUnit) {
+                            ForEach(DistanceUnit.allCases) { unit in
+                                Text(unit.rawValue).tag(unit)
+                            }
+                        }
+                        
+                        Picker("Time Unit", selection: $appState.timeUnit) {
+                            ForEach(TimeUnit.allCases) { unit in
+                                Text(unit.rawValue).tag(unit)
+                            }
+                        }
+
+                        Toggle("Analysis Data Smoothing", isOn: $appState.analysisFilterMode)
+                            .onChange(of: appState.analysisFilterMode) {
+                                appState.saveUserPreferences()
+                            }
                     }
                 }
                 .navigationTitle("Settings")

@@ -25,13 +25,25 @@ vertex VSOut vs_depth(VSIn in [[stage_in]]) {
     return out;
 }
 
-// depth texture (r16Float/r32Float)
 fragment float4 fs_depth(VSOut in [[stage_in]],
                          texture2d<float, access::sample> depthTex [[texture(0)]],
                          sampler s [[sampler(0)]],
                          constant float &maxDepth [[buffer(0)]]) {
-    float d = depthTex.sample(s, in.uv).r;  // fetch depth value
-    float norm = clamp(d / maxDepth, 0.0, 1.0); // normalize
-    return float4(norm, norm, norm, 1.0);   // grayscale output
+    float d = depthTex.sample(s, in.uv).r;
+    float norm = clamp(d / maxDepth, 0.0, 1.0);
+
+    // Jet-style colormap (blue -> cyan -> green -> yellow -> red)
+    float4 color;
+    if (norm < 0.25) {
+        color = float4(0.0, norm * 4.0, 1.0, 1.0);   // blue to cyan
+    } else if (norm < 0.5) {
+        color = float4(0.0, 1.0, 1.0 - (norm - 0.25) * 4.0, 1.0); // cyan to green
+    } else if (norm < 0.75) {
+        color = float4((norm - 0.5) * 4.0, 1.0, 0.0, 1.0); // green to yellow
+    } else {
+        color = float4(1.0, 1.0 - (norm - 0.75) * 4.0, 0.0, 1.0); // yellow to red
+    }
+
+    return color;
 }
 

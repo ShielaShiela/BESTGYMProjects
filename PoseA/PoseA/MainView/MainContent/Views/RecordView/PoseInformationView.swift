@@ -11,9 +11,10 @@ import Charts
 // Overlay to draw pose information
 struct PoseInformationView: View {
     // MARK: - Properties
+    @ObservedObject var appState: MainAppState
     @State var rtPoseJointVM: RealtimePoseJointViewModel
     @State private var isBarAvailable: Bool = false
-    
+
     var body: some View {
         GeometryReader { geo in
             TabView {
@@ -36,7 +37,7 @@ struct PoseInformationView: View {
                             .font(.caption)
                         
                         Text("Jump Height: " + (rtPoseJointVM.barPoints == nil ? "Bar Unavailable" :
-                                                    (rtPoseJointVM.latched ? "\(String(format: "%.2f ", rtPoseJointVM.distToBar ?? 0.0)) m" : "No Jump Detected")))
+                                                (rtPoseJointVM.latched ? "\(String(format: "%.2f ", rtPoseJointVM.distToBar ?? 0.0)) m" : "No Jump Detected")))
                             .foregroundColor(.white)
                             .font(.caption)
                     }
@@ -76,12 +77,6 @@ struct PoseInformationView: View {
                                     .foregroundStyle(.white.opacity(0.5)) // Set grid line color with transparency
                                 AxisTick()
                                     .foregroundStyle(.gray)
-                                AxisValueLabel {
-                                    if let doubleValue = value.as(Double.self) {
-                                        Text(String(format: "%.1f", doubleValue) + " n")
-                                            .foregroundStyle(.gray)
-                                    }
-                                }
                             }
                         }
                         
@@ -94,7 +89,7 @@ struct PoseInformationView: View {
                                     .foregroundStyle(.gray)
                                 AxisValueLabel {
                                     if let doubleValue = value.as(Double.self) {
-                                        Text(String(format: "%.1f%", doubleValue) + " deg")
+                                        Text(String(format: "%.2f", doubleValue) + " \(appState.angleUnit.id)")
                                             .foregroundStyle(.gray)
                                     }
                                 }
@@ -109,7 +104,6 @@ struct PoseInformationView: View {
                     )
                     .padding(10)
                     .position(x: geo.size.width * 0.5, y: geo.size.height * 0.80)
-
                 }
             }
             .tabViewStyle(.page)

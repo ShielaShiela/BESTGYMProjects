@@ -65,11 +65,11 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
 
     private var firstPTS: CMTime? = nil
     private var frameBuffer = [(CVPixelBuffer, CMTime)]()
-
+    private var depthMap: CVPixelBuffer? = nil
+    
     // Image Processing
     @Published var poseKeypoints: [PoseBox] = []
     @Published var camIntrinsics: matrix_float3x3 = matrix_identity_float3x3
-    @Published var depthMap: CVPixelBuffer? = nil
     @Published var depthTexture: MTLTexture? = nil
     
     private var poseProcessor: YOLOPoseProcessor?
@@ -278,20 +278,37 @@ extension CameraManagerVM {
             DispatchQueue.main.async {
                 self.fpsStream = self.systemFPS.fps
                 self.depthTexture = capturedData.depth
+                self.camIntrinsics = capturedData.cameraIntrinsics
+                self.depthMap = depthPixelBuffer
             }
             
             // BETA: - YOLO Pose Detection
             if isPoseProcessingEnabled {
                 poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
+                    // Add depth points to each pose
+                    var result = poses
+                    if !result.isEmpty {
+                        // [PoseBox] contains one PoseBox
+                        if var pose = result.first {
+                            // update keypoints in that PoseBox
+                            for i in 0..<pose.keypoints.count {
+                                let kp = pose.keypoints[i]
+                                let newDepth = self?.getPointDepth(x: kp.x, y: kp.y) ?? 0.0
+                                pose.keypoints[i].depth = newDepth
+                                print("Depth at \(pose.keypoints[i].name) ≈ \(newDepth) m")
+                            }
+                            // assign it back to PoseBox
+                            result[0] = pose
+                        }
+                    }
+                    
                     DispatchQueue.main.async {
                         if !poses.isEmpty {
-                            self?.poseKeypoints = poses
+                            self?.poseKeypoints = result
                         } else {
                             self?.poseKeypoints = []
                         }
                         self?.fpsModel = fps
-                        self?.camIntrinsics = capturedData.cameraIntrinsics
-                        self?.depthMap = depthPixelBuffer
                     }
                 }
             }
@@ -366,6 +383,39 @@ extension CameraManagerVM {
     func clearAllFrames() {
         capturedData = FrameDataVM()
         log("Cleanup complete", level: .info)
+    }
+    
+    func getPointDepth(x: CGFloat? = nil, y: CGFloat? = nil) -> Float32? {
+        guard let pointX = x, let pointY = y else {
+            return nil
+        }
+        
+        // Access Depth Map
+        guard let depthBuffer = self.depthMap else { return nil }
+        let depthWidth = CVPixelBufferGetWidth(depthBuffer)
+        let depthHeight = CVPixelBufferGetHeight(depthBuffer)
+        
+        // Convert Point Image to Point Depth
+        let depthX = Int(pointX / CGFloat(cameraConfiguration.resolution.width) * CGFloat(depthWidth))
+        let depthY = Int(pointY / CGFloat(cameraConfiguration.resolution.width) * CGFloat(depthHeight))
+
+        // Access Depth value
+        CVPixelBufferLockBaseAddress(depthBuffer, .readOnly)
+        
+        var depth: Float32? = nil
+        if let baseAddress = CVPixelBufferGetBaseAddress(depthBuffer) {
+            let rowBytes = CVPixelBufferGetBytesPerRow(depthBuffer)
+            let float16Buffer = baseAddress.assumingMemoryBound(to: UInt16.self)
+
+            // Depth is in Float16 (r16Float), so cast manually
+            let index = depthY * (rowBytes / MemoryLayout<UInt16>.size) + depthX
+            
+            depth = Float16(bitPattern: float16Buffer[index]).toFloat32()
+        }
+
+        CVPixelBufferUnlockBaseAddress(depthBuffer, .readOnly)
+        
+        return depth
     }
 }
 

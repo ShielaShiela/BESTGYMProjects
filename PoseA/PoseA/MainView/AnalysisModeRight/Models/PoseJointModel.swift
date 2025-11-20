@@ -5,52 +5,73 @@
 //  Created by Ardhika Maulidani on 6/1/25.
 //
 
+import Spatial
 import SwiftUI
+import Charts
 
 // MARK: ------------------------------- Chart Data Structure BEGIN -------------------------------
-
-struct ChartData: Identifiable, Equatable {
+struct ChartData3D: Identifiable, Equatable {
     var id: String { joint }
     var joint: String
-    var dataPoints: [PointData]
+    var dataPoints: ChartPoint3D
+}
+
+struct ChartData2D: Identifiable, Equatable {
+    var id: String { joint }
+    var joint: String
+    var dataPoints: [Point2D]
     var dataMetrics: dataMetrics
 }
 
-struct PointData: Identifiable, Equatable {
-    let id = UUID()
-    let x: Double
-    let y: Double
-}
-
-struct JointData: Identifiable {
+struct JointData3D: Identifiable, Equatable {
     var id: String { joint }
     var joint: String
-    var dataPoints: [xyzChartData]
+    var dataPoints: [Point3D]
     var dataMetrics: dataMetrics
 }
 
-struct xyzChartData: Identifiable {
+struct Point2D: Identifiable, Equatable {
     var id = UUID()
-    var x: Float // For X Axis Data
-    var y: Float // For Y Axis Data
-    var z: Float // For Z Axis (Depth) or Indices Data
+    var x: Double
+    var y: Double
+        
+    init(_ point: CGPoint) {
+        self.x = Double(point.x)
+        self.y = Double(point.y)
+    }
+    
+    init(x: Double, y: Double) {
+        self.x = x
+        self.y = y
+    }
 }
 
-extension xyzChartData {
-    init(x: Int, y: Float, z: Float = 0.0) {
-        self.x = Float(x)
-        self.y = Float(y)
-        self.z = Float(z)
+struct ChartPoint3D: Identifiable, Equatable {
+    var id = UUID()
+    var x: Double
+    var y: Double
+    var z: Double
+        
+    init(_ point: Point3D) {
+        self.x = Double(point.x)
+        self.y = Double(point.y)
+        self.z = Double(point.z)
+    }
+    
+    init(x: Double, y: Double, z: Double) {
+        self.x = x
+        self.y = y
+        self.z = z
     }
 }
 
 struct dataMetrics: Equatable {
-    var minX: Float = 0.0
-    var maxX: Float = 0.0
-    var minY: Float = 0.0
-    var maxY: Float = 0.0
-    var minZ: Float = 0.0
-    var maxZ: Float = 0.0
+    var minX: Double = 0.0
+    var maxX: Double = 0.0
+    var minY: Double = 0.0
+    var maxY: Double = 0.0
+    var minZ: Double = 0.0
+    var maxZ: Double = 0.0
 }
 // MARK: -------------------------------- Chart Data Structure END --------------------------------
 

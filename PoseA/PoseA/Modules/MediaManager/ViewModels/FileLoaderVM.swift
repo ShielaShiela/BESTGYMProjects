@@ -17,7 +17,7 @@ class FileLoaderVM: ObservableObject {
     // --- Data Storage for Playback ---
     var FrameImageURLs:[URL] = []
     var FrameFolderURLs: [URL] = []
-    var keypointsByFrame: [Int: [KeypointData]] = [:]
+    var keypointData: [Int : PoseBox] = [:]
     
     // Data Availability Status Flag
     var isDataLoaded: Bool = false
@@ -148,9 +148,9 @@ class FileLoaderVM: ObservableObject {
 
 
     // MARK: - Load Keypoint Files
-    func loadKeypoints(from MLOutput: [Int: [KeypointData]]) {
+    func loadKeypoints(from MLOutput: [Int : PoseBox]) {
         // Set Keypoints
-        self.keypointsByFrame = MLOutput
+        self.keypointData = MLOutput
         // Set Data Status
         self.isKeyLoaded = !MLOutput.isEmpty
     }
@@ -162,24 +162,37 @@ class FileLoaderVM: ObservableObject {
 
             do {
                 if url.pathExtension.lowercased() == "json" {
-                    var keypointsFrame: [Int: [KeypointData]] = [:]
+                    var keypointData: [Int : PoseBox] = [:]
                     let data = try Data(contentsOf: url)
                     
                     // Try parsing as a dictionary of KeypointData
                     if let jsonObject = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
-                        keypointsFrame.removeAll()
+                        keypointData.removeAll()
                         
                         // Check for different JSON structures
+                        if let bboxData = jsonObject["frames_bbox"] as? [String: [String: Any]] {
+                            // Format with "bbox" key
+                            for (key, points) in bboxData {
+                                if key.hasPrefix("framebbox_"),
+                                   let frameIndexString = key.split(separator: "_").last,
+                                   let frameIndex = Int(frameIndexString) {
+                                    let poseBoxFrame = parseBboxFromDictionary(points, frameIndex: frameIndex)
+                                    keypointData[frameIndex] = poseBoxFrame
+                                }
+                            }
+                        }
+                            
                         if let framesData = jsonObject["frames"] as? [String: [[String: Any]]] {
                             // Format with "frames" key
                             for (key, points) in framesData {
                                 if key.hasPrefix("frame_"),
                                    let frameIndexString = key.split(separator: "_").last,
                                    let frameIndex = Int(frameIndexString) {
-                                    
-                                    keypointsFrame[frameIndex] = parseKeypointsFromDictionary(points, frameIndex: frameIndex)
+                                    let keypointsFrame = parseKeypointsFromDictionary(points, frameIndex: frameIndex)
+                                    keypointData[frameIndex]?.keypoints = keypointsFrame
                                 }
                             }
+                            
                         } else {
                             log("Unrecognized JSON format", level: .error)
                         }
@@ -190,9 +203,9 @@ class FileLoaderVM: ObservableObject {
                     // Update Published Variables
                     DispatchQueue.main.async { [self] in
                         // Set Data Value
-                        self.keypointsByFrame = keypointsFrame
+                        self.keypointData = keypointData
                         // Set Data Status
-                        self.isKeyLoaded = !keypointsFrame.isEmpty
+                        self.isKeyLoaded = !keypointData.isEmpty
                     }
                     
                 } else {
@@ -309,5 +322,36 @@ class FileLoaderVM: ObservableObject {
         }
         
         return keypointsForFrame
+    }
+    
+    private func parseBboxFromDictionary(_ point: [String: Any], frameIndex: Int) -> PoseBox {
+        var output: PoseBox = PoseBox(
+            bbox: .zero,
+            confidence: 0.0,
+            keypoints: []
+        )
+        
+        if let x = (point["x"] as? NSNumber)?.doubleValue ?? (point["x"] as? Double),
+           let y = (point["y"] as? NSNumber)?.doubleValue ?? (point["y"] as? Double),
+           let width = (point["width"] as? NSNumber)?.doubleValue ?? (point["width"] as? Double),
+           let height = (point["height"] as? NSNumber)?.doubleValue ?? (point["depth"] as? Double),
+           let confidence = (point["confidence"] as? NSNumber)?.floatValue ?? (point["confidence"] as? Float) {
+            
+            let bbox = CGRect(
+                x: x,
+                y: y,
+                width: width,
+                height: height
+            )
+            
+            output = PoseBox(
+                bbox: bbox,
+                confidence: confidence,
+                keypoints: []
+            )
+        }
+        
+        
+        return output
     }
 }

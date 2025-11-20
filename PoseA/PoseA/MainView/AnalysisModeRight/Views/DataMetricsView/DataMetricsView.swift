@@ -95,7 +95,7 @@ struct ExpandableJointView: View {
     // MARK: - Properties
     var appState: MainAppState
     var selectedOptions: String?
-    var jointData: JointData
+    var jointData: JointData3D
     var isExpanded: Bool
     var toggleExpand: () -> Void
 

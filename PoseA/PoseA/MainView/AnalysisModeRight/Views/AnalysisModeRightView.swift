@@ -12,12 +12,13 @@ struct AnalysisModeRightView: View {
     @State var ROIModel: ROIViewModel
     @State var BoxModel: BoxViewModel
     @State var mediaManager: MediaManagerVM
-    @State var MLModel: VitPoseProcessor
+    @State var analysisVM: AnalysisModeVM
+    @State var MLModel: YOLOPoseProcessor
     
     @State var selectedView: RightViewModel = .info
     @State private var poseJointVM: PoseJointLandscapeVM
     
-    init(appState: MainAppState, ROIModel: ROIViewModel, BoxModel: BoxViewModel, mediaManager: MediaManagerVM, MLModel: VitPoseProcessor) {
+    init(appState: MainAppState, ROIModel: ROIViewModel, BoxModel: BoxViewModel, mediaManager: MediaManagerVM, MLModel: YOLOPoseProcessor) {
         self.appState = appState
         self.ROIModel = ROIModel
         self.BoxModel = BoxModel
@@ -28,151 +29,155 @@ struct AnalysisModeRightView: View {
         self._poseJointVM = State(wrappedValue: PoseJointLandscapeVM(appState: appState,
                                                                      BoxModel: BoxModel,
                                                                      mediaManager: mediaManager))
+        
+        self._analysisVM = State(initialValue: AnalysisModeVM(poseProcessor: MLModel,
+                                                              mediaManager: mediaManager))
     }
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack() {
-                // Set View Screen
-                switch(selectedView) {
-                case .info:
-                    // Media Info View
-                    InformationView(appState: appState,
-                                    ROIModel: ROIModel,
-                                    BoxModel: BoxModel,
-                                    mediaManager: mediaManager)
-                    .frame(height: geometry.size.height)
-                    .padding(.horizontal)
-                    
-                case .dataMetrics:
-                    DataMetricsView(appState: appState,
-                                    poseJointVM: poseJointVM)
-                    .frame(height: geometry.size.height)
-                    .padding(.horizontal)
-                    
-                case .swing:
-                    SwingAnalysisView(appState: appState,
-                                      poseJointVM: poseJointVM,
-                                      mediaManager: mediaManager)
-                    .frame(height: geometry.size.height)
-                    .padding(.horizontal)
-                    
-                default:
-                    // Pose Analysis View
-                    PoseAnalysisView(appState: appState,
-                                     selectedView: selectedView,
-                                     poseJointVM: poseJointVM,
-                                     mediaManager: mediaManager)
-                    .frame(height: geometry.size.height)
-                    .padding(.horizontal)
-                }
-                
-                // MENU CHANGER
-                // TODO: Change the layout and UI to be more compact. For now focusing on Pose Analysis Rework
-                VStack(alignment: .trailing) {
-                    Spacer()
-                    
-                    if !appState.sourceFileName.isEmpty {
-                        Menu {
-                            Group {
-                                Button(action: { selectedView = .info }) {
-                                    Text("Media Information")
-                                        .font(.system(size: 10)) // Smaller font
-                                        .padding(2)              // Less padding
-                                }
-                                
-                                Divider()
-                                
-                                if appState.isAnalysisAvailable {
-                                    Button(action: { selectedView = .swing }) {
-                                        Text("Giant Swing Analysis")
-                                            .font(.system(size: 10))
-                                            .padding(2)
-                                    }
-                                    
-                                    Divider()
-                                    
-                                    Button(action: { selectedView = .angle }) {
-                                        Text("Angle Analysis")
-                                            .font(.system(size: 10))
-                                            .padding(2)
-                                    }
-                                    
-                                    Button(action: { selectedView = .trajectoryAxes }) {
-                                        Text("Single Axes Analysis")
-                                            .font(.system(size: 10))
-                                            .padding(2)
-                                    }
-                                    
-                                    Button(action: { selectedView = .velocity }) {
-                                        Text("Velocity Analysis")
-                                            .font(.system(size: 10))
-                                            .padding(2)
-                                    }
-                                    Button(action: { selectedView = .acceleration }) {
-                                        Text("Acceleration Analysis")
-                                            .font(.system(size: 10))
-                                            .padding(2)
-                                    }
-                                    
-                                    Button(action: { selectedView = .dataMetrics }) {
-                                        Text("Data Metrics")
-                                            .font(.system(size: 10))
-                                            .padding(2)
-                                    }
-                                    
-                                    Divider()
-                                    
-                                    Button(action: { updateData() }) {
-                                        Text("ReAnalyze!")
-                                            .font(.system(size: 10))
-                                            .padding(2)
-                                    }
-                                } else {
-                                    Button(action: {
-                                        if !mediaManager.isKeypointAvailable {
-                                            updateData()
-                                        } else {
-                                            updateAnalysis()
-                                        }
-                                    }) {
-                                        Text("Start Analysis!")
-                                            .font(.system(size: 10))
-                                            .padding(2)
-                                    }
-                                }
-                                
-                            }
-                        } label: {
-                            // This stays exactly as you had it
-                            Image(systemName: "waveform.path.ecg")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 26, height: 24)
-                                .foregroundColor(.white)
-                                .padding(20)
-                                .background(
-                                    Circle().fill(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [Color.blue, Color.cyan]),
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ).opacity(0.5)
-                                    )
-                                )
-                                .shadow(color: Color.black.opacity(0.2), radius: 4, x: 2, y: 2)
-                        }
-                    }
-                }
-            }
-            .onChange(of: appState.angleUnit) { oldValue, newValue in
-                if oldValue != newValue && appState.isAnalysisAvailable {
-                    appState.isAnalysisAvailable = false
-                    updateAnalysis()
-                }
-            }
-        }
-    }
+           GeometryReader { geometry in
+               currentView
+                   .frame(height: geometry.size.height)
+                   .padding(.horizontal)
+                   .overlay(alignment: .bottomTrailing) {
+                       if appState.sourceFileName != "" {
+                           menuButton
+                               .padding(.trailing, 16)
+                               .padding(.bottom, 20)
+                       }
+                   }
+           }
+           .onChange(of: appState.angleUnit) { oldValue, newValue in
+               if oldValue != newValue && appState.isAnalysisAvailable {
+                   appState.isAnalysisAvailable = false
+                   updateAnalysis()
+               }
+           }
+       }
+
+   // MARK: - View pieces
+
+   @ViewBuilder
+   private var currentView: some View {
+       switch selectedView {
+       case .info:
+           InformationView(appState: appState,
+                           ROIModel: ROIModel,
+                           BoxModel: BoxModel,
+                           mediaManager: mediaManager)
+               .frame(maxHeight: .infinity)
+
+       case .dataMetrics:
+           DataMetricsView(appState: appState,
+                           poseJointVM: poseJointVM)
+               .frame(maxHeight: .infinity)
+
+       case .swing:
+           SwingAnalysisView(appState: appState,
+                             poseJointVM: poseJointVM,
+                             mediaManager: mediaManager)
+               .frame(maxHeight: .infinity)
+
+       default:
+           PoseAnalysisView(appState: appState,
+                            selectedView: selectedView,
+                            poseJointVM: poseJointVM,
+                            mediaManager: mediaManager)
+               .frame(maxHeight: .infinity)
+       }
+   }
+
+   private var menuButton: some View {
+       Menu {
+           Group {
+               Button(action: { selectedView = .info }) {
+                   Text("Media Information")
+                       .font(.system(size: 10))
+                       .padding(2)
+               }
+
+               Divider()
+
+               if appState.isAnalysisAvailable {
+                   Button(action: { selectedView = .swing }) {
+                       Text("Giant Swing Analysis")
+                           .font(.system(size: 10))
+                           .padding(2)
+                   }
+
+                   Divider()
+
+                   Button(action: { selectedView = .angle }) {
+                       Text("Angle Analysis")
+                           .font(.system(size: 10))
+                           .padding(2)
+                   }
+
+                   Button(action: { selectedView = .trajectoryAxes }) {
+                       Text("Single Axes Analysis")
+                           .font(.system(size: 10))
+                           .padding(2)
+                   }
+
+                   Button(action: { selectedView = .velocity }) {
+                       Text("Velocity Analysis")
+                           .font(.system(size: 10))
+                           .padding(2)
+                   }
+
+                   Button(action: { selectedView = .acceleration }) {
+                       Text("Acceleration Analysis")
+                           .font(.system(size: 10))
+                           .padding(2)
+                   }
+
+                   Button(action: { selectedView = .dataMetrics }) {
+                       Text("Data Metrics")
+                           .font(.system(size: 10))
+                           .padding(2)
+                   }
+
+                   Divider()
+
+                   Button(action: { Task { await updateData() } }) {
+                       Text("ReAnalyze!")
+                           .font(.system(size: 10))
+                           .padding(2)
+                   }
+               } else {
+                   Button(action: {
+                       if !mediaManager.isKeypointAvailable {
+                           Task { await updateData() }
+                       } else {
+                           updateAnalysis()
+                       }
+                   }) {
+                       Text("Start Analysis!")
+                           .font(.system(size: 10))
+                           .padding(2)
+                   }
+               }
+           }
+       } label: {
+           Image(systemName: "waveform.path.ecg")
+               .resizable()
+               .scaledToFit()
+               .frame(width: 26, height: 24)
+               .foregroundColor(.white)
+               .padding(20)
+               .background(
+                   Circle()
+                       .fill(
+                           LinearGradient(
+                               gradient: Gradient(colors: [Color.blue, Color.cyan]),
+                               startPoint: .topLeading,
+                               endPoint: .bottomTrailing
+                           ).opacity(0.5)
+                       )
+               )
+               .shadow(color: Color.black.opacity(0.2), radius: 4, x: 2, y: 2)
+       }
+   }
     
     private func updateAnalysis() {
         // Check if app processing something
@@ -200,7 +205,7 @@ struct AnalysisModeRightView: View {
         }
     }
     
-    private func updateData() {
+    private func updateData() async {
         // Check if app processing something
         guard !self.appState.isProcessing else {
             log("App still processing...", level: .info)
@@ -216,13 +221,11 @@ struct AnalysisModeRightView: View {
         
         // Pass ROI information to the Model
         if let roiImageCoordinates = self.ROIModel.roiImageSpace {
-            self.MLModel.setROI(roiImageCoordinates)
-        } else {
-            self.MLModel.clearROI()
+            self.analysisVM.setROI(rect: roiImageCoordinates)
         }
         
         // Pass to ML Model Inference System
-        self.MLModel.processFrames(from: self.mediaManager, maxRetries: 2) { progressValue in
+        await self.analysisVM.process() { progressValue in
             // Update progress on main thread
             DispatchQueue.main.async {
                 let percentage = Int(progressValue * 100)
@@ -235,7 +238,7 @@ struct AnalysisModeRightView: View {
                 
                 if success {
                     // Get Final Statistics
-                    let processedFrames = self.MLModel.getFrameIndicesWithKeypoints().count
+                    let processedFrames = self.analysisVM.processedKeypoints.count
                     let totalFrames = self.mediaManager.mediaPlayerViewModel.totalFrames
                     
                     log("Processing complete: \(processedFrames)/\(totalFrames) frames processed", level: .debug)
@@ -250,17 +253,27 @@ struct AnalysisModeRightView: View {
                     self.appState.hasImportedKeypoints = true
                     
                     // TODO: - Export To JSON
-                    self.exportKeypointsToJSON()
-                    
-                    // Load Keypoints into File Loader ViewModel
-                    self.mediaManager.fileLoaderViewModel.loadKeypoints(from: self.MLModel.getKeypoints())
-                    
-                    // Process Keypoints
-                    // Do Pose Analyze Processing
-                    poseJointVM.buildCompleteData { success in
-                        // Set State when finished
-                        appState.isAnalysisAvailable = success
-                        appState.isProcessing = false
+                    self.exportKeypointsToJSON() {
+                        // Load Keypoints into File Loader ViewModel
+                        self.mediaManager.fileLoaderViewModel.loadKeypoints(from: self.analysisVM.processedKeypoints)
+                        
+                        Task {
+                            while !self.mediaManager.isKeypointAvailable {
+                                if self.mediaManager.fileLoaderViewModel.isKeyLoaded {
+                                    self.mediaManager.isKeypointAvailable = true
+                                    log("Successfully loaded Keypoints frame data.", level: .debug)
+                                }
+                                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms polling
+                            }
+                        }
+                        
+                        // Process Keypoints
+                        // Do Pose Analyze Processing
+                        poseJointVM.buildCompleteData { success in
+                            // Set State when finished
+                            appState.isAnalysisAvailable = success
+                            appState.isProcessing = false
+                        }
                     }
                     
                 } else if let processingError = error {
@@ -271,10 +284,9 @@ struct AnalysisModeRightView: View {
         }
     }
     
-    // Replace the exportKeypointsToJSON method in BESTGYMPoseApp.swift
-    private func exportKeypointsToJSON() {
+    private func exportKeypointsToJSON(completion: @escaping () -> Void) {
         // Ensure we have keypoints to export
-        guard MLModel.getTotalFrames() > 0 else {
+        guard self.analysisVM.processedKeypoints.count > 0 else {
             appState.errorMessage = "No keypoints available to export"
             return
         }
@@ -350,9 +362,6 @@ struct AnalysisModeRightView: View {
             metadata["actionType"] = appState.actionType
         }
         
-        metadata["distance"] = 0
-        
-        
         // Perform export in background
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -363,9 +372,8 @@ struct AnalysisModeRightView: View {
                 }
                 
                 // Export all frames to JSON
-                try self.MLModel.exportKeypoints(
+                try self.analysisVM.exportKeypoints(
                     to: targetURL,
-                    format: "json",
                     sourceInfo: metadata
                 )
                 
@@ -375,12 +383,14 @@ struct AnalysisModeRightView: View {
                     self.appState.originalKeypointFileURL = targetURL
                     
                     log("Successfully exported keypoints to: \(targetURL.path)", level: .info)
+                    completion()
                 }
             } catch {
                 // Handle export error
                 DispatchQueue.main.async {
                     self.appState.errorMessage = "Failed to export keypoints: \(error.localizedDescription)"
                     log("Error exporting keypoints: \(targetURL)", level: .error)
+                    completion()
                 }
             }
         }

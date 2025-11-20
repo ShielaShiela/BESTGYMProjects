@@ -9,15 +9,15 @@
 #include <cmath>
 
 struct KalmanFilter1D {
-    float x[2];     // [angle, velocity]
-    float P[2][2];  // Covariance matrix
-    float A[2][2];  // State transition
-    float H[2];     // Measurement model
-    float Q[2][2];  // Process noise
-    float R;        // Measurement noise
+    double x[2];     // [angle, velocity]
+    double P[2][2];  // Covariance matrix
+    double A[2][2];  // State transition
+    double H[2];     // Measurement model
+    double Q[2][2];  // Process noise
+    double R;        // Measurement noise
 };
 
-KalmanFilter1D* kalman_create(float dt) {
+KalmanFilter1D* kalman_create(double dt) {
     KalmanFilter1D* kf = new KalmanFilter1D;
 
     kf->A[0][0] = 1.0f; kf->A[0][1] = dt;
@@ -34,7 +34,7 @@ KalmanFilter1D* kalman_create(float dt) {
     return kf;
 }
 
-void kalman_reset(KalmanFilter1D* kf, float angle) {
+void kalman_reset(KalmanFilter1D* kf, double angle) {
     kf->x[0] = angle;
     kf->x[1] = 0.0f;
 
@@ -42,14 +42,14 @@ void kalman_reset(KalmanFilter1D* kf, float angle) {
     kf->P[1][0] = 0.0f; kf->P[1][1] = 1.0f;
 }
 
-float kalman_update(KalmanFilter1D* kf, float* measurement) {
+double kalman_update(KalmanFilter1D* kf, double* measurement) {
     // Predict
-    float x_pred[2] = {
+    double x_pred[2] = {
         kf->A[0][0] * kf->x[0] + kf->A[0][1] * kf->x[1],
         kf->A[1][0] * kf->x[0] + kf->A[1][1] * kf->x[1]
     };
 
-    float P_pred[2][2];
+    double P_pred[2][2];
     for (int i = 0; i < 2; ++i)
         for (int j = 0; j < 2; ++j)
             P_pred[i][j] = kf->Q[i][j] +
@@ -57,13 +57,13 @@ float kalman_update(KalmanFilter1D* kf, float* measurement) {
                 kf->A[i][1] * kf->P[1][j];
 
     if (measurement) {
-        float z = *measurement;
-        float y = z - (kf->H[0] * x_pred[0] + kf->H[1] * x_pred[1]); // innovation
+        double z = *measurement;
+        double y = z - (kf->H[0] * x_pred[0] + kf->H[1] * x_pred[1]); // innovation
 
-        float S = kf->H[0] * (P_pred[0][0] * kf->H[0] + P_pred[0][1] * kf->H[1]) +
+        double S = kf->H[0] * (P_pred[0][0] * kf->H[0] + P_pred[0][1] * kf->H[1]) +
                   kf->H[1] * (P_pred[1][0] * kf->H[0] + P_pred[1][1] * kf->H[1]) + kf->R;
 
-        float K[2];
+        double K[2];
         K[0] = (P_pred[0][0] * kf->H[0] + P_pred[0][1] * kf->H[1]) / S;
         K[1] = (P_pred[1][0] * kf->H[0] + P_pred[1][1] * kf->H[1]) / S;
 
@@ -72,7 +72,7 @@ float kalman_update(KalmanFilter1D* kf, float* measurement) {
         kf->x[1] = x_pred[1] + K[1] * y;
 
         // Update covariance
-        float KH[2][2] = {
+        double KH[2][2] = {
             { K[0] * kf->H[0], K[0] * kf->H[1] },
             { K[1] * kf->H[0], K[1] * kf->H[1] }
         };

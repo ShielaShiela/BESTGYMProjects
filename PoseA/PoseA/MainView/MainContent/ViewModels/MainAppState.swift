@@ -81,12 +81,12 @@ extension MainAppState {
     }
     
     func loadUserPreferences() {
-        autoDetectKeypoints = UserDefaults.standard.bool(forKey: "AutoDetectKeypoints")
+        autoDetectKeypoints = true
     }
     
     // Save preferences to UserDefaults
     func saveUserPreferences() {
         UserDefaults.standard.set(autoDetectKeypoints, forKey: "AutoDetectKeypoints")
-
+     
     }
 }

@@ -5,6 +5,7 @@
 //  Created by Ardhika Maulidani on 7/15/25.
 //
 
+import Spatial
 import Foundation
 
 // MARK: ----------------------------- Pose Joint Dataase Class BEGIN -----------------------------
@@ -12,19 +13,19 @@ import Foundation
 class PoseJointLandscapeVM {
     // MARK: - Properties
     
-    var angleCompleteData: [JointData] = []
-    var positionCompleteData: [JointData] = []
-    var velocityCompleteData: [JointData] = []
-    var accelerationCompleteData: [JointData] = []
+    var angleCompleteData: [JointData3D] = []
+    var positionCompleteData: [JointData3D] = []
+    var velocityCompleteData: [JointData3D] = []
+    var accelerationCompleteData: [JointData3D] = []
     
-    var barPosition: [PointData] = []
-    var swingData: [JointData] = []
+    var barPosition: [Point2D] = []
+    var swingData: [JointData3D] = []
     
     private var BoxModel: BoxViewModel
     private var mediaManager: MediaManagerVM
     private var appState: MainAppState
 
-    private let fps: Float = 30.0
+    private let fps: Double = 30.0
     private let processingQueue = DispatchQueue(label: "com.posea.processing", qos: .userInitiated)
     
 
@@ -69,7 +70,7 @@ class PoseJointLandscapeVM {
     
     func estimateBar(completion: @escaping () -> Void) {
         // Declare Variable
-        var usedData: [JointData] = []
+        var usedData: [JointData3D] = []
         
         // Fetch wrist data
         for jointData in positionCompleteData {
@@ -85,7 +86,7 @@ class PoseJointLandscapeVM {
             return
         }
 
-        var barPositions: [CGPoint] = []
+        var barPositions: [Point2D] = []
         
         for i in 0..<usedData[0].dataPoints.count {
             let left = usedData[0].dataPoints[i]
@@ -98,10 +99,10 @@ class PoseJointLandscapeVM {
             
             if (50..<400).contains(handDist), verticalDist < 80 {
                 let midPoint = CGPoint(
-                    x: Double(left.x + right.x) / 2,
-                    y: Double(left.y + right.y) / 2
+                    x: (left.x + right.x) / 2,
+                    y: (left.y + right.y) / 2
                 )
-                barPositions.append(midPoint)
+                barPositions.append(Point2D(midPoint))
             }
         }
 
@@ -122,7 +123,7 @@ class PoseJointLandscapeVM {
             }
         }
 
-        self.barPosition.append(PointData(x: estimatedPosition.x, y: estimatedPosition.y))
+        self.barPosition.append(Point2D(x: estimatedPosition.x, y: estimatedPosition.y))
         completion()
     }
     
@@ -131,15 +132,15 @@ class PoseJointLandscapeVM {
         var _dataMetricsVel: dataMetrics = .init()
         var _dataMetricsTurn: dataMetrics = .init()
         
-        var resultsAngle: [xyzChartData] = []
-        var resultsVelocity: [xyzChartData] = []
+        var resultsAngle: [Point3D] = []
+        var resultsVelocity: [Point3D] = []
         
-        var prevAngle: Float = 0
-        var accumulatedAngle: Float = 0
-        var turns: Float = 0
+        var prevAngle: Angle2D = .zero
+        var accumulatedAngle: Angle2D = .zero
+        var turns: Double = 0
         
         // Declare Variable
-        var usedData: [JointData] = []
+        var usedData: [JointData3D] = []
         
         // Get Hip Data
         for jointData in positionCompleteData {
@@ -155,37 +156,31 @@ class PoseJointLandscapeVM {
         }
             
         // Calculate Angle
-        let dt: Float = 1 / fps
+        let dt: Double = 1 / fps
         let count = Int(usedData[0].dataPoints.count)
         
         for i in 0..<count {
             let currL = usedData[0].dataPoints[i]
             let currR = usedData[1].dataPoints[i]
             
-            let dx = (currL.x + currR.x) / 2 - Float(self.barPosition.first!.x)
-            let dy = (currL.y + currR.y) / 2 - Float(self.barPosition.first!.y)
+            let dx = (currL.x + currR.x) / 2 - self.barPosition.first!.x
+            let dy = (currL.y + currR.y) / 2 - self.barPosition.first!.y
             
             // Angle from +Y axis (clockwise is positive)
-            let angle = atan2(dy, dx)  // Standard angle from +X
-            let angleFromY = angle + .pi / 2  // Rotate CCW to make 0 = +Y
+            let angle = Angle2D.atan2(y: dy, x: dx)  // Standard angle from +X
+            let angleFromY = angle + Angle2D(radians: .pi / 2)  // Rotate CCW to make 0 = +Y
 
             // Unwrap angle to avoid jumps at ±π
             let delta = angle - prevAngle
-            let unwrappedDelta = atan2(sin(delta), cos(delta))
+            let unwrappedDelta = Angle2D.atan2(y: sin(delta), x: cos(delta))
             accumulatedAngle += unwrappedDelta
             prevAngle = angle
             
-            let angularVelocity = i > 0 ? unwrappedDelta / dt : 0.0
-            turns = abs(accumulatedAngle / (.pi * 2))
+            let angularVelocity = i > 0 ? (appState.angleUnit == .rad ? unwrappedDelta.radians : unwrappedDelta.degrees) / dt : 0.0
+            turns = abs(accumulatedAngle.radians / (.pi * 2))
             
-            if appState.angleUnit == .deg {
-                resultsAngle.append(xyzChartData(x: i, y: angleFromY * 180 / .pi))
-                resultsVelocity.append(xyzChartData(x: i, y: angularVelocity * 180 / .pi))
-            } else if appState.angleUnit == .rad {
-                resultsAngle.append(xyzChartData(x: i, y: angleFromY))
-                resultsVelocity.append(xyzChartData(x: i, y: angularVelocity))
-            }
-
+            resultsAngle.append(Point3D(x: Double(i), y: appState.angleUnit == .rad ? angleFromY.radians : angleFromY.degrees, z: 0.0))
+            resultsVelocity.append(Point3D(x: Double(i), y: angularVelocity, z: 0.0))
         }
             
         // Compute Metrics Value
@@ -210,22 +205,22 @@ class PoseJointLandscapeVM {
             maxY: 0.0
         )
         
-        self.swingData.append(JointData(joint: "Swing Angle",
-                                        dataPoints: resultsAngle,
-                                        dataMetrics: _dataMetricsAngle)
+        self.swingData.append(JointData3D(joint: "Swing Angle",
+                                          dataPoints: resultsAngle,
+                                          dataMetrics: _dataMetricsAngle)
         )
-        self.swingData.append(JointData(joint: "Swing Angle Velocity",
-                                        dataPoints: resultsVelocity,
-                                        dataMetrics: _dataMetricsVel)
+        self.swingData.append(JointData3D(joint: "Swing Angle Velocity",
+                                          dataPoints: resultsVelocity,
+                                          dataMetrics: _dataMetricsVel)
         )
-        self.swingData.append(JointData(joint: "Turns",
-                                        dataPoints: [],
-                                        dataMetrics: _dataMetricsTurn)
+        self.swingData.append(JointData3D(joint: "Turns",
+                                          dataPoints: [],
+                                          dataMetrics: _dataMetricsTurn)
         )
     }
     
     // MARK: - Private Function Calls
-    private func median(of array: [CGFloat]) -> CGFloat {
+    private func median(of array: [Double]) -> Double {
         let sorted = array.sorted()
         let count = sorted.count
         if count % 2 == 0 {
@@ -238,11 +233,11 @@ class PoseJointLandscapeVM {
     private func fetchPositionData(useDepth: Bool, completion: @escaping (Bool) -> Void) {
         // Init Variable
         var positionFilters: [String: KF3DWrapper] = [:]
-        var posData: [String: [xyzChartData]] = [:]
+        var posData: [String: [Point3D]] = [:]
         var posInitialized: [String: Bool] = [:]
         
         // Result Variable
-        var completePosData: [JointData] = []
+        var completePosData: [JointData3D] = []
 
         processingQueue.sync { [weak self] in
             guard let self = self else { return }
@@ -261,19 +256,19 @@ class PoseJointLandscapeVM {
                 for joint in availableJoints {
                     let index = self.jointIndex(for: joint)
 
-                    var x: Float? = nil
-                    var y: Float? = nil
-                    var z: Float? = nil
+                    var x: Double? = nil
+                    var y: Double? = nil
+                    var z: Double? = nil
 
-                    if let keypoints = keypoints, keypoints.count == 17 {
+                    if let keypoints = keypoints?.keypoints, keypoints.count == 17 {
                         if useDepth {
                             // To be implemented later
                             continue
                         } else {
                             let kp = keypoints[index]
-                            x = Float(kp.x)
-                            y = Float(kp.y)
-                            z = Float(kp.depth)
+                            x = kp.x
+                            y = kp.y
+                            z = Double(kp.depth)
                         }
                     }
                     
@@ -287,7 +282,7 @@ class PoseJointLandscapeVM {
                     if posInitialized[joint]! {
                         positionFilters[joint]!.update(x: x, y: y, z: z)
                         if let (fx, fy, fz) = positionFilters[joint]!.getFilteredPosition() {
-                            posData[joint]!.append(xyzChartData(x: fx, y: fy, z: fz))
+                            posData[joint]!.append(Point3D(x: fx, y: fy, z: fz))
                         }
                     }
                 }
@@ -306,9 +301,9 @@ class PoseJointLandscapeVM {
                     maxZ: pdata.map { $0.z }.max() ?? 0.0
                 )
                 // Create Joint Data Structure
-                completePosData.append(JointData(joint: joint,
-                                                 dataPoints: pdata,
-                                                 dataMetrics: metrics))
+                completePosData.append(JointData3D(joint: joint,
+                                                   dataPoints: pdata,
+                                                   dataMetrics: metrics))
             }
         }
         
@@ -322,26 +317,26 @@ class PoseJointLandscapeVM {
         // Result Variable
         let dt = 1.0 / fps
 
-        var completeVelData: [JointData] = []
-        var completeAccData: [JointData] = []
+        var completeVelData: [JointData3D] = []
+        var completeAccData: [JointData3D] = []
 
         for jointData in positionCompleteData {
             let joint = jointData.joint
             let pos = jointData.dataPoints
 
-            var velList: [xyzChartData] = [xyzChartData(x: 0.0, y: 0.0, z: 0.0)]
-            var accList: [xyzChartData] = [xyzChartData(x: 0.0, y: 0.0, z: 0.0)]
+            var velList: [Point3D] = [Point3D(x: 0.0, y: 0.0, z: 0.0)]
+            var accList: [Point3D] = [Point3D(x: 0.0, y: 0.0, z: 0.0)]
 
             for i in 1..<pos.count {
                 let vx = (pos[i].x - pos[i-1].x) / dt
                 let vy = (pos[i].y - pos[i-1].y) / dt
-                velList.append(xyzChartData(x: vx, y: vy, z: 0.0))
+                velList.append(Point3D(x: vx, y: vy, z: 0.0))
             }
 
             for i in 1..<velList.count {
                 let ax = (velList[i].x - velList[i-1].x) / dt
                 let ay = (velList[i].y - velList[i-1].x) / dt
-                accList.append(xyzChartData(x: ax, y: ay, z: 0.0))
+                accList.append(Point3D(x: ax, y: ay, z: 0.0))
             }
             
             // Compute Metrics Value
@@ -360,8 +355,8 @@ class PoseJointLandscapeVM {
                 maxY: accList.map { $0.y }.max() ?? 0.0
             )
             
-            completeVelData.append(JointData(joint: joint, dataPoints: velList, dataMetrics: metricsVel))
-            completeAccData.append(JointData(joint: joint, dataPoints: accList, dataMetrics: metricsAcc))
+            completeVelData.append(JointData3D(joint: joint, dataPoints: velList, dataMetrics: metricsVel))
+            completeAccData.append(JointData3D(joint: joint, dataPoints: accList, dataMetrics: metricsAcc))
         }
         
         // Publish
@@ -370,8 +365,8 @@ class PoseJointLandscapeVM {
     }
 
     private func buildAngles() {
-        var angleData: [String: [Float]] = [:]
-        var resultData: [JointData] = []
+        var angleData: [String: [Double]] = [:]
+        var resultData: [JointData3D] = []
 
         // Prepare angle data buffer
         for joint in jointAngleLimits.keys {
@@ -382,7 +377,7 @@ class PoseJointLandscapeVM {
 
         // Get Keypoints Dictionary
         for frameIndex in 0..<frameCount {
-            var keypointDict: [Int: xyzChartData] = [:]
+            var keypointDict: [Int: Point3D] = [:]
 
             for jointData in positionCompleteData {
                 let jointName = jointData.joint
@@ -408,8 +403,8 @@ class PoseJointLandscapeVM {
                 maxY: 0
             )
 
-            let chartData = angles.map { xyzChartData(x: $0, y: 0, z: 0) }
-            resultData.append(JointData(joint: joint, dataPoints: chartData, dataMetrics: metrics))
+            let chartData = angles.map { Point3D(x: $0, y: 0, z: 0) }
+            resultData.append(JointData3D(joint: joint, dataPoints: chartData, dataMetrics: metrics))
         }
 
         self.angleCompleteData = resultData
@@ -434,8 +429,8 @@ class PoseJointLandscapeVM {
         }
     }
     
-    private func calculateAngleFromFrame(for joint: String, frame: [Int: xyzChartData]) -> Float {
-        func get(_ i: Int) -> xyzChartData? {
+    private func calculateAngleFromFrame(for joint: String, frame: [Int: Point3D]) -> Double {
+        func get(_ i: Int) -> Point3D? {
             return frame[i]
         }
         
@@ -469,29 +464,16 @@ class PoseJointLandscapeVM {
         }
     }
 
-    private func angleBetween(_ a: xyzChartData, _ b: xyzChartData, _ c: xyzChartData) -> Float {
+    private func angleBetween(_ a: Point3D, _ b: Point3D, _ c: Point3D) -> Double {
         let ab = CGVector(dx: Double(a.x - b.x), dy: Double(a.y - b.y))
         let cb = CGVector(dx: Double(c.x - b.x), dy: Double(c.y - b.y))
 
         let dot = ab.dx * cb.dx + ab.dy * cb.dy
         let cross = ab.dx * cb.dy - ab.dy * cb.dx
         
-        var angle: Double = 0
-        if appState.angleUnit == .deg {
-            angle = atan2(cross, dot) * 180 / .pi // [-180, 180]
-
-            if angle < 0 {
-                angle += 360 // Wrap to [0, 360]
-            }
-        } else if appState.angleUnit == .rad {
-            angle = atan2(cross, dot) // [-pi, pi]
-
-            if angle < 0 {
-                angle += .pi * 2 // Wrap to [0, 2pi]
-            }
-        }
-
-        return Float(angle)
+        let angle = Angle2D.atan2(y: cross, x: dot)
+        
+        return appState.angleUnit == .rad ? angle.normalized.radians : angle.normalized.degrees
     }
 }
 

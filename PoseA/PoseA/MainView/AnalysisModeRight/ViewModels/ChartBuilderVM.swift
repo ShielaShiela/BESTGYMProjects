@@ -12,10 +12,10 @@ class ChartBuilderLandscapeVM {
     // MARK: - Properties
     
     // Observable Variable
-    var chartDataFirst: [ChartData] = []
-    var chartDataSecond: [ChartData] = []
-    var pointData: [PointData] = []
-    var rawCompleteJointData: [JointData] = []
+    var chartDataFirst: [ChartData2D] = []
+    var chartDataSecond: [ChartData2D] = []
+    var pointData: [Point2D] = []
+    var rawCompleteJointData: [JointData3D] = []
     
     // Define ViewModel
     private let poseJointViewModel: PoseJointLandscapeVM
@@ -86,9 +86,9 @@ class ChartBuilderLandscapeVM {
         
         self.chartDataFirst = filteredData.map { jointData in
             let pointData = jointData.dataPoints.enumerated().map { index, point in
-                PointData(x: Double(point.x), y: Double(point.y))
+                Point2D(x: Double(point.x), y: Double(point.y))
             }
-            return ChartData(
+            return ChartData2D(
                 joint: jointData.joint,
                 dataPoints: pointData,
                 dataMetrics: calculateDataMetrics(from: pointData)
@@ -98,9 +98,9 @@ class ChartBuilderLandscapeVM {
         let filteredSwingData = poseJointViewModel.swingData.filter { ["Swing Angle"].contains($0.joint) }
         self.chartDataSecond = filteredSwingData.map { jointData in
             let pointData = jointData.dataPoints.enumerated().map { index, point in
-                PointData(x: Double(index) + 1, y: Double(point.y))
+                Point2D(x: Double(index) + 1, y: Double(point.y))
             }
-            return ChartData(
+            return ChartData2D(
                 joint: jointData.joint,
                 dataPoints: pointData,
                 dataMetrics: calculateDataMetrics(from: pointData)
@@ -116,9 +116,9 @@ class ChartBuilderLandscapeVM {
         
         self.chartDataFirst = filteredData.map { jointData in
             let xPoints = jointData.dataPoints.enumerated().map { index, point in
-                PointData(x: Double(index) + 1, y: Double(point.x))
+                Point2D(x: Double(index) + 1, y: Double(point.x))
             }
-            return ChartData(
+            return ChartData2D(
                 joint: jointData.joint,
                 dataPoints: xPoints,
                 dataMetrics: calculateDataMetrics(from: xPoints)
@@ -133,9 +133,9 @@ class ChartBuilderLandscapeVM {
         // Prepare X vs Index
         self.chartDataFirst = filteredData.map { jointData in
             let xPoints = jointData.dataPoints.enumerated().map { index, point in
-                PointData(x: Double(index) + 1, y: Double(point.x))
+                Point2D(x: Double(index) + 1, y: Double(point.x))
             }
-            return ChartData(
+            return ChartData2D(
                 joint: jointData.joint,
                 dataPoints: xPoints,
                 dataMetrics: calculateDataMetrics(from: xPoints)
@@ -145,9 +145,9 @@ class ChartBuilderLandscapeVM {
         // Prepare Y vs Index
         self.chartDataSecond = filteredData.map { jointData in
             let yPoints = jointData.dataPoints.enumerated().map { index, point in
-                PointData(x: Double(index + 1), y: Double(point.y))
+                Point2D(x: Double(index + 1), y: Double(point.y))
             }
-            return ChartData(
+            return ChartData2D(
                 joint: jointData.joint,
                 dataPoints: yPoints,
                 dataMetrics: calculateDataMetrics(from: yPoints)
@@ -162,9 +162,9 @@ class ChartBuilderLandscapeVM {
         // Prepare X vs Index
         self.chartDataFirst = filteredData.map { jointData in
             let xPoints = jointData.dataPoints.enumerated().map { index, point in
-                PointData(x: Double(index) + 1, y: Double(point.x))
+                Point2D(x: Double(index) + 1, y: Double(point.x))
             }
-            return ChartData(
+            return ChartData2D(
                 joint: jointData.joint,
                 dataPoints: xPoints,
                 dataMetrics: calculateDataMetrics(from: xPoints)
@@ -174,9 +174,9 @@ class ChartBuilderLandscapeVM {
         // Prepare Y vs Index
         self.chartDataSecond = filteredData.map { jointData in
             let yPoints = jointData.dataPoints.enumerated().map { index, point in
-                PointData(x: Double(index + 1), y: Double(point.y))
+                Point2D(x: Double(index + 1), y: Double(point.y))
             }
-            return ChartData(
+            return ChartData2D(
                 joint: jointData.joint,
                 dataPoints: yPoints,
                 dataMetrics: calculateDataMetrics(from: yPoints)
@@ -191,9 +191,9 @@ class ChartBuilderLandscapeVM {
         // Prepare X vs Index
         self.chartDataFirst = filteredData.map { jointData in
             let xPoints = jointData.dataPoints.enumerated().map { index, point in
-                PointData(x: Double(index) + 1, y: Double(point.x))
+                Point2D(x: Double(index) + 1, y: Double(point.x))
             }
-            return ChartData(
+            return ChartData2D(
                 joint: jointData.joint,
                 dataPoints: xPoints,
                 dataMetrics: calculateDataMetrics(from: xPoints)
@@ -203,9 +203,9 @@ class ChartBuilderLandscapeVM {
         // Prepare Y vs Index
         self.chartDataSecond = filteredData.map { jointData in
             let yPoints = jointData.dataPoints.enumerated().map { index, point in
-                PointData(x: Double(index + 1), y: Double(point.y))
+                Point2D(x: Double(index + 1), y: Double(point.y))
             }
-            return ChartData(
+            return ChartData2D(
                 joint: jointData.joint,
                 dataPoints: yPoints,
                 dataMetrics: calculateDataMetrics(from: yPoints)
@@ -213,15 +213,15 @@ class ChartBuilderLandscapeVM {
         }
     }
     
-    private func calculateDataMetrics(from dataPoints: [PointData]) -> dataMetrics {
+    private func calculateDataMetrics(from dataPoints: [Point2D]) -> dataMetrics {
         let xValues = dataPoints.map { $0.x }
         let yValues = dataPoints.map { $0.y }
 
         return dataMetrics(
-            minX: Float(xValues.min() ?? 0),
-            maxX: Float(xValues.max() ?? 0),
-            minY: Float(yValues.min() ?? 0),
-            maxY: Float(yValues.max() ?? 0)
+            minX: (xValues.min() ?? 0),
+            maxX: (xValues.max() ?? 0),
+            minY: (yValues.min() ?? 0),
+            maxY: (yValues.max() ?? 0)
         )
     }
 }

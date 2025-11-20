@@ -7,14 +7,17 @@
 
 import MetalKit
 
-class DepthRenderer {
-    let device: MTLDevice
-    let commandQueue: MTLCommandQueue
-    let pipelineState: MTLRenderPipelineState
-    let sampler: MTLSamplerState
-    
+final class DepthRenderer: NSObject, MTKViewDelegate {
+    private let device: MTLDevice
+    private let commandQueue: MTLCommandQueue
+    private let pipelineState: MTLRenderPipelineState
+    private let sampler: MTLSamplerState
+
+    private var inputTexture: MTLTexture?
+    private var maxDepth: Float = 8.0
+
     init(view: MTKView) throws {
-        guard let device = view.device else { throw NSError() }
+        guard let device = view.device else { throw NSError(domain: "DepthRenderer", code: -1) }
         self.device = device
         self.commandQueue = device.makeCommandQueue()!
 
@@ -24,7 +27,7 @@ class DepthRenderer {
         pipelineDesc.fragmentFunction = library.makeFunction(name: "fs_depth")
         pipelineDesc.colorAttachments[0].pixelFormat = view.colorPixelFormat
 
-        // Add vertex descriptor
+        // Vertex layout (fullscreen quad)
         let vertexDescriptor = MTLVertexDescriptor()
         vertexDescriptor.attributes[0].format = .float2
         vertexDescriptor.attributes[0].offset = 0
@@ -33,8 +36,6 @@ class DepthRenderer {
         vertexDescriptor.attributes[1].offset = MemoryLayout<Float>.size * 2
         vertexDescriptor.attributes[1].bufferIndex = 0
         vertexDescriptor.layouts[0].stride = MemoryLayout<Float>.size * 4
-        vertexDescriptor.layouts[0].stepRate = 1
-        vertexDescriptor.layouts[0].stepFunction = .perVertex
         pipelineDesc.vertexDescriptor = vertexDescriptor
 
         self.pipelineState = try device.makeRenderPipelineState(descriptor: pipelineDesc)
@@ -45,22 +46,32 @@ class DepthRenderer {
         samplerDesc.sAddressMode = .clampToEdge
         samplerDesc.tAddressMode = .clampToEdge
         self.sampler = device.makeSamplerState(descriptor: samplerDesc)!
+
+        super.init()
+        view.delegate = self
     }
 
-    
-    func draw(texture: MTLTexture, in view: MTKView, maxDepth: Float = 15.0) {
+    // Called externally to push new texture
+    func updateInputTexture(_ texture: MTLTexture, maxDepth: Float) {
+        self.inputTexture = texture
+        self.maxDepth = maxDepth
+    }
+
+    // MARK: - MTKViewDelegate
+    func draw(in view: MTKView) {
+        guard let inputTex = inputTexture,
+              let drawable = view.currentDrawable,
+              let rpd = view.currentRenderPassDescriptor else { return }
+
         guard let cmdBuf = commandQueue.makeCommandBuffer(),
-              let rpd = view.currentRenderPassDescriptor,
               let rce = cmdBuf.makeRenderCommandEncoder(descriptor: rpd) else { return }
-        
+
         rce.setRenderPipelineState(pipelineState)
-        rce.setFragmentTexture(texture, index: 0)
+        rce.setFragmentTexture(inputTex, index: 0)
         rce.setFragmentSamplerState(sampler, index: 0)
-        
         var maxD = maxDepth
         rce.setFragmentBytes(&maxD, length: MemoryLayout<Float>.size, index: 0)
-        
-        // Fullscreen quad
+
         let verts: [Float] = [
             -1,-1, 0,1,
              1,-1, 1,1,
@@ -69,13 +80,15 @@ class DepthRenderer {
         ]
         let vb = device.makeBuffer(bytes: verts, length: verts.count * MemoryLayout<Float>.size, options: [])
         rce.setVertexBuffer(vb, offset: 0, index: 0)
-        
+
         rce.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
-        
         rce.endEncoding()
-        if let drawable = view.currentDrawable {
-            cmdBuf.present(drawable)
-        }
+
+        cmdBuf.present(drawable)
         cmdBuf.commit()
+    }
+
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        // not needed for fullscreen quad
     }
 }

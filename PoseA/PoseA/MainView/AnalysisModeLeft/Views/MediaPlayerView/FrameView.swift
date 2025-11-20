@@ -10,7 +10,7 @@ import SwiftUI
 // MARK: - Frame View
 struct FrameView: View {
     let image: UIImage?
-    let keypoints: [KeypointData]?
+    let keypoints: PoseBox?
 
     @ObservedObject var appState: MainAppState
     @Binding var ROIModel: ROIViewModel
@@ -100,14 +100,17 @@ struct FrameView: View {
                         
                         // Keypoints
                         if let keypoints = keypoints,
-                           !keypoints.isEmpty,
-                           appState.showKeypoints,
-                           !ROIModel.isROIMode {
-                            KeypointOverlayView(
-                                keypoints: keypoints,
-                                containerSize: geometry.size,
-                                imageSize: imageSize
+                           !keypoints.keypoints.isEmpty,
+                           appState.showKeypoints {
+                            PoseOverlayView(
+                                poses: [keypoints],
+                                videoSize: imageSize
                             )
+//                            KeypointOverlayView(
+//                                keypoints: keypoints.keypoints,
+//                                containerSize: geometry.size,
+//                                imageSize: imageSize
+//                            )
                         }
                         
                         // ROI

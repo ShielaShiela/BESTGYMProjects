@@ -18,7 +18,7 @@ struct RecordLandscapeView: View {
     init(appState: MainAppState, cameraManager: CameraManagerVM) {
         self.appState = appState
         self.cameraManager = cameraManager
-        self._rtPoseJointVM = State(wrappedValue: RealtimePoseJointViewModel(cameraManager: cameraManager))
+        self._rtPoseJointVM = State(wrappedValue: RealtimePoseJointViewModel(cameraManager: cameraManager, appState: appState))
     }
     
     var body: some View {
@@ -207,9 +207,6 @@ struct RecordLandscapeView: View {
                             // Camera Preview
                             CameraPreviewView(appState: self.appState, cameraManager: self.cameraManager)
                             
-                            // Pose Information Overlay
-                            PoseInformationView(rtPoseJointVM: rtPoseJointVM)
-                            
                             // Realtime Detection
                             if appState.realtimeDetection {
                                 // Pose Overlay
@@ -227,8 +224,8 @@ struct RecordLandscapeView: View {
                                                                                    height: self.cameraManager.cameraConfiguration.resolution.width))
                                 }
                                 
-//                                // Pose Information Overlay
-//                                PoseInformationView()
+                                // Pose Information Overlay
+                                PoseInformationView(appState: appState, rtPoseJointVM: rtPoseJointVM)
                                 
                                 // Point Picker Overlay for Horizontal Bar
                                 if appState.realtimeViewMode == "side-view" {

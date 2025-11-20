@@ -42,11 +42,11 @@ struct AnalysisModeLeftView: View {
                                     
                                     Spacer()
                                     
-                                    if let keypoints = mediaManager.getKeypointsCurrent() {
-                                        Text("Keypoints: \(keypoints.count)")
+                                    if let KeypointData = mediaManager.getKeypointsCurrent() {
+                                        Text("Keypoints: \(KeypointData.keypoints.count)")
                                             .font(.caption)
                                             .padding(6)
-                                            .background(keypoints.count == 17 ? Color.green.opacity(0.7) : Color.red.opacity(0.7))
+                                            .background(KeypointData.keypoints.count == 17 ? Color.green.opacity(0.7) : Color.red.opacity(0.7))
                                             .foregroundColor(.white)
                                             .cornerRadius(4)
                                     }

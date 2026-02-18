@@ -17,6 +17,10 @@ struct AnalysisModeRightView: View {
     @State var selectedView: RightViewModel = .info
     @State private var poseJointVM: PoseJointLandscapeVM
     
+    // ✅ ADD: one coordinator, lives with the view
+    @State private var inferenceCoordinator = InferenceCoordinator()
+
+    
     init(appState: MainAppState, ROIModel: ROIViewModel, BoxModel: BoxViewModel, mediaManager: MediaManagerVM) {
         self.appState = appState
         self.ROIModel = ROIModel
@@ -189,78 +193,86 @@ struct AnalysisModeRightView: View {
             }
         }
     }
-    
     private func updateData() {
-        // Check if app processing something
-        guard !self.appState.isProcessing else {
-            log("App still processing...", level: .info)
-            return
-        }
-        
-        // Set App to Processing Mode
-        DispatchQueue.main.async {
-            appState.isProcessing = true
-            appState.isAnalysisAvailable = false
-            appState.processingStatus = "Processing Frame..."
-        }
-        
-        // Pass ROI information to the Model
-//        if let roiImageCoordinates = self.ROIModel.roiImageSpace {
-//            self.MLModel.setROI(roiImageCoordinates)
-//        } else {
-//            self.MLModel.clearROI()
-//        }
-        
-        // Pass to ML Model Inference System
-//        self.MLModel.processFrames(from: self.mediaManager, maxRetries: 2) { progressValue in
-//            // Update progress on main thread
-//            DispatchQueue.main.async {
-//                let percentage = Int(progressValue * 100)
-//                let statusText = self.ROIModel.isROIAvailable ? "Processing ROI frames: \(percentage)%" : "Processing frames: \(percentage)%"
-//                self.appState.processingStatus = statusText
-//            }
-//        } completion: { success, error in
-//            DispatchQueue.main.async {
-//                self.appState.isProcessing = false
-//                
-//                if success {
-//                    // Get Final Statistics
-//                    let processedFrames = self.MLModel.getFrameIndicesWithKeypoints().count
-//                    let totalFrames = self.mediaManager.mediaPlayerViewModel.totalFrames
-//                    
-//                    log("Processing complete: \(processedFrames)/\(totalFrames) frames processed", level: .debug)
-//                    
-//                    if processedFrames < totalFrames {
-//                        self.appState.processingStatus = "Completed with \(processedFrames)/\(totalFrames) frames processed"
-//                    }
-//                    
-//                    // Update Main App State
-//                    self.appState.processingStatus = "Pose detection complete!"
-//                    self.appState.showKeypoints = true
-//                    self.appState.hasImportedKeypoints = true
-//                    
-//                    // TODO: - Export To JSON
-//                    self.exportKeypointsToJSON()
-//                    
-//                    // Load Keypoints into File Loader ViewModel
-//                    self.mediaManager.fileLoaderViewModel.loadKeypoints(from: self.MLModel.getKeypoints())
-//                    
-//                    // Process Keypoints
-//                    // Do Pose Analyze Processing
-//                    poseJointVM.buildCompleteData { success in
-//                        // Set State when finished
-//                        appState.isAnalysisAvailable = success
-//                        appState.isProcessing = false
-//                    }
-//                    
-//                } else if let processingError = error {
-//                    self.appState.errorMessage = "Processing failed: \(processingError.localizedDescription)"
-//                    log("Pose detection error: \(processingError)", level: .error)
-//                }
-//            }
-//        }
+        inferenceCoordinator.run(
+            mediaManager: mediaManager,
+            appState:     appState,
+            poseJointVM:  poseJointVM
+        )
     }
+
     
+//    private func updateData() {
+//        // Check if app processing something
+//        guard !self.appState.isProcessing else {
+//            log("App still processing...", level: .info)
+//            return
+//        }
+//        
+//        // Set App to Processing Mode
+//        DispatchQueue.main.async {
+//            appState.isProcessing = true
+//            appState.isAnalysisAvailable = false
+//            appState.processingStatus = "Processing Frame..."
+//        }
+//        
+//        // Pass ROI information to the Model
+////        if let roiImageCoordinates = self.ROIModel.roiImageSpace {
+////            self.MLModel.setROI(roiImageCoordinates)
+////        } else {
+////            self.MLModel.clearROI()
+////        }
+//        
+//        // Pass to ML Model Inference System
+////        self.MLModel.processFrames(from: self.mediaManager, maxRetries: 2) { progressValue in
+////            // Update progress on main thread
+////            DispatchQueue.main.async {
+////                let percentage = Int(progressValue * 100)
+////                let statusText = self.ROIModel.isROIAvailable ? "Processing ROI frames: \(percentage)%" : "Processing frames: \(percentage)%"
+////                self.appState.processingStatus = statusText
+////            }
+////        } completion: { success, error in
+////            DispatchQueue.main.async {
+////                self.appState.isProcessing = false
+////                
+////                if success {
+////                    // Get Final Statistics
+////                    let processedFrames = self.MLModel.getFrameIndicesWithKeypoints().count
+////                    let totalFrames = self.mediaManager.mediaPlayerViewModel.totalFrames
+////                    
+////                    log("Processing complete: \(processedFrames)/\(totalFrames) frames processed", level: .debug)
+////                    
+////                    if processedFrames < totalFrames {
+////                        self.appState.processingStatus = "Completed with \(processedFrames)/\(totalFrames) frames processed"
+////                    }
+////                    
+////                    // Update Main App State
+////                    self.appState.processingStatus = "Pose detection complete!"
+////                    self.appState.showKeypoints = true
+////                    self.appState.hasImportedKeypoints = true
+////                    
+////                    // TODO: - Export To JSON
+////                    self.exportKeypointsToJSON()
+////                    
+////                    // Load Keypoints into File Loader ViewModel
+////                    self.mediaManager.fileLoaderViewModel.loadKeypoints(from: self.MLModel.getKeypoints())
+////                    
+////                    // Process Keypoints
+////                    // Do Pose Analyze Processing
+////                    poseJointVM.buildCompleteData { success in
+////                        // Set State when finished
+////                        appState.isAnalysisAvailable = success
+////                        appState.isProcessing = false
+////                    }
+////                    
+////                } else if let processingError = error {
+////                    self.appState.errorMessage = "Processing failed: \(processingError.localizedDescription)"
+////                    log("Pose detection error: \(processingError)", level: .error)
+////                }
+////            }
+////        }
+//    }
+//    
     // Replace the exportKeypointsToJSON method in BESTGYMPoseApp.swift
 //    private func exportKeypointsToJSON() {
 //        // Ensure we have keypoints to export

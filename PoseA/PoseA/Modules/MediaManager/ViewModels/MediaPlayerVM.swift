@@ -43,6 +43,46 @@ class FrameCache {
     }
 }
 
+//class FrameCache {
+//    private var cache = NSCache<NSNumber, UIImage>()
+//    private let preloadCount = 3
+//    private var isCancelled = false  // ADD THIS
+//
+//    init() {
+//        cache.totalCostLimit = 100 * 1024 * 1024
+//    }
+//
+//    func image(for index: Int) -> UIImage? {
+//        cache.object(forKey: NSNumber(value: index))
+//    }
+//
+//    func setImage(_ image: UIImage, for index: Int) {
+//        guard !isCancelled else { return }  // ADD THIS guard
+//        let cost = Int(image.size.width * image.size.height * 4)
+//        cache.setObject(image, forKey: NSNumber(value: index), cost: cost)
+//    }
+//
+//    func preload(from index: Int, using loader: @escaping (Int) -> UIImage?) {
+//        DispatchQueue.global(qos: .utility).async {
+//            for i in index..<(index + self.preloadCount) {
+//                guard !self.isCancelled else { return }  // ADD THIS guard
+//                if self.cache.object(forKey: NSNumber(value: i)) == nil,
+//                   let img = loader(i) {
+//                    guard !self.isCancelled else { return }  // ADD THIS guard
+//                    let cost = Int(img.size.width * img.size.height * 4)
+//                    self.cache.setObject(img, forKey: NSNumber(value: i), cost: cost)
+//                }
+//            }
+//        }
+//    }
+//
+//    func clear() {
+//        isCancelled = true           // Stop any in-flight preloads first
+//        cache.removeAllObjects()
+//        isCancelled = false          // Re-arm for next use
+//    }
+//}
+
 
 @Observable
 class MediaPlayerVM {
@@ -60,15 +100,26 @@ class MediaPlayerVM {
     var currentFrameImage: UIImage? = nil
 
     // MARK: - Update Media Data
+//    func updateMedia(imageURLs: [URL]) {
+//        // Update Media Variables
+//        self.FrameImageURLs = imageURLs
+//        self.totalFrames = imageURLs.count
+//        
+//        self.firstFrame()
+//        log("New Media Updated.", level: .info)
+//    }
     func updateMedia(imageURLs: [URL]) {
-        // Update Media Variables
         self.FrameImageURLs = imageURLs
         self.totalFrames = imageURLs.count
+        self.currentFrameIndex = 0
         
-        self.firstFrame()
-        log("New Media Updated.", level: .info)
+        // Force load first frame immediately
+        if let firstURL = imageURLs.first {
+            self.currentFrameImage = UIImage(contentsOfFile: firstURL.path)
+        } else {
+            self.currentFrameImage = nil
+        }
     }
-    
     
     // MARK: - Fast Forward Frame Functions
     
@@ -106,18 +157,40 @@ class MediaPlayerVM {
         }
     }
     
+    func resetAll() {
+        // Invalidate and nil immediately so any stray tick is blocked by the guard above
+        displayLink?.invalidate()
+        displayLink = nil
+        totalFrames = 0
+        currentFrameImage = nil
+        currentFrameIndex = 0
+        FrameImageURLs = []
+        frameCache.clear()
+        lastTimestamp = 0  // ADD THIS — prevents stale timestamp on next load
+        
+        log("Reset Media Player.", level: .info)
+    }
     // MARK: - Play Pause Frame Functions
     
+//    func stopPlayback() {
+//        // Ensure Running in Main Thread
+//        guard Thread.isMainThread else {
+//            DispatchQueue.main.async { [weak self] in self?.stopPlayback() }
+//            return
+//        }
+//        
+//        // Invalidate timer
+//        displayLink?.invalidate()
+//        displayLink = nil
+//    }
+    
     func stopPlayback() {
-        // Ensure Running in Main Thread
         guard Thread.isMainThread else {
             DispatchQueue.main.async { [weak self] in self?.stopPlayback() }
             return
         }
-        
-        // Invalidate timer
         displayLink?.invalidate()
-        displayLink = nil
+        displayLink = nil  // ADD THIS — was missing before
     }
     
     func startPlayback() {
@@ -135,8 +208,31 @@ class MediaPlayerVM {
         displayLink?.add(to: .main, forMode: .common)
     }
 
+//    @objc private func updateFrame(displayLink: CADisplayLink) {
+//        // Time-based playback control
+//        if lastTimestamp == 0 {
+//            lastTimestamp = displayLink.timestamp
+//            return
+//        }
+//
+//        let elapsed = displayLink.timestamp - lastTimestamp
+//        if elapsed >= frameInterval {
+//            let nextIndex = currentFrameIndex + 1
+//            if nextIndex >= totalFrames {
+//                stopPlayback()
+//            } else {
+//                currentFrameIndex = nextIndex
+//                self.setFrame(to: nextIndex)
+//            }
+//            lastTimestamp = displayLink.timestamp
+//        }
+//    }
     @objc private func updateFrame(displayLink: CADisplayLink) {
-        // Time-based playback control
+        guard totalFrames > 0, !FrameImageURLs.isEmpty else {  // ADD THIS guard
+            stopPlayback()
+            return
+        }
+        
         if lastTimestamp == 0 {
             lastTimestamp = displayLink.timestamp
             return
@@ -156,13 +252,14 @@ class MediaPlayerVM {
     }
 
     // MARK: - Cleaner Function
-    func resetAll() {
-        stopPlayback()
-        currentFrameImage = nil
-        currentFrameIndex = 0
-        
-        log("Reset Media Player.", level: .info)
-    }
+//    func resetAll() {
+//        stopPlayback()
+//        currentFrameImage = nil
+//        currentFrameIndex = 0
+//        
+//        log("Reset Media Player.", level: .info)
+//    }
+    
     
     // MARK: - Helper Function
     
@@ -200,6 +297,31 @@ class MediaPlayerVM {
         frameCache.preload(from: index + 1) { self.loadImage(at: $0) }
     }
 
+//    private func setFrame(to index: Int) {
+//        guard index >= 0 && index < totalFrames else { return }
+//
+//        currentFrameIndex = index
+//
+//        if let cached = frameCache.image(for: index) {
+//            currentFrameImage = cached
+//        } else {
+//            DispatchQueue.global(qos: .userInitiated).async {
+//                let img = self.loadImage(at: index)
+//                if let img = img {
+//                    self.frameCache.setImage(img, for: index)
+//                    DispatchQueue.main.async {
+//                        self.currentFrameImage = img
+//                    }
+//                } else {
+//                    self.currentFrameImage = nil
+//                }
+//            }
+//        }
+//
+//        // Preload next few frames
+//        frameCache.preload(from: index + 1) { self.loadImage(at: $0) }
+//    }
+    
     private func setFrame(to index: Int) {
         guard index >= 0 && index < totalFrames else { return }
 
@@ -208,11 +330,14 @@ class MediaPlayerVM {
         if let cached = frameCache.image(for: index) {
             currentFrameImage = cached
         } else {
+            let capturedURLs = self.FrameImageURLs  // capture before async
             DispatchQueue.global(qos: .userInitiated).async {
+                guard !capturedURLs.isEmpty, index < capturedURLs.count else { return }  // ADD THIS
                 let img = self.loadImage(at: index)
                 if let img = img {
                     self.frameCache.setImage(img, for: index)
                     DispatchQueue.main.async {
+                        guard self.currentFrameIndex == index else { return }  // ADD THIS — stale update guard
                         self.currentFrameImage = img
                     }
                 } else {
@@ -221,7 +346,6 @@ class MediaPlayerVM {
             }
         }
 
-        // Preload next few frames
         frameCache.preload(from: index + 1) { self.loadImage(at: $0) }
     }
 

@@ -12,68 +12,57 @@ struct PlaybackControlLandscapeView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Frame Slider
-            Slider(
-                value: Binding(
-                    get: { Double(mediaManager.currentFrameIndex) },
-                    set: {
-                        let newIndex = Int($0)
-                        // First set the frame directly - this is the key fix
-                        mediaManager.mediaPlayerViewModel.moveToFrame(newIndex)
-                    }
-                ),
-                in: 0...Double(mediaManager.mediaPlayerViewModel.totalFrames - 1),
-                step: 1
-            )
-            .padding(.horizontal, 8)
+            // Guard against invalid range during reload
+            if mediaManager.mediaPlayerViewModel.totalFrames > 0 {
+                Slider(
+                    value: Binding(
+                        get: { Double(mediaManager.currentFrameIndex) },
+                        set: {
+                            let newIndex = Int($0)
+                            mediaManager.mediaPlayerViewModel.moveToFrame(newIndex)
+                        }
+                    ),
+                    in: 0...Double(mediaManager.mediaPlayerViewModel.totalFrames - 1),
+                    step: 1
+                )
+                .padding(.horizontal, 8)
+            } else {
+                // Placeholder to preserve layout during loading
+                Slider(value: .constant(0), in: 0...1)
+                    .padding(.horizontal, 8)
+                    .disabled(true)
+            }
             
             // Playback controls
             HStack {
-                // Back to start button
-                Button(action: {
-                    mediaManager.mediaPlayerViewModel.firstFrame()
-                }) {
-                    Image(systemName: "backward.end.fill")
-                        .font(.body)
+                Button(action: { mediaManager.mediaPlayerViewModel.firstFrame() }) {
+                    Image(systemName: "backward.end.fill").font(.body)
                 }
                 
-                // Previous frame button
-                Button(action: {
-                    mediaManager.mediaPlayerViewModel.previousFrame()
-                }) {
-                    Image(systemName: "backward.fill")
-                        .font(.body)
+                Button(action: { mediaManager.mediaPlayerViewModel.previousFrame() }) {
+                    Image(systemName: "backward.fill").font(.body)
                 }
                 
-                // REWORK >> Play/Pause/Reset button
-                let isDone = mediaManager.currentFrameIndex == mediaManager.mediaPlayerViewModel.totalFrames - 1
-                Button(action: {
-                    mediaManager.tooglePlayback()
-                }) {
+                let totalFrames = mediaManager.mediaPlayerViewModel.totalFrames
+                let isDone = totalFrames > 0 && mediaManager.currentFrameIndex == totalFrames - 1
+                Button(action: { mediaManager.tooglePlayback() }) {
                     Image(systemName: isDone ? "arrow.counterclockwise" : mediaManager.isPlaying ? "pause.fill" : "play.fill")
                         .font(.body)
                         .foregroundColor(isDone ? .gray : mediaManager.isPlaying ? .red : .blue)
                 }
                 .frame(width: 50, height: 50)
+                .disabled(totalFrames == 0)
                 
-                // Next frame button
-                Button(action: {
-                    mediaManager.mediaPlayerViewModel.nextFrame()
-                }) {
-                    Image(systemName: "forward.fill")
-                        .font(.body)
+                Button(action: { mediaManager.mediaPlayerViewModel.nextFrame() }) {
+                    Image(systemName: "forward.fill").font(.body)
                 }
                 
-                // Forward to end button
-                Button(action: {
-                    mediaManager.mediaPlayerViewModel.lastFrame()
-                }) {
-                    Image(systemName: "forward.end.fill")
-                        .font(.body)
+                Button(action: { mediaManager.mediaPlayerViewModel.lastFrame() }) {
+                    Image(systemName: "forward.end.fill").font(.body)
                 }
             }
+            .disabled(mediaManager.mediaPlayerViewModel.totalFrames == 0)
         }
     }
 }
-
 

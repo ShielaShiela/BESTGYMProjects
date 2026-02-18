@@ -83,32 +83,26 @@ struct BESTGYMPoseApp: View {
                         }
                     }
                     
-                    // File/Folder Picker
                     .fullScreenCover(isPresented: $appState.isFilePickerPresented) {
                         DocumentPickerUI { urls in
-                            if let url = urls.first {
-                                // Use loadData Function
-                                appState.isProcessing = true
-                                appState.processingStatus = "Loading data..."
-                                
-                                let errMsg = mediaManager.loadMedia(url: url, autoDetectKeypoints: appState.autoDetectKeypoints)
-                                
-                                if let errMsg = errMsg {
-                                    DispatchQueue.main.async {
+                            guard let url = urls.first else { return }
+                            
+                            appState.isProcessing = true
+                            appState.processingStatus = "Loading data..."
+                            
+                            mediaManager.loadMedia(url: url, autoDetectKeypoints: appState.autoDetectKeypoints) { errMsg in
+                                DispatchQueue.main.async {
+                                    if let errMsg = errMsg {
                                         self.appState.errorMessage = errMsg
-                                        self.appState.isProcessing = false
-                                    }
-                                } else {
-                                    DispatchQueue.main.async {
+                                    } else {
                                         self.appState.processingStatus = "Loaded frames from \(url.lastPathComponent)"
                                         self.appState.sourceFileName = url.lastPathComponent
                                         self.appState.sourceURL = url
-                                        self.appState.isProcessing = false
                                         self.appState.showKeypoints = false
-                                        self.appState.isVideoSource = !mediaManager.isDataLIDAR
-                                        self.appState.isTempFiles = mediaManager.isDataTemp
-
+                                        self.appState.isVideoSource = !self.mediaManager.isDataLIDAR
+                                        self.appState.isTempFiles = self.mediaManager.isDataTemp
                                     }
+                                    self.appState.isProcessing = false
                                 }
                             }
                         }
@@ -256,42 +250,45 @@ struct BESTGYMPoseApp: View {
     
     // Save Project
     private func saveProject() {
-        if self.appState.isTempFiles {
-            do {
-                // Export to Apps
-                appState.isProcessing = true
-                
-                let url = try mediaManager.exportFramesContentsToAppDirectory(originalFileURL: appState.sourceURL!)
-                
-                if mediaManager.isKeypointAvailable || mediaManager.isMediaAvailable {
-                    log("Cleaning up before folder selection...", level: .info)
-                    cleanupPreviousData()
-                }
-                
-                // Load from copy source
-                appState.processingStatus = "Loading data..."
-                
-                let errMsg = mediaManager.loadMedia(url: url, autoDetectKeypoints: appState.autoDetectKeypoints)
-                
-                if let errMsg = errMsg {
-                    DispatchQueue.main.async {
-                        self.appState.errorMessage = errMsg
-                        self.appState.isProcessing = false
-                    }
-                } else {
-                    DispatchQueue.main.async {
-                        self.appState.processingStatus = "Loaded frames from \(url.lastPathComponent)"
-                        self.appState.sourceFileName = url.lastPathComponent
-                        self.appState.sourceURL = url
-                        self.appState.isProcessing = false
-                        self.appState.showKeypoints = true
-                        self.appState.isVideoSource = !mediaManager.isDataLIDAR
-                    }
-                }
-            } catch {
-                appState.errorMessage = "Failed to export to apps: \(error)"
-            }
-        }
+        
+        print("nothing as of now")
+        
+//        if self.appState.isTempFiles {
+//            do {
+//                // Export to Apps
+//                appState.isProcessing = true
+//                
+//                let url = try mediaManager.exportFramesContentsToAppDirectory(originalFileURL: appState.sourceURL!)
+//                
+//                if mediaManager.isKeypointAvailable || mediaManager.isMediaAvailable {
+//                    log("Cleaning up before folder selection...", level: .info)
+//                    cleanupPreviousData()
+//                }
+//                
+//                // Load from copy source
+//                appState.processingStatus = "Loading data..."
+//                
+//                let errMsg = mediaManager.loadMedia(url: url, autoDetectKeypoints: appState.autoDetectKeypoints, completion: <#(String?) -> Void#>)
+//                
+//                if let errMsg = errMsg {
+//                    DispatchQueue.main.async {
+//                        self.appState.errorMessage = errMsg
+//                        self.appState.isProcessing = false
+//                    }
+//                } else {
+//                    DispatchQueue.main.async {
+//                        self.appState.processingStatus = "Loaded frames from \(url.lastPathComponent)"
+//                        self.appState.sourceFileName = url.lastPathComponent
+//                        self.appState.sourceURL = url
+//                        self.appState.isProcessing = false
+//                        self.appState.showKeypoints = true
+//                        self.appState.isVideoSource = !mediaManager.isDataLIDAR
+//                    }
+//                }
+//            } catch {
+//                appState.errorMessage = "Failed to export to apps: \(error)"
+//            }
+//        }
     }
     
     private func cleanupPreviousData() {

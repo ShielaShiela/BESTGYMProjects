@@ -16,4 +16,5 @@ enum RightViewModel {
     case acceleration
     case swing
     case dataMetrics
+    case flightHeight 
 }

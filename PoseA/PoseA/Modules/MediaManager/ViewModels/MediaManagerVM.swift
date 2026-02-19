@@ -57,6 +57,11 @@ class MediaManagerVM {
         fileLoaderViewModel.FrameCounts = 0
     }
     
+    func seekToFrame(_ index: Int) {
+        let clamped = max(0, min(index, mediaPlayerViewModel.totalFrames - 1))
+        mediaPlayerViewModel.moveToFrame(clamped)
+    }
+    
     // MARK: - Public Function of Media Loader
         
     func loadGalleryFile(url: URL, autoDetectKeypoints: Bool, completion: @escaping (String?) -> Void) {

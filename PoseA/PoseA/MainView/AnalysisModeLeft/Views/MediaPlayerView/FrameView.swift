@@ -15,6 +15,7 @@ struct FrameView: View {
     @ObservedObject var appState: MainAppState
     @Binding var ROIModel: ROIViewModel
     @Binding var BoxModel: BoxViewModel
+    @Binding var calibrationModel: CalibrationModel  // ADD THIS
     
     // New Feature
     @State private var isDataLoading = false
@@ -120,6 +121,16 @@ struct FrameView: View {
                                 imageSize: imageSize
                             )
                         }
+                        
+                        // Calibration
+                        if calibrationModel.isCalibrationMode || calibrationModel.isCalibrated {
+                            CalibrationOverlayView(
+                                calibrationModel: $calibrationModel,
+                                containerSize: geometry.size,
+                                imageSize: imageSize
+                            )
+                            .allowsHitTesting(calibrationModel.isCalibrationMode)  // only intercept taps in mode
+                        }
                     }
                     .scaleEffect(zoomScale)
                     .offset(offset)
@@ -143,7 +154,7 @@ struct FrameView: View {
             }
             
 
-            .allowsHitTesting(zoomEnabled || childEnabled)
+            .allowsHitTesting(zoomEnabled || childEnabled || calibrationModel.isCalibrationMode)
         }
     }
     

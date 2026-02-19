@@ -17,6 +17,7 @@ struct BESTGYMPoseApp: View {
     // UI/UX Related VM
     @StateObject private var appState = MainAppState()
     @State private var toolbarVM = ToolbarButtonVM()
+    @State private var calibrationModel = CalibrationModel()
     
     // ML Model Related VM
 //    @State private var MLModel = VitPoseProcessor()
@@ -33,7 +34,8 @@ struct BESTGYMPoseApp: View {
                             AnalysisModeLeftView(appState: self.appState,
                                                  ROIModel: $ROIModel,
                                                  BoxModel: $BoxModel,
-                                                 mediaManager: self.mediaManager)
+                                                 mediaManager: self.mediaManager,
+                                                 calibrationModel: self.calibrationModel)
                             .frame(width: geometry.size.width / 2 - 10) // Half of screen minus spacing
                             
                             Spacer()
@@ -43,7 +45,8 @@ struct BESTGYMPoseApp: View {
                             AnalysisModeRightView(appState: self.appState,
                                                   ROIModel: self.ROIModel,
                                                   BoxModel: self.BoxModel,
-                                                  mediaManager: self.mediaManager)
+                                                  mediaManager: self.mediaManager,
+                                                  calibrationModel: self.calibrationModel)
                             .frame(width: geometry.size.width / 2 - 10)
                         }
                         .frame(width: geometry.size.width, height: geometry.size.height)
@@ -61,7 +64,9 @@ struct BESTGYMPoseApp: View {
                             ToolbarActiveMode(appState: appState,
                                               toolbarVM: toolbarVM,
                                               ROIModel: ROIModel,
-                                              BoxModel: BoxModel)
+                                              BoxModel: BoxModel,
+                                              calibrationModel: calibrationModel
+                                             )
                         }
                         
                         // Principal Toolbar
@@ -70,7 +75,9 @@ struct BESTGYMPoseApp: View {
                                                toolbarVM: toolbarVM,
                                                mediaManager: mediaManager,
                                                ROIModel: ROIModel,
-                                               BoxModel: BoxModel)
+                                               BoxModel: BoxModel,
+                                               calibrationModel: calibrationModel
+                                              )
                         }
                         
                         // Right Toolbar
@@ -253,42 +260,6 @@ struct BESTGYMPoseApp: View {
         
         print("nothing as of now")
         
-//        if self.appState.isTempFiles {
-//            do {
-//                // Export to Apps
-//                appState.isProcessing = true
-//                
-//                let url = try mediaManager.exportFramesContentsToAppDirectory(originalFileURL: appState.sourceURL!)
-//                
-//                if mediaManager.isKeypointAvailable || mediaManager.isMediaAvailable {
-//                    log("Cleaning up before folder selection...", level: .info)
-//                    cleanupPreviousData()
-//                }
-//                
-//                // Load from copy source
-//                appState.processingStatus = "Loading data..."
-//                
-//                let errMsg = mediaManager.loadMedia(url: url, autoDetectKeypoints: appState.autoDetectKeypoints, completion: <#(String?) -> Void#>)
-//                
-//                if let errMsg = errMsg {
-//                    DispatchQueue.main.async {
-//                        self.appState.errorMessage = errMsg
-//                        self.appState.isProcessing = false
-//                    }
-//                } else {
-//                    DispatchQueue.main.async {
-//                        self.appState.processingStatus = "Loaded frames from \(url.lastPathComponent)"
-//                        self.appState.sourceFileName = url.lastPathComponent
-//                        self.appState.sourceURL = url
-//                        self.appState.isProcessing = false
-//                        self.appState.showKeypoints = true
-//                        self.appState.isVideoSource = !mediaManager.isDataLIDAR
-//                    }
-//                }
-//            } catch {
-//                appState.errorMessage = "Failed to export to apps: \(error)"
-//            }
-//        }
     }
     
     private func cleanupPreviousData() {

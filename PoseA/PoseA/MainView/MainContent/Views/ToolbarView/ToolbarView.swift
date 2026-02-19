@@ -29,6 +29,7 @@ extension BESTGYMPoseApp {
         @State var toolbarVM: ToolbarButtonVM
         @State var ROIModel: ROIViewModel
         @State var BoxModel: BoxViewModel
+        @State var calibrationModel: CalibrationModel
         
         var body: some View {
             Group {
@@ -69,6 +70,15 @@ extension BESTGYMPoseApp {
                         },
                         label: "Zoom"
                     )
+                case .calibrate:
+                    CalibrationModeControlView(
+                        calibrationModel: $calibrationModel,
+                        exitAction: {
+                            calibrationModel.isCalibrationMode = false
+                            toolbarVM.deactivateMode()
+                        }
+                    )
+
                 default:
                     EmptyView()
                 }
@@ -82,6 +92,7 @@ extension BESTGYMPoseApp {
         @State var mediaManager: MediaManagerVM
         @State var ROIModel: ROIViewModel
         @State var BoxModel: BoxViewModel
+        @State var calibrationModel: CalibrationModel
 
         var body: some View {
             if mediaManager.isMediaAvailable {
@@ -98,6 +109,16 @@ extension BESTGYMPoseApp {
                     ToolbarButtonView(mode: .zoom, icon: "plus.magnifyingglass", title: "Zoom", viewModel: toolbarVM) {
                         appState.isZoomMode = true
                     }
+                    ToolbarButtonView(
+                        mode: .calibrate,
+                        icon: calibrationModel.isCalibrated ? "ruler.fill" : "ruler",
+                        title: "Calibrate",
+                        viewModel: toolbarVM
+                    ) {
+                        calibrationModel.startCalibration()
+                    }
+                    
+                    
                 }
                 .toolbarCapsuleStyle()
             } else {

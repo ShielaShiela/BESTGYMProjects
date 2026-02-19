@@ -12,7 +12,7 @@ struct AnalysisModeLeftView: View {
     @Binding var ROIModel: ROIViewModel
     @Binding var BoxModel: BoxViewModel
     @State var mediaManager: MediaManagerVM
-    
+    @State var calibrationModel: CalibrationModel
     var body: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
@@ -26,7 +26,9 @@ struct AnalysisModeLeftView: View {
                             keypoints: mediaManager.getKeypointsCurrent(),
                             appState: appState,
                             ROIModel: $ROIModel,
-                            BoxModel: $BoxModel
+                            BoxModel: $BoxModel,
+                            calibrationModel: $calibrationModel
+                            
                         )
                         .frame(height: geometry.size.height * 0.75)
                         .overlay(

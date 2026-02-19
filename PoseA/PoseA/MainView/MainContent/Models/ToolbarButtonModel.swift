@@ -15,6 +15,7 @@ enum ToolbarMode: String, CaseIterable {
     case box
     case annotate
     case zoom
+    case calibrate  
 }
 
 @Observable

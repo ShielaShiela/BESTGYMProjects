@@ -60,7 +60,8 @@ struct PoseOverlayView: View {
     // MARK: - Mapping
     
     private func mapNormalizedPointToCanvas(_ p: CGPoint, canvasSize: CGSize) -> CGPoint {
-        let s = max(canvasSize.width / videoSize.width, canvasSize.height / videoSize.height)
+//        let s = max(canvasSize.width / videoSize.width, canvasSize.height / videoSize.height)
+        let s = min(canvasSize.width / videoSize.width, canvasSize.height / videoSize.height)
         let scaledW = videoSize.width * s
         let scaledH = videoSize.height * s
         let offsetX = (canvasSize.width - scaledW) / 2.0

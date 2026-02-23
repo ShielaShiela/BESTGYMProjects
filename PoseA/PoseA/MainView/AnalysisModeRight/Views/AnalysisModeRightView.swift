@@ -20,14 +20,17 @@ struct AnalysisModeRightView: View {
     // ✅ ADD: one coordinator, lives with the view
     @State private var inferenceCoordinator = InferenceCoordinator()
     @State var calibrationModel: CalibrationModel
+    let resetToken: UUID
+    
 
     
-    init(appState: MainAppState, ROIModel: ROIViewModel, BoxModel: BoxViewModel, mediaManager: MediaManagerVM, calibrationModel: CalibrationModel) {
+    init(appState: MainAppState, ROIModel: ROIViewModel, BoxModel: BoxViewModel, mediaManager: MediaManagerVM, calibrationModel: CalibrationModel,resetToken: UUID) {
         self.appState = appState
         self.ROIModel = ROIModel
         self.BoxModel = BoxModel
         self.mediaManager = mediaManager
         self.calibrationModel = calibrationModel
+        self.resetToken = resetToken
 //        self.MLModel = MLModel
         
         // Initialize the PoseJointLandscapeVM with the provided BoxModel and mediaManager
@@ -189,6 +192,11 @@ struct AnalysisModeRightView: View {
                 }
             }
         }
+        .onChange(of: resetToken) { _, _ in   // ← ADD THIS BLOCK
+               poseJointVM.clearAllData()
+               selectedView = .info
+               appState.isAnalysisAvailable = false
+           }
     }
     
     private func updateAnalysis() {

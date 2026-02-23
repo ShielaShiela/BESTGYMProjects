@@ -217,6 +217,15 @@ class PoseJointLandscapeVM {
         )
     }
     
+    func clearAllData() {
+        angleCompleteData = []
+        positionCompleteData = []
+        velocityCompleteData = []
+        accelerationCompleteData = []
+        barPosition = []
+        swingData = []
+    }
+    
     // MARK: - Private Function Calls
     private func median(of array: [CGFloat]) -> CGFloat {
         let sorted = array.sorted()

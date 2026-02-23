@@ -133,6 +133,9 @@ extension BESTGYMPoseApp {
         let selectVideoFromLibrary: () -> Void
         let selectKeypointFile: () -> Void
         let saveProject: () -> Void
+        // ADD these two
+        @Binding var showSaveProjectSheet: Bool
+        @Binding var showProjectList: Bool
         
         var body: some View {
             HStack(spacing: 6) {
@@ -155,8 +158,12 @@ extension BESTGYMPoseApp {
                     Button(action: selectKeypointFile) {
                         Label("Import Keypoints (.json)", systemImage: "square.and.arrow.down")
                     }
-                    Button(action: saveProject) {
-                        Label("Save Projects", systemImage: "square.and.arrow.down")
+                    Button { saveProject() } label: {
+                            Label("Save Project", systemImage: "folder.badge.plus")
+                    }
+                    
+                    Button(action: { showProjectList = true }) {
+                        Label("Open Project", systemImage: "folder.badge.person.crop")
                     }
                     Divider()
                     Button { appState.showSettingsView = true } label: {

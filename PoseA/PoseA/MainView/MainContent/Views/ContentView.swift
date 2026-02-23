@@ -22,6 +22,12 @@ struct BESTGYMPoseApp: View {
     // ML Model Related VM
 //    @State private var MLModel = VitPoseProcessor()
     
+    // Project
+    @State private var showSaveProjectSheet = false
+    @State private var showProjectList = false
+    @State private var currentProject: GymProject? = nil
+    @State private var analysisResetToken: UUID = UUID()
+    
     // MARK: - Body
     var body: some View {
         ZStack {
@@ -46,7 +52,8 @@ struct BESTGYMPoseApp: View {
                                                   ROIModel: self.ROIModel,
                                                   BoxModel: self.BoxModel,
                                                   mediaManager: self.mediaManager,
-                                                  calibrationModel: self.calibrationModel)
+                                                  calibrationModel: self.calibrationModel,
+                                                  resetToken: analysisResetToken)
                             .frame(width: geometry.size.width / 2 - 10)
                         }
                         .frame(width: geometry.size.width, height: geometry.size.height)
@@ -66,7 +73,7 @@ struct BESTGYMPoseApp: View {
                                               ROIModel: ROIModel,
                                               BoxModel: BoxModel,
                                               calibrationModel: calibrationModel
-                                             )
+                            )
                         }
                         
                         // Principal Toolbar
@@ -77,7 +84,7 @@ struct BESTGYMPoseApp: View {
                                                ROIModel: ROIModel,
                                                BoxModel: BoxModel,
                                                calibrationModel: calibrationModel
-                                              )
+                            )
                         }
                         
                         // Right Toolbar
@@ -86,7 +93,9 @@ struct BESTGYMPoseApp: View {
                                          selectFileOrFolder: selectFileOrFolder,
                                          selectVideoFromLibrary: selectVideoFromLibrary,
                                          selectKeypointFile: selectKeypointFile,
-                                         saveProject: saveProject)
+                                         saveProject: saveProject,
+                                         showSaveProjectSheet: $showSaveProjectSheet,
+                                         showProjectList: $showProjectList   )
                         }
                     }
                     
@@ -145,6 +154,22 @@ struct BESTGYMPoseApp: View {
                         }
                     }
                 }
+                .sheet(isPresented: $showSaveProjectSheet) {
+                    SaveProjectSheet(
+                        isPresented: $showSaveProjectSheet,
+                        appState: appState,
+                        mediaManager: mediaManager,
+                        calibrationModel: calibrationModel,
+                        existingProject: currentProject      // ← passes existing so UUID is reused
+                    ) { savedProject in
+                        currentProject = savedProject        // ← captures it back so next save reuses same UUID
+                    }
+                }
+                .sheet(isPresented: $showProjectList) {
+                    ProjectListView(isPresented: $showProjectList) { project, keypoints in
+                        loadProjectData(project, keypoints: keypoints)
+                    }
+                }
                 
                 .fullScreenCover(isPresented: $appState.showSettingsView) {
                     SettingsView(appState: appState)
@@ -178,20 +203,33 @@ struct BESTGYMPoseApp: View {
         }
         
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-           print("App will resign active - keeping folder access alive")
-           // Don't clean up resources when app goes to background
-           // This allows continued access when returning to the app
-       }
+            print("App will resign active - keeping folder access alive")
+            // Don't clean up resources when app goes to background
+            // This allows continued access when returning to the app
+        }
         
-       .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-           print("App did become active")
-           // Resources should still be accessible
-       }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            print("App did become active")
+            // Resources should still be accessible
+        }
         
-       .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
-           print("App will terminate - cleaning up all resources")
-           SecurityScopedResourceManager.shared.stopAccessingAll()
-       }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
+            print("App will terminate - cleaning up all resources")
+            SecurityScopedResourceManager.shared.stopAccessingAll()
+        }
+        // Watch for keypoint detection completion
+        .onChange(of: mediaManager.isKeypointAvailable) { _, newValue in
+            if newValue {
+                autoSaveIfNeeded()
+            }
+        }
+        // Watch for calibration completion
+        .onChange(of: calibrationModel.calibrationStep) { _, newStep in
+            if newStep == .complete {
+                autoSaveIfNeeded()
+            }
+        }
+        
     }
     
     // MARK: - Helper Functions
@@ -257,9 +295,57 @@ struct BESTGYMPoseApp: View {
     
     // Save Project
     private func saveProject() {
+        showSaveProjectSheet = true
+    }
+    
+    private func loadProjectData(_ project: GymProject, keypoints: [Int: [KeypointData]]?) {
+        cleanupPreviousData()
         
-        print("nothing as of now")
-        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            currentProject = project
+            appState.sourceFileName = project.sourceFileName
+
+            // Restore calibration
+            if let cal = project.calibrationData, cal.isCalibrated {
+                calibrationModel.barTopPoint     = cal.barTopPoint?.cgPoint
+                calibrationModel.barBottomPoint  = cal.barBottomPoint?.cgPoint
+                calibrationModel.realBarHeightCm = cal.realBarHeightCm
+                calibrationModel.calibrationStep = .complete
+            }
+
+            // Load copied source file from project folder
+            if let sourceURL = ProjectManager.shared.sourceFileURL(for: project) {
+                appState.isProcessing = true
+                appState.processingStatus = "Loading media..."
+                appState.sourceURL = sourceURL
+                appState.isVideoSource = !mediaManager.isDataLIDAR
+
+                mediaManager.loadMedia(url: sourceURL,
+                                       autoDetectKeypoints: false) { errMsg in
+                    DispatchQueue.main.async {
+                        appState.isProcessing = false
+                        if let errMsg = errMsg {
+                            appState.errorMessage = "Media load failed: \(errMsg)"
+                        }
+                        // Restore keypoints regardless of media success
+                        self.restoreKeypoints(keypoints, project: project)
+                    }
+                }
+            } else {
+                // No copied media found (old project saved before this feature)
+                restoreKeypoints(keypoints, project: project)
+                appState.errorMessage = "Media not found in project folder. Please re-open '\(project.sourceFileName)' manually."
+            }
+        }
+    }
+
+    private func restoreKeypoints(_ keypoints: [Int: [KeypointData]]?, project: GymProject) {
+        if let keypoints = keypoints {
+            mediaManager.fileLoaderViewModel.keypointsByFrame = keypoints
+            mediaManager.fileLoaderViewModel.isKeyLoaded = true
+            mediaManager.isKeypointAvailable = true
+        }
+        appState.isAnalysisAvailable = project.isAnalysisAvailable
     }
     
     private func cleanupPreviousData() {
@@ -283,6 +369,28 @@ struct BESTGYMPoseApp: View {
         // Clear Media Manager
         mediaManager.clearAllData()
         
+        analysisResetToken = UUID()
+        
         print("Cleanup complete")
+    }
+    
+    private func autoSaveIfNeeded() {
+        guard mediaManager.isKeypointAvailable || calibrationModel.isCalibrated else { return }
+        
+        if currentProject == nil {
+            showSaveProjectSheet = true   // first time — prompt for name
+        } else {
+            // Silent update — reuses existing UUID
+            var updated = currentProject!
+            updated.calibrationData = SavedCalibration(
+                isCalibrated: calibrationModel.isCalibrated,
+                barTopPoint: calibrationModel.barTopPoint.map { CGPointCodable($0) },
+                barBottomPoint: calibrationModel.barBottomPoint.map { CGPointCodable($0) },
+                realBarHeightCm: calibrationModel.realBarHeightCm
+            )
+            updated.isAnalysisAvailable = appState.isAnalysisAvailable
+            ProjectManager.shared.updateProjectMetadata(&updated) { _ in }
+            currentProject = updated     // ← keep currentProject in sync
+        }
     }
 }

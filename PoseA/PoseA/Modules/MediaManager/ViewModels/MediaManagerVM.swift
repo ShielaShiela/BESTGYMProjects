@@ -55,6 +55,7 @@ class MediaManagerVM {
         fileLoaderViewModel.FrameImageURLs = []
         fileLoaderViewModel.FrameFolderURLs = []
         fileLoaderViewModel.FrameCounts = 0
+        fileLoaderViewModel.frameIndexMap = [:]
     }
     
     func seekToFrame(_ index: Int) {
@@ -85,18 +86,6 @@ class MediaManagerVM {
         let folderName = url.deletingPathExtension().lastPathComponent
         let destinationDir = documentsDir.appendingPathComponent(folderName)
 
-        // If destination folder exists, open the project
-//        if fileManager.fileExists(atPath: destinationDir.path) {
-//            log("Found video in project folder \(destinationDir.lastPathComponent)", level: .debug)
-//            
-//            // Open Project
-//            let ret = self.loadMedia(url: destinationDir, autoDetectKeypoints: autoDetectKeypoints, completion: <#(String?) -> Void#>)
-//            self.isDataLIDAR = false
-//            self.isDataTemp = false
-//            completion(ret)
-//            
-//            return
-//        }
         loadingTask = Task {
             guard !Task.isCancelled else { return }
             await self.fileLoaderViewModel.loadVideoFile(from: url)
@@ -154,9 +143,7 @@ class MediaManagerVM {
                 if !frameDirectories.isEmpty {
                     self.fileLoaderViewModel.loadVideoFolder(from: url)
                     
-                    if !keypointFiles.isEmpty && autoDetectKeypoints {
-                        self.fileLoaderViewModel.loadKeypoints(from: keypointFiles.first!)
-                    }
+                    
                     
                     for frameDir in frameDirectories {
                         let depthDataURL = frameDir.appendingPathComponent("depthData.dat")
@@ -168,6 +155,10 @@ class MediaManagerVM {
                     
                     loadingTask = Task {
                         guard !Task.isCancelled else { return }
+                        
+                        if !keypointFiles.isEmpty && autoDetectKeypoints {
+                            await self.fileLoaderViewModel.loadKeypoints(from: keypointFiles.first!)
+                        }
                         await self.watchMediaAvailability(expectKeypoints: (!keypointFiles.isEmpty && autoDetectKeypoints))
                         guard !Task.isCancelled else { return }
                         self.isDataTemp = false
@@ -179,18 +170,28 @@ class MediaManagerVM {
                     self.isDataLIDAR = false
                     self.isDataTemp = false
                     
-                    let keypointURL: URL? = (!keypointFiles.isEmpty && autoDetectKeypoints) ? keypointFiles.first : nil
+                    let keypointURL: URL? = keypointFiles.first
+//                    let keypointURL: URL? = (!keypointFiles.isEmpty && autoDetectKeypoints) ? keypointFiles.first : nil
+                    
+                    
+                    // ADD THESE:
+                    log("🎬 Video files found: \(videoFiles.map { $0.lastPathComponent })", level: .info)
+                    log("🔑 Keypoint files found: \(keypointFiles.map { $0.lastPathComponent })", level: .info)
+                    log("🔑 autoDetectKeypoints: \(autoDetectKeypoints)", level: .info)
+                    log("🔑 keypointURL resolved: \(String(describing: keypointURL?.lastPathComponent))", level: .info)
+                    
                     
                     loadingTask = Task {
                         guard !Task.isCancelled else { return }
                         await self.fileLoaderViewModel.loadVideoFile(from: videoURL)
                         guard !Task.isCancelled else { return }
                         
+                        // ✅ Await keypoints BEFORE watchMediaAvailability
                         if let keypointURL = keypointURL {
-                            self.fileLoaderViewModel.loadKeypoints(from: keypointURL)
+                            await self.fileLoaderViewModel.loadKeypoints(from: keypointURL)  // now awaited
                         }
                         
-                        try? await Task.sleep(nanoseconds: 100_000_000)
+                        // ✅ Remove the arbitrary sleep — no longer needed
                         guard !Task.isCancelled else { return }
                         
                         await self.watchMediaAvailability(expectKeypoints: (keypointURL != nil))
@@ -213,8 +214,10 @@ class MediaManagerVM {
             let fileExtension = url.pathExtension.lowercased()
             switch fileExtension {
             case "json":
-                self.fileLoaderViewModel.loadKeypoints(from: url)
-                completion(nil)
+                Task {
+                       await self.fileLoaderViewModel.loadKeypoints(from: url)
+                       await MainActor.run { completion(nil) }
+                   }
             case "mp4", "mov", "m4v":
                 loadingTask = Task {
                     guard !Task.isCancelled else { return }
@@ -271,19 +274,21 @@ class MediaManagerVM {
     
     
     // MARK: - Public Function for Media Player
-    
+   
     func getKeypointsCurrent() -> [KeypointData]? {
-        if fileLoaderViewModel.isKeyLoaded {
-            return self.getKeypointsByIndex(self.mediaPlayerViewModel.currentFrameIndex)
-        } else { return nil }
+        guard fileLoaderViewModel.isKeyLoaded else { return nil }
+        let playerIndex = mediaPlayerViewModel.currentFrameIndex
+        let frameKey = fileLoaderViewModel.frameIndexMap[playerIndex] ?? playerIndex
+        return fileLoaderViewModel.keypointsByFrame[frameKey]
     }
-    
+
     func getKeypointsByIndex(_ index: Int) -> [KeypointData]? {
-        if fileLoaderViewModel.isKeyLoaded {
-            return self.fileLoaderViewModel.keypointsByFrame[index] ?? nil
-        } else { return nil }
+        guard fileLoaderViewModel.isKeyLoaded else { return nil }
+        
+        // FrameFolderURLs is empty for 2D video, use direct index lookup
+        // JSON keys ARE the original video frame numbers which match extractFramesAndSaveToDisk index
+        return fileLoaderViewModel.keypointsByFrame[index]
     }
-    
     func getCurrentIndex() -> Int {
         if fileLoaderViewModel.isKeyLoaded {
             return self.mediaPlayerViewModel.currentFrameIndex
@@ -308,29 +313,35 @@ class MediaManagerVM {
         }
     }
     
-    
     @MainActor
     func watchMediaAvailability(expectKeypoints: Bool) async {
         if expectKeypoints {
-            var keypointTimeout = 0
-            while !fileLoaderViewModel.isKeyLoaded && keypointTimeout < 50 {
-                guard !Task.isCancelled else { return }  // ADD
-                try? await Task.sleep(nanoseconds: 100_000_000)
-                keypointTimeout += 1
+            if !fileLoaderViewModel.isKeyLoaded {
+                var keypointTimeout = 0
+                while !fileLoaderViewModel.isKeyLoaded && keypointTimeout < 50 {
+                    guard !Task.isCancelled else { return }
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    keypointTimeout += 1
+                }
             }
             isKeypointAvailable = fileLoaderViewModel.isKeyLoaded
         }
 
         var mediaTimeout = 0
         while !fileLoaderViewModel.isDataLoaded && mediaTimeout < 100 {
-            guard !Task.isCancelled else { return }  // ADD
+            guard !Task.isCancelled else { return }
             try? await Task.sleep(nanoseconds: 100_000_000)
             mediaTimeout += 1
         }
 
-        guard !Task.isCancelled else { return }  // ADD
+        guard !Task.isCancelled else { return }
 
         if fileLoaderViewModel.isDataLoaded {
+            if !fileLoaderViewModel.FrameFolderURLs.isEmpty && fileLoaderViewModel.isKeyLoaded {
+                fileLoaderViewModel.remapKeypointsToArrayIndex()  // LiDAR only
+            }
+            
+            // 2D video: no remap, JSON keys match frame indices directly
             mediaPlayerViewModel.updateMedia(imageURLs: fileLoaderViewModel.FrameImageURLs)
             isMediaAvailable = true
         } else {

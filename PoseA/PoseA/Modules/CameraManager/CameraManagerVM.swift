@@ -91,6 +91,8 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     private let poseDataQueue = DispatchQueue(label: "com.yourapp.posedata", qos: .userInitiated)
     private let poseBufferLimit = 100 // Write to file every 100 frames
     
+    private var recordingFrameCounter: Int = 0
+    
     //video writers
     private var assetWriter: AVAssetWriter?
     private var colorWriterInput: AVAssetWriterInput?
@@ -868,180 +870,102 @@ extension CameraManagerVM {
     }
 
 
-    
-    
+
     
     // onNewBasicData implementation for Basic Camera
     func onNewBasicData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, pts: CMTime) {
-        if let currentBuffer = pixelBuffer {
-            // Update FPS
-            self.systemFPS.tick()
+        guard let currentBuffer = pixelBuffer else { return }
+        
+        self.systemFPS.tick()
+        DispatchQueue.main.async { self.fpsStream = self.systemFPS.fps }
+        var currentFrameCount: Int = 0
+        
+        
+        if isRecording && !isPreparingRecording {
+            let currentFrameCount: Int = frameBufferQueue.sync {
+                let index = self.recordingFrameCounter
+                self.recordingFrameCounter += 1
+                self.frameBuffer.append((currentBuffer, pts))
+                self.frameSemaphore.signal()
+                return index
+            }
             DispatchQueue.main.async {
-                self.fpsStream = self.systemFPS.fps
+                self.capturedData.database.cameraIntrinsics = capturedData.cameraIntrinsics
+                self.capturedData.database.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
             }
             
-            // Write frame to video if recording is true
-            if isRecording && !isPreparingRecording {
-                DispatchQueue.main.async {
-                    // Update basic camera data
-                    self.capturedData.database.cameraIntrinsics = capturedData.cameraIntrinsics
-                    self.capturedData.database.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
+            // ✅ ALWAYS run pose detection when recording, regardless of isPoseProcessingEnabled
+            // isPoseProcessingEnabled only controls the live preview overlay
+            let capturedFrameCount = currentFrameCount
+            let capturedIntrinsics = capturedData.cameraIntrinsics
+            
+            poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
+                guard let self = self else { return }
+                
+                if currentFrameCount % 30 == 0 {
+                       log("📊 Frame \(currentFrameCount): callback fired, poses=\(poses.count), isRecording=\(self.isRecording), isPreparing=\(self.isPreparingRecording)", level: .info)
+                   }
+                   
+                
+                // Update live overlay only if user has preview enabled
+                if self.isPoseProcessingEnabled {
+                    DispatchQueue.main.async {
+                        self.poseKeypoints = poses.isEmpty ? [] : poses
+                        self.fpsModel = fps
+                    }
                 }
                 
-                frameBufferQueue.async {
-                    self.frameBuffer.append((currentBuffer, pts))
-                    self.frameSemaphore.signal()
-                }
-            }
-            // BETA: - YOLO Pose Detection
-            if isPoseProcessingEnabled {
-                poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
-                    guard let self = self else { return }
-                    
-                    if !poses.isEmpty {
-                        DispatchQueue.main.async {
-                            self.poseKeypoints = poses
-                            self.fpsModel = fps
-                        }
-                    } else {
-                        DispatchQueue.main.async {
-                            self.poseKeypoints = []
-                            self.fpsModel = fps
-                        }
-                    }
-                    
-                    // Save pose data WITHOUT depth when recording
-                    if self.isRecording && !self.isPreparingRecording {
-                        let timestamp = CMTimeGetSeconds(pts)
-                        let intrinsics = capturedData.cameraIntrinsics
-                        let currentFrameCount = self.frameCount
-                        
-                        let posesWithoutDepth: [PoseBox] = poses.map { pose in
-                            let keypointsWithoutDepth = pose.keypoints.map { keypoint in
-                                KeypointData(
-                                    name: keypoint.name,
-                                    x: keypoint.x,
-                                    y: keypoint.y,
-                                    confidence: keypoint.confidence,
-                                    depth: 0.0,  // 0.0 indicates no depth data
-                                    frameIndex: currentFrameCount
-                                )
-                            }
-                            
-                            return PoseBox(
-                                bbox: pose.bbox,
-                                confidence: pose.confidence,
-                                keypoints: keypointsWithoutDepth,
-                                hasDepthData: false
+                // ✅ Always save to buffer when recording
+                guard self.isRecording && !self.isPreparingRecording else { return }
+                
+                let timestamp = CMTimeGetSeconds(pts)
+                
+                let posesToSave: [PoseBox] = poses.map { pose in
+                    PoseBox(
+                        bbox: pose.bbox,
+                        confidence: pose.confidence,
+                        keypoints: pose.keypoints.map {
+                            KeypointData(
+                                name: $0.name,
+                                x: $0.x,
+                                y: $0.y,
+                                confidence: $0.confidence,
+                                depth: 0.0,
+                                frameIndex: capturedFrameCount
                             )
-                        }
-                        
-                        let frameData = PoseFrameData(
-                            frameIndex: currentFrameCount,
-                            timestamp: timestamp,
-                            poses: posesWithoutDepth,
-                            pts: pts,
-                            hasDepthData: false,
-                            cameraIntrinsics: intrinsics
-                        )
-                        
-                        self.poseDataQueue.async { [weak self] in
-                            guard let self = self else { return }
-                            self.poseDataBuffer.append(frameData)
-                            
-                            if self.poseDataBuffer.count >= self.poseBufferLimit,
-                               let folder = self.recordingFolder {
-                                self.savePoseDataBuffer(to: folder)
-                            }
-                        }
-                    }
-                }
-            // In onNewBasicData, after the isPoseProcessingEnabled block
-            } else {
-                // If pose processing is disabled but still recording
-                // Save frame info without pose data
-                if self.isRecording && !self.isPreparingRecording {
-                    let timestamp = CMTimeGetSeconds(pts)
-                    let intrinsics = capturedData.cameraIntrinsics
-                    let currentFrameCount = self.frameCount
-                    
-                    let frameData = PoseFrameData(
-                        frameIndex: currentFrameCount,
-                        timestamp: timestamp,
-                        poses: [],
-                        pts: pts,
-                        hasDepthData: false,
-                        cameraIntrinsics: intrinsics
+                        },
+                        hasDepthData: false
                     )
-                    
-                    self.poseDataQueue.async { [weak self] in
-                        guard let self = self else { return }
-                        self.poseDataBuffer.append(frameData)
-                        
-                        if self.poseDataBuffer.count >= self.poseBufferLimit,
-                           let folder = self.recordingFolder {
-                            self.savePoseDataBuffer(to: folder)
-                        }
+                }
+                
+                let frameData = PoseFrameData(
+                    frameIndex: capturedFrameCount,
+                    timestamp: timestamp,
+                    poses: posesToSave,
+                    pts: pts,
+                    hasDepthData: false,
+                    cameraIntrinsics: capturedIntrinsics
+                )
+                
+                self.poseDataQueue.async { [weak self] in
+                    guard let self = self else { return }
+                    self.poseDataBuffer.append(frameData)
+                    if self.poseDataBuffer.count >= self.poseBufferLimit,
+                       let folder = self.recordingFolder {
+                        self.savePoseDataBuffer(to: folder)
                     }
                 }
             }
-
             
-//            // BETA: - YOLO Pose Detection
-//            if isPoseProcessingEnabled {
-//                poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
-//                    guard let self = self else {return}
-//                    
-//                    // Run tracker
-//                    // Inside your process callback:
-////                    let tracked = updateTracks(with: poses, roi: nil)   // barROI can be nil if unknown
-////                    if let athlete = pickSwinger(from: tracked, roi: nil), shouldRender(athlete) {
-////                        DispatchQueue.main.async {
-////                            self?.poseKeypoints = [athlete.pose]
-////                        }
-////                    } else {
-////                        DispatchQueue.main.async {
-////                            self?.poseKeypoints = []   // don’t render stale predictions
-////                        }
-////                    }
-//                    
-//                    if !poses.isEmpty {
-//                        DispatchQueue.main.async {
-//                            self.poseKeypoints = poses
-//                            self.fpsModel = fps
-//                        }
-//                    } else {
-//                        DispatchQueue.main.async {
-//                            self.poseKeypoints = []
-//                            self.fpsModel = fps
-//                        }
-//                    }
-//                    
-//                    // 🎯 This saves pose data when recording
-//                    if self.isRecording {  // 👈 NOW THIS WORKS
-//                        let timestamp = CMTimeGetSeconds(pts)
-//                        let frameData = PoseFrameData(
-//                            frameIndex: self.frameCount,
-//                            timestamp: timestamp,
-//                            poses: poses,
-//                            pts: pts
-//                        )
-//                        
-//                        self.poseDataQueue.async { [weak self] in
-//                            guard let self = self else { return }
-//                            self.poseDataBuffer.append(frameData)
-//                            
-//                            // Auto-save every 100 frames
-//                            if self.poseDataBuffer.count >= self.poseBufferLimit,
-//                               let folder = self.recordingFolder {
-//                                self.savePoseDataBuffer(to: folder)
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-
-
+        } else if isPoseProcessingEnabled {
+            // Not recording — just update live preview overlay
+            poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
+                guard let self = self else { return }
+                DispatchQueue.main.async {
+                    self.poseKeypoints = poses.isEmpty ? [] : poses
+                    self.fpsModel = fps
+                }
+            }
         }
     }
     
@@ -1130,22 +1054,6 @@ extension CameraManagerVM {
 
 // MARK: - Data Management
 extension CameraManagerVM {
-//    func saveCapturedData(completion: @escaping (Bool) -> Void) {
-//        do {
-//            let documentDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-//            capturedData.saveData(to: documentDirectory, filter: controller.isFilteringEnabled)
-//            completion(true)
-//        } catch {
-//            log("Error saving capture data: \(error)", level: .error)
-//            if let nsError = error as NSError? {
-//                log("Error domain: \(nsError.domain)", level: .error)
-//                log("Error code: \(nsError.code)", level: .error)
-//                log("Error user info: \(nsError.userInfo)", level: .error)
-//                log("Error saving capture data: \(error.localizedDescription)", level: .error)
-//            }
-//            completion(false)
-//        }
-//    }
     
     func clearAllFrames() {
         log("Starting comprehensive cleanup...", level: .info)
@@ -1167,6 +1075,24 @@ extension CameraManagerVM {
             return
         }
         
+        log("📊 isPoseProcessingEnabled: \(isPoseProcessingEnabled)", level: .info)
+            log("📊 poseProcessor is nil: \(poseProcessor == nil)", level: .info)
+            log("📊 poseProcessingModelURL: \(poseProcessingModelURL)", level: .info)
+            
+            isPreparingRecording = true
+            poseDataQueue.async { [weak self] in
+                self?.poseDataBuffer.removeAll()
+            }
+            
+            // ✅ Model is already loaded if isPoseProcessingEnabled is true
+            // Only load if poseProcessor is nil (should never happen but just in case)
+            if poseProcessor == nil {
+                poseProcessor = YOLOPoseProcessor()
+                poseProcessor?.loadModel(named: self.poseProcessingModelURL) { success in
+                    log("📊 Model load result for recording: \(success)", level: .info)
+                }
+            }
+
         log("Starting standard recording with orientation: \(getOrientationName(OrientationCache.shared.orientation))", level: .info)
         log("Current camera configuration: \(cameraConfiguration.resolution.description) (\(cameraConfiguration.resolution.width)x\(cameraConfiguration.resolution.height)) at \(cameraConfiguration.frameRate.description) FPS", level: .info)
         log("Target frame rate: \(cameraConfiguration.frameRate.rawValue) FPS", level: .info)
@@ -1179,6 +1105,7 @@ extension CameraManagerVM {
         poseDataQueue.async { [weak self] in
             self?.poseDataBuffer.removeAll()
         }
+        
         
         // Move all file operations to background
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -1227,6 +1154,7 @@ extension CameraManagerVM {
                     self.recordingFolder = recordingFolder
                     self.recordingStartTime = Date()
                     self.frameCount = 0
+                    self.recordingFrameCounter = 0
                     self.firstPTS = nil  // Reset firstPTS for new recording
                     self.recordingOrientation = OrientationCache.shared.orientation
                     
@@ -1272,85 +1200,6 @@ extension CameraManagerVM {
         }
     }
 
-    
-    // Stop recording with proper cleanup
-//    func stopRecording(completion: @escaping (URL?) -> Void) {
-//        DispatchQueue.main.async {
-//            guard self.isRecording, let folder = self.recordingFolder else {
-//                completion(nil)
-//                return
-//            }
-//            
-//            // First mark as not recording to prevent new frames
-//            self.isRecording = false
-//            self.frameSemaphore.signal()
-//
-//            // Capture all required information before moving to background thread
-//            let isLiDAR = self.isLiDAREnabled
-//            let frameCount = self.frameCount
-//            let recordingOrientation = self.recordingOrientation
-//            
-//            // Process completion on background thread
-//            DispatchQueue.global(qos: .userInitiated).async {
-//                log("Stopping recording...", level: .info)
-//                
-//                // In your recording stop function, add this AFTER saving the buffer:
-//                self.savePoseDataBuffer(to: folder)
-//
-//                // Wait for pose data queue to finish
-//                self.poseDataQueue.sync {
-//                    log("All pose data saved", level: .info)
-//                }
-//
-//                // NEW: Consolidate all pose data into single keypoint.json
-//                self.consolidatePoseData(in: folder)
-//                
-//                // Call our improved metadata saver
-//                self.saveRecordingMetadata(
-//                    to: folder,
-//                    orientation: recordingOrientation,
-//                    frameCount: frameCount,
-//                    isLiDAR: self.isLiDAREnabled
-//                )
-//                
-//                self.videoWriterQueue.async { [weak self] in
-//                    guard let self = self else { return }
-//                    
-//                    // Wait until frameWriterQueue is finished
-//                    self.frameWriterQueue.sync {
-//                        // all frames processed
-//                    }
-//                    
-//                    // For standard recordings, finalize the video
-//                    if !isLiDAR {
-//                        if let writer = self.videoWriter, let writerInput = self.videoWriterInput {
-//                            writerInput.markAsFinished()
-//                            writer.finishWriting {
-//                                log("Video writing completed", level: .info)
-//                                
-//                                DispatchQueue.main.async {
-//                                    self.videoWriter = nil
-//                                    self.videoWriterInput = nil
-//                                    self.pixelBufferAdaptor = nil
-//                                    self.recordingFolder = nil
-//                                    self.frameCount = 0
-//                                    self.firstPTS = nil
-//                                    self.recordingStartTime = nil
-//                                    completion(folder)
-//                                }
-//                            }
-//                        } else {
-//                            log("No video writer available for finalization", level: .error)
-//                            DispatchQueue.main.async {
-//                                self.recordingFolder = nil
-//                                completion(folder)
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//    }
     
     private func startWriterLoop() {
         frameWriterQueue.async { [weak self] in
@@ -1584,13 +1433,68 @@ extension CameraManagerVM {
     }
     
     // NEW: Final consolidation after recording stops
+//    private func consolidatePoseData(in folder: URL) {
+//        log("Consolidating pose data files...", level: .info)
+//        
+//        let fileManager = FileManager.default
+//        
+//        do {
+//            // Find all pose_data_*.json files
+//            let files = try fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+//            let poseFiles = files.filter { $0.lastPathComponent.hasPrefix("pose_data_") && $0.pathExtension == "json" }
+//            
+//            guard !poseFiles.isEmpty else {
+//                log("No pose data files to consolidate", level: .info)
+//                return
+//            }
+//            
+//            log("Found \(poseFiles.count) pose data files to consolidate", level: .info)
+//            
+//            // Collect all frame data from all files
+//            var allFrames: [PoseFrameData] = []
+//            
+//            for file in poseFiles {
+//                do {
+//                    let data = try Data(contentsOf: file)
+//                    let frames = try JSONDecoder().decode([PoseFrameData].self, from: data)
+//                    allFrames.append(contentsOf: frames)
+//                } catch {
+//                    log("Error reading pose file \(file.lastPathComponent): \(error)", level: .error)
+//                }
+//            }
+//            
+//            // Sort by frame index to ensure proper order
+//            allFrames.sort { $0.frameIndex < $1.frameIndex }
+//            
+//            log("Consolidated \(allFrames.count) total frames", level: .info)
+//            
+//            // Save consolidated data as keypoint.json
+//            let consolidatedURL = folder.appendingPathComponent("keypoint.json")
+//            let encoder = JSONEncoder()
+//            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+//            
+//            let consolidatedData = try encoder.encode(allFrames)
+//            try consolidatedData.write(to: consolidatedURL)
+//            
+//            log("Saved consolidated keypoint.json", level: .info)
+//            
+//            // ✅ DELETE the individual pose_data_*.json files after consolidation
+//            for file in poseFiles {
+//                try? fileManager.removeItem(at: file)
+//                log("Deleted temporary file: \(file.lastPathComponent)", level: .debug)
+//            }
+//            
+//        } catch {
+//            log("Error consolidating pose data: \(error)", level: .error)
+//        }
+//    }
+    
     private func consolidatePoseData(in folder: URL) {
         log("Consolidating pose data files...", level: .info)
         
         let fileManager = FileManager.default
         
         do {
-            // Find all pose_data_*.json files
             let files = try fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
             let poseFiles = files.filter { $0.lastPathComponent.hasPrefix("pose_data_") && $0.pathExtension == "json" }
             
@@ -1599,11 +1503,7 @@ extension CameraManagerVM {
                 return
             }
             
-            log("Found \(poseFiles.count) pose data files to consolidate", level: .info)
-            
-            // Collect all frame data from all files
             var allFrames: [PoseFrameData] = []
-            
             for file in poseFiles {
                 do {
                     let data = try Data(contentsOf: file)
@@ -1614,31 +1514,213 @@ extension CameraManagerVM {
                 }
             }
             
-            // Sort by frame index to ensure proper order
             allFrames.sort { $0.frameIndex < $1.frameIndex }
-            
             log("Consolidated \(allFrames.count) total frames", level: .info)
             
-            // Save consolidated data as keypoint.json
-            let consolidatedURL = folder.appendingPathComponent("keypoint.json")
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             
-            let consolidatedData = try encoder.encode(allFrames)
-            try consolidatedData.write(to: consolidatedURL)
+            // ✅ FIX 1: Use Int frame index as key — matches [Int: [KeypointData]] in analysis mode
+            var keypointsByFrame: [Int: [KeypointData]] = [:]
+            for frame in allFrames {
+                guard !frame.poses.isEmpty else { continue }
+                let bestPose = frame.poses.max(by: { $0.confidence < $1.confidence }) ?? frame.poses[0]
+                keypointsByFrame[frame.frameIndex] = bestPose.keypoints
+            }
             
-            log("Saved consolidated keypoint.json", level: .info)
+            let keypointsURL = folder.appendingPathComponent("keypoints.json")
+            let keypointsData = try encoder.encode(keypointsByFrame)
+            try keypointsData.write(to: keypointsURL)
+            log("Saved keypoints.json (\(keypointsByFrame.count) frames with poses)", level: .info)
             
-            // ✅ DELETE the individual pose_data_*.json files after consolidation
+            // Keep raw_pose_frames.json as-is for debugging
+            let rawURL = folder.appendingPathComponent("raw_pose_frames.json")
+            let rawData = try encoder.encode(allFrames)
+            try rawData.write(to: rawURL)
+            log("Saved raw_pose_frames.json (\(allFrames.count) total frames)", level: .info)
+            
             for file in poseFiles {
                 try? fileManager.removeItem(at: file)
-                log("Deleted temporary file: \(file.lastPathComponent)", level: .debug)
             }
             
         } catch {
             log("Error consolidating pose data: \(error)", level: .error)
         }
     }
+    
+    // Stop recording with proper cleanup
+    func stopRecording(completion: @escaping (URL?) -> Void) {
+        DispatchQueue.main.async {
+            guard self.isRecording, let folder = self.recordingFolder else {
+                completion(nil)
+                return
+            }
+            
+            // Prevent new frames from being added
+            self.isRecording = false
+            self.frameSemaphore.signal()
+
+            let isLiDAR = self.isLiDAREnabled
+            let frameCount = self.frameCount
+            let recordingOrientation = self.recordingOrientation
+            
+            DispatchQueue.global(qos: .userInitiated).async {
+                log("Stopping recording...", level: .info)
+                
+                // ✅ FIX: Flush remaining pose buffer INSIDE poseDataQueue.sync
+                // This guarantees the buffer is read AND written on the correct queue,
+                // and that everything is fully saved before we proceed.
+                self.poseDataQueue.sync {
+                    guard !self.poseDataBuffer.isEmpty else {
+                        log("Pose buffer already empty, nothing to flush", level: .info)
+                        return
+                    }
+                    
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    
+                    do {
+                        let timestamp = Int(Date().timeIntervalSince1970)
+                        let fileURL = folder.appendingPathComponent("pose_data_\(timestamp)_final.json")
+                        let jsonData = try encoder.encode(self.poseDataBuffer)
+                        try jsonData.write(to: fileURL)
+                        log("Flushed final \(self.poseDataBuffer.count) pose frames", level: .info)
+                        self.poseDataBuffer.removeAll()
+                    } catch {
+                        log("Error flushing final pose data: \(error.localizedDescription)", level: .error)
+                    }
+                }
+                // ✅ At this point poseDataQueue is fully drained — safe to consolidate
+                
+                self.consolidatePoseData(in: folder)
+                
+                if isLiDAR {
+                    self.saveDepthMetadata(to: folder, frameCount: frameCount)
+                }
+                
+                self.saveRecordingMetadata(
+                    to: folder,
+                    orientation: recordingOrientation,
+                    frameCount: frameCount,
+                    isLiDAR: isLiDAR
+                )
+                
+                if isLiDAR {
+                    self.finalizeLiDARVideos(folder: folder, completion: completion)
+                } else {
+                    self.finalizeStandardVideo(folder: folder, completion: completion)
+                }
+            }
+        }
+    }
+
+    // MARK: - Video Finalization Helpers
+
+    private func finalizeLiDARVideos(folder: URL, completion: @escaping (URL?) -> Void) {
+        let group = DispatchGroup()
+        
+        var colorFinalized = false
+        var depthFinalized = false
+        
+        // Finalize RGB video
+        if let colorInput = self.colorWriterInput,
+           let colorWriter = self.assetWriter {
+            group.enter()
+            colorInput.markAsFinished()
+            colorWriter.finishWriting {
+                if colorWriter.status == .completed {
+                    log("RGB video finalized successfully", level: .info)
+                    colorFinalized = true
+                } else {
+                    log("RGB video finalization failed: \(colorWriter.error?.localizedDescription ?? "Unknown error")", level: .error)
+                }
+                group.leave()
+            }
+        }
+        
+        // Finalize Depth video
+        if let depthInput = self.depthWriterInput,
+           let depthWriter = self.videoWriter {
+            group.enter()
+            depthInput.markAsFinished()
+            depthWriter.finishWriting {
+                if depthWriter.status == .completed {
+                    log("Depth video finalized successfully", level: .info)
+                    depthFinalized = true
+                } else {
+                    log("Depth video finalization failed: \(depthWriter.error?.localizedDescription ?? "Unknown error")", level: .error)
+                }
+                group.leave()
+            }
+        }
+        
+        group.notify(queue: .main) {
+            log("LiDAR recording stopped. RGB: \(colorFinalized ? "✅" : "❌"), Depth: \(depthFinalized ? "✅" : "❌")", level: .info)
+            
+            // Clean up
+            self.assetWriter = nil
+            self.colorWriterInput = nil
+            self.colorPixelBufferAdaptor = nil
+            self.videoWriter = nil
+            self.depthWriterInput = nil
+            self.depthPixelBufferAdaptor = nil
+            self.recordingFolder = nil
+            self.frameCount = 0
+            self.firstPTS = nil
+            self.recordingStartTime = nil
+            
+            completion(folder)
+        }
+    }
+
+    private func finalizeStandardVideo(folder: URL, completion: @escaping (URL?) -> Void) {
+        self.videoWriterQueue.async { [weak self] in
+            guard let self = self else {
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+                return
+            }
+            
+            // Wait until frameWriterQueue is finished
+            self.frameWriterQueue.sync {
+                // All frames processed
+            }
+            
+            // Finalize the video
+            if let writer = self.videoWriter, let writerInput = self.videoWriterInput {
+                writerInput.markAsFinished()
+                writer.finishWriting {
+                    if writer.status == .completed {
+                        log("Video writing completed successfully", level: .info)
+                    } else {
+                        log("Video writing failed: \(writer.error?.localizedDescription ?? "Unknown error")", level: .error)
+                    }
+                    
+                    DispatchQueue.main.async {
+                        self.videoWriter = nil
+                        self.videoWriterInput = nil
+                        self.pixelBufferAdaptor = nil
+                        self.recordingFolder = nil
+                        self.frameCount = 0
+                        self.firstPTS = nil
+                        self.recordingStartTime = nil
+                        completion(folder)
+                    }
+                }
+            } else {
+                log("No video writer available for finalization", level: .error)
+                DispatchQueue.main.async {
+                    self.recordingFolder = nil
+                    self.frameCount = 0
+                    self.firstPTS = nil
+                    self.recordingStartTime = nil
+                    completion(folder)
+                }
+            }
+        }
+    }
+
 
 }
 //MARK :: for getting depth data for the point
@@ -1876,170 +1958,6 @@ extension CameraManagerVM {
         }
     }
     
-    // Stop recording with proper cleanup
-    func stopRecording(completion: @escaping (URL?) -> Void) {
-        DispatchQueue.main.async {
-            guard self.isRecording, let folder = self.recordingFolder else {
-                completion(nil)
-                return
-            }
-            
-            // First mark as not recording to prevent new frames
-            self.isRecording = false
-            self.frameSemaphore.signal()
-
-            // Capture all required information before moving to background thread
-            let isLiDAR = self.isLiDAREnabled
-            let frameCount = self.frameCount
-            let recordingOrientation = self.recordingOrientation
-            
-            // Process completion on background thread
-            DispatchQueue.global(qos: .userInitiated).async {
-                log("Stopping recording...", level: .info)
-                
-                // Save any remaining pose data buffer
-                self.savePoseDataBuffer(to: folder)
-
-                // Wait for pose data queue to finish
-                self.poseDataQueue.sync {
-                    log("All pose data saved", level: .info)
-                }
-
-                // Consolidate all pose data into single keypoint.json
-                self.consolidatePoseData(in: folder)
-                
-                // ✅ Save depth metadata
-                if isLiDAR {
-                    self.saveDepthMetadata(to: folder, frameCount: frameCount)
-                }
-                
-                // Save recording metadata
-                self.saveRecordingMetadata(
-                    to: folder,
-                    orientation: recordingOrientation,
-                    frameCount: frameCount,
-                    isLiDAR: isLiDAR
-                )
-                
-                // Handle video finalization based on recording type
-                if isLiDAR {
-                    // LiDAR mode: Finalize both RGB and Depth videos
-                    self.finalizeLiDARVideos(folder: folder, completion: completion)
-                } else {
-                    // Standard mode: Finalize single video
-                    self.finalizeStandardVideo(folder: folder, completion: completion)
-                }
-            }
-        }
-    }
-
-    // MARK: - Video Finalization Helpers
-
-    private func finalizeLiDARVideos(folder: URL, completion: @escaping (URL?) -> Void) {
-        let group = DispatchGroup()
-        
-        var colorFinalized = false
-        var depthFinalized = false
-        
-        // Finalize RGB video
-        if let colorInput = self.colorWriterInput,
-           let colorWriter = self.assetWriter {
-            group.enter()
-            colorInput.markAsFinished()
-            colorWriter.finishWriting {
-                if colorWriter.status == .completed {
-                    log("RGB video finalized successfully", level: .info)
-                    colorFinalized = true
-                } else {
-                    log("RGB video finalization failed: \(colorWriter.error?.localizedDescription ?? "Unknown error")", level: .error)
-                }
-                group.leave()
-            }
-        }
-        
-        // Finalize Depth video
-        if let depthInput = self.depthWriterInput,
-           let depthWriter = self.videoWriter {
-            group.enter()
-            depthInput.markAsFinished()
-            depthWriter.finishWriting {
-                if depthWriter.status == .completed {
-                    log("Depth video finalized successfully", level: .info)
-                    depthFinalized = true
-                } else {
-                    log("Depth video finalization failed: \(depthWriter.error?.localizedDescription ?? "Unknown error")", level: .error)
-                }
-                group.leave()
-            }
-        }
-        
-        group.notify(queue: .main) {
-            log("LiDAR recording stopped. RGB: \(colorFinalized ? "✅" : "❌"), Depth: \(depthFinalized ? "✅" : "❌")", level: .info)
-            
-            // Clean up
-            self.assetWriter = nil
-            self.colorWriterInput = nil
-            self.colorPixelBufferAdaptor = nil
-            self.videoWriter = nil
-            self.depthWriterInput = nil
-            self.depthPixelBufferAdaptor = nil
-            self.recordingFolder = nil
-            self.frameCount = 0
-            self.firstPTS = nil
-            self.recordingStartTime = nil
-            
-            completion(folder)
-        }
-    }
-
-    private func finalizeStandardVideo(folder: URL, completion: @escaping (URL?) -> Void) {
-        self.videoWriterQueue.async { [weak self] in
-            guard let self = self else {
-                DispatchQueue.main.async {
-                    completion(nil)
-                }
-                return
-            }
-            
-            // Wait until frameWriterQueue is finished
-            self.frameWriterQueue.sync {
-                // All frames processed
-            }
-            
-            // Finalize the video
-            if let writer = self.videoWriter, let writerInput = self.videoWriterInput {
-                writerInput.markAsFinished()
-                writer.finishWriting {
-                    if writer.status == .completed {
-                        log("Video writing completed successfully", level: .info)
-                    } else {
-                        log("Video writing failed: \(writer.error?.localizedDescription ?? "Unknown error")", level: .error)
-                    }
-                    
-                    DispatchQueue.main.async {
-                        self.videoWriter = nil
-                        self.videoWriterInput = nil
-                        self.pixelBufferAdaptor = nil
-                        self.recordingFolder = nil
-                        self.frameCount = 0
-                        self.firstPTS = nil
-                        self.recordingStartTime = nil
-                        completion(folder)
-                    }
-                }
-            } else {
-                log("No video writer available for finalization", level: .error)
-                DispatchQueue.main.async {
-                    self.recordingFolder = nil
-                    self.frameCount = 0
-                    self.firstPTS = nil
-                    self.recordingStartTime = nil
-                    completion(folder)
-                }
-            }
-        }
-    }
-
     private func saveRawDepthMap(_ depthData: AVDepthData, frameIndex: Int, to folder: URL) {
         let depthMap = depthData.depthDataMap
         

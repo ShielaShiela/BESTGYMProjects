@@ -101,8 +101,10 @@ struct FrameView: View {
                                 poses: [convertToPoseBox(keypoints)],
                                 videoSize: image.size
                             )
+                            .id(image)
+                        } else {
+                            Color.clear
                         }
-                        
                         // ROI
                         if ROIModel.isROIMode {
                             ROIFrameOverlayView(

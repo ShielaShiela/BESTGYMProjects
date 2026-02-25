@@ -193,7 +193,8 @@ struct AnalysisModeRightView: View {
             }
         }
         .onChange(of: resetToken) { _, _ in   // ← ADD THIS BLOCK
-               poseJointVM.clearAllData()
+//               poseJointVM.clearAllData()
+               poseJointVM = PoseJointLandscapeVM(BoxModel: BoxModel, mediaManager: mediaManager)
                selectedView = .info
                appState.isAnalysisAvailable = false
            }

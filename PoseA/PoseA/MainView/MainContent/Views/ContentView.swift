@@ -178,7 +178,8 @@ struct BESTGYMPoseApp: View {
             
             if appState.isRecordMode {
                 RecordLandscapeView(appState: self.appState,
-                                    cameraManager: self.cameraManager)
+                                    cameraManager: self.cameraManager,
+                                    calibrationModel: $calibrationModel)
             }
             
             // Loading Overlay View
@@ -199,6 +200,7 @@ struct BESTGYMPoseApp: View {
             // Ensure initialization
             _ = OrientationCache.shared
             appState.loadUserPreferences()
+            calibrationModel.loadFromUserDefaults()
         }
         
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
@@ -325,6 +327,14 @@ struct BESTGYMPoseApp: View {
                         appState.isProcessing = false
                         if let errMsg = errMsg {
                             appState.errorMessage = "Media load failed: \(errMsg)"
+                            
+                        }
+                        else if !self.calibrationModel.isCalibrated {
+                            // No project calibration yet — try the recording's own metadata.json
+                            MediaManagerVM.applyCalibrationIfPresent(
+                                folderURL: sourceURL,
+                                to: &self.calibrationModel
+                            )
                         }
                         // Restore keypoints regardless of media success
                         self.restoreKeypoints(keypoints, project: project)

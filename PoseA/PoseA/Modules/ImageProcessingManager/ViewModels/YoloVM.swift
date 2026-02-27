@@ -266,6 +266,7 @@ final class YOLOPoseProcessor {
         // Rotate coordinates back to camera orientation
         return CGPoint(x: scaledX, y: scaledY)
     }
+    
 
     func filterPoses(_ poses: [PoseBox], minConfidence: Float = 0.5, iouThreshold: Float = 0.5) -> [PoseBox] {
         let start = CFAbsoluteTimeGetCurrent()

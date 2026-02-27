@@ -87,3 +87,86 @@ class CalibrationModel {
         calibrationStep = isCalibrated ? .complete : .idle
     }
 }
+
+
+// CalibrationPersistence.swift
+extension CalibrationModel {
+
+    // MARK: - UserDefaults keys
+
+    private enum UDKey {
+        static let barTopX       = "cal_barTopX"
+        static let barTopY       = "cal_barTopY"
+        static let barBottomX    = "cal_barBottomX"
+        static let barBottomY    = "cal_barBottomY"
+        static let realBarHeight = "cal_realBarHeightCm"
+        static let hasCalibration = "cal_hasCalibration"
+    }
+
+    // MARK: - Save to UserDefaults
+
+    func saveToUserDefaults() {
+        let ud = UserDefaults.standard
+        guard let top = barTopPoint, let bottom = barBottomPoint else {
+            ud.set(false, forKey: UDKey.hasCalibration)
+            return
+        }
+        ud.set(true,            forKey: UDKey.hasCalibration)
+        ud.set(Double(top.x),   forKey: UDKey.barTopX)
+        ud.set(Double(top.y),   forKey: UDKey.barTopY)
+        ud.set(Double(bottom.x),forKey: UDKey.barBottomX)
+        ud.set(Double(bottom.y),forKey: UDKey.barBottomY)
+        ud.set(realBarHeightCm, forKey: UDKey.realBarHeight)
+    }
+
+    // MARK: - Load from UserDefaults
+
+    func loadFromUserDefaults() {
+        let ud = UserDefaults.standard
+        guard ud.bool(forKey: UDKey.hasCalibration) else { return }
+        barTopPoint    = CGPoint(x: ud.double(forKey: UDKey.barTopX),
+                                 y: ud.double(forKey: UDKey.barTopY))
+        barBottomPoint = CGPoint(x: ud.double(forKey: UDKey.barBottomX),
+                                 y: ud.double(forKey: UDKey.barBottomY))
+        realBarHeightCm = ud.double(forKey: UDKey.realBarHeight)
+        if realBarHeightCm == 0 { realBarHeightCm = 260 }
+        calibrationStep = isCalibrated ? .complete : .idle
+    }
+
+    // MARK: - Write calibration block into an existing metadata JSON file
+
+    /// Call this right after a recording finishes.
+    /// `metadataURL` points to the `recording_metadata.json` file that
+    /// `CameraManagerVM` already writes.  If the file doesn't exist yet
+    /// we create it.  The calibration block is merged in (or added) under
+    /// the key `"calibration"`.
+    func writeToMetadata(at metadataURL: URL) {
+        var root: [String: Any] = [:]
+
+        // Read existing metadata if present
+        if let data = try? Data(contentsOf: metadataURL),
+           let existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            root = existing
+        }
+
+        root["calibration"] = toDictionary
+        root["calibrationStep"] = calibrationStep == .complete ? "complete" : "idle"
+
+        if let data = try? JSONSerialization.data(withJSONObject: root,
+                                                  options: .prettyPrinted) {
+            try? data.write(to: metadataURL, options: .atomic)
+        }
+    }
+
+    // MARK: - Read calibration from metadata JSON
+
+    /// Returns `true` if calibration data was found and loaded.
+    @discardableResult
+    func readFromMetadata(at metadataURL: URL) -> Bool {
+        guard let data = try? Data(contentsOf: metadataURL),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let calDict = root["calibration"] as? [String: Any] else { return false }
+        load(from: calDict)
+        return isCalibrated
+    }
+}

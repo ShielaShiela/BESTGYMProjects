@@ -106,6 +106,9 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     var _atomicFrameCount: Int = 0
     let frameFirstPTSQueue = DispatchQueue(label: "com.posea.firstPTS")
     
+    // In CameraManagerVM
+    var calibrationData: [String: Any]? = nil
+    
     // MARK: - Initialization
     init(configuration: CameraConfiguration = CameraConfiguration()) {
         self.cameraConfiguration = configuration
@@ -985,7 +988,7 @@ extension CameraManagerVM {
             }
         }
     
-    private func saveRecordingMetadata(to folder: URL, orientation: DeviceOrientationModel, frameCount: Int, isLiDAR: Bool) {
+    private func saveRecordingMetadata(to folder: URL, orientation: DeviceOrientationModel, frameCount: Int, isLiDAR: Bool, calibration: [String: Any]? = nil) {
         do {
             // Calculate duration
             var duration: TimeInterval = 0
@@ -1026,12 +1029,22 @@ extension CameraManagerVM {
                 cameraIntrinsics: capturedData.database.cameraIntrinsics.toArray()
             )
             
-            // Encode and save
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
-            let jsonData = try encoder.encode(metadata)
+            var jsonData = try encoder.encode(metadata)
+            
+            // Merge calibration in if provided
+            if let calibration = calibration,
+               var dict = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
+                dict["calibration"] = calibration
+                jsonData = try JSONSerialization.data(withJSONObject: dict, options: .prettyPrinted)
+            }
+
             let metadataURL = folder.appendingPathComponent("recording_metadata.json")
             try jsonData.write(to: metadataURL)
+
+            
+           
 
         } catch {
             log("Failed to save metadata: \(error)", level: .error)
@@ -1121,7 +1134,8 @@ extension CameraManagerVM {
                     to: folder,
                     orientation: recordingOrientation,
                     frameCount: frameCount,
-                    isLiDAR: isLiDAR
+                    isLiDAR: isLiDAR,
+                    calibration: self.calibrationData
                 )
                 
                 if isLiDAR {

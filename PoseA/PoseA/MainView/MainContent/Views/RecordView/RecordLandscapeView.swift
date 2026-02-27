@@ -12,6 +12,7 @@ import SwiftUI
 struct RecordLandscapeView: View {
     @ObservedObject var appState: MainAppState
     @ObservedObject var cameraManager: CameraManagerVM
+    @Binding var calibrationModel: CalibrationModel   // passed from BESTGYMPoseApp
     
     @State private var showInfoView: Bool = false
     @State private var showAthleteEditor: Bool = false
@@ -44,6 +45,31 @@ struct RecordLandscapeView: View {
                             PoseInformationView()
                             if appState.realtimeViewMode == "side-view" {
                                 PointPickerView().allowsHitTesting(true)
+                            }
+                            
+                        }
+                        
+                        // ── Calibration crosshair guides on the live feed ────────────
+                        CalibrationOverlayView(
+                            calibrationModel: $calibrationModel,
+                            containerSize: geometry.size,
+                            imageSize: isLandscape
+                                ? CGSize(width: cameraManager.cameraConfiguration.resolution.width,
+                                         height: cameraManager.cameraConfiguration.resolution.height)
+                                : CGSize(width: cameraManager.cameraConfiguration.resolution.height,
+                                         height: cameraManager.cameraConfiguration.resolution.width)
+                        )
+
+                        // ── Persistent calibrated badge (top-left, panel closed) ─────
+                        if calibrationModel.isCalibrated && !calibrationModel.isCalibrationMode {
+                            CalibrationBadge(heightCm: calibrationModel.realBarHeightCm)
+                        }
+
+                        // ── Floating control panel (active calibration only) ─────────
+                        if calibrationModel.isCalibrationMode {
+                            RecordCalibrationOverlay(calibrationModel: $calibrationModel) {
+                                calibrationModel.isCalibrationMode = false
+                                calibrationModel.saveToUserDefaults()
                             }
                         }
                     }
@@ -124,6 +150,20 @@ struct RecordLandscapeView: View {
                     }
                     
                     Spacer()
+                    
+                    // ── Calibration toggle ──────────────────────────────────
+                    CalibrationStatusPill(isCalibrated: calibrationModel.isCalibrated) {
+                        if calibrationModel.isCalibrationMode {
+                            calibrationModel.isCalibrationMode = false
+                            calibrationModel.saveToUserDefaults()
+                        } else {
+                            calibrationModel.isCalibrationMode = true
+                            if !calibrationModel.isCalibrated {
+                                calibrationModel.calibrationStep = .selectingBarTop
+                            }
+                            // already calibrated → keep .complete, guides show for re-adjustment
+                        }
+                    }
                     
                     // ── Athlete Info Preview ────────────────────────────────
                     Button { showAthleteEditor = true } label: {
@@ -316,6 +356,8 @@ struct RecordLandscapeView: View {
                     .pickerStyle(.segmented)
                 }
             }
+            
+            
         }
         .padding(20)
         .frame(minWidth: 280)
@@ -332,15 +374,25 @@ struct RecordLandscapeView: View {
         }
     }
     
+
     private func stopRecording() {
         recordingTimer?.invalidate()
         recordingTimer = nil
         recordingDuration = 0
+        
+        // Pass calibration to camera manager before it writes metadata
+        cameraManager.calibrationData = calibrationModel.isCalibrated
+            ? calibrationModel.toDictionary
+            : nil
+        
         cameraManager.stopRecording { url in
-            if let url { print("Saved: \(url)") }
+            if let url {
+                print("Saved: \(url)")
+                self.calibrationModel.saveToUserDefaults()
+                // No more writeToMetadata here — it's handled inside CameraManagerVM now
+            }
         }
     }
-    
     private func formatDuration(_ t: TimeInterval) -> String {
         String(format: "%02d:%02d", Int(t) / 60, Int(t) % 60)
     }

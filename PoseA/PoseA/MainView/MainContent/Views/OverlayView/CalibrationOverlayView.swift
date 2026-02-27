@@ -18,10 +18,13 @@ struct CalibrationOverlayView: View {
     @State private var topGuideY: CGFloat = -1
     @State private var bottomGuideX: CGFloat = -1
     @State private var bottomGuideY: CGFloat = -1
+    
 
+    
     var body: some View {
         ZStack {
             if calibrationModel.isCalibrationMode {
+                
 
                 // ── Bar Top guides (yellow) ──────────────────────────────
                 if calibrationModel.calibrationStep == .selectingBarTop
@@ -32,6 +35,7 @@ struct CalibrationOverlayView: View {
                         color: .yellow,
                         label: "Bar Top",
                         containerSize: containerSize,
+                        imageBounds: fittedImageRect(),
                         coordinateSpaceName: "overlay_top",
                         onDragEnded: { commitAll()}
                     )
@@ -46,6 +50,7 @@ struct CalibrationOverlayView: View {
                         color: .green,
                         label: "Ground Ref",
                         containerSize: containerSize,
+                        imageBounds: fittedImageRect(),
                         coordinateSpaceName: "overlay_bottom",
                         onDragEnded: { commitAll()}
                     )
@@ -117,8 +122,26 @@ struct CalibrationOverlayView: View {
     }
 
     private func commitAll() {
-        calibrationModel.barTopPoint    = displayToNormalized(CGPoint(x: topGuideX,    y: topGuideY))
-        calibrationModel.barBottomPoint = displayToNormalized(CGPoint(x: bottomGuideX, y: bottomGuideY))
+        let rect = fittedImageRect()
+        
+        // Clamp display coords to fitted image rect before normalizing
+        let clampedTopX    = topGuideX.clamped(to: rect.minX...rect.maxX)
+        let clampedTopY    = topGuideY.clamped(to: rect.minY...rect.maxY)
+        let clampedBottomX = bottomGuideX.clamped(to: rect.minX...rect.maxX)
+        let clampedBottomY = bottomGuideY.clamped(to: rect.minY...rect.maxY)
+        
+        // Also update the guide positions to snap back visually
+        topGuideX    = clampedTopX
+        topGuideY    = clampedTopY
+        bottomGuideX = clampedBottomX
+        bottomGuideY = clampedBottomY
+        
+        calibrationModel.barTopPoint    = displayToNormalized(CGPoint(x: clampedTopX,    y: clampedTopY))
+        calibrationModel.barBottomPoint = displayToNormalized(CGPoint(x: clampedBottomX, y: clampedBottomY))
+        
+        print("📍 barTop normalized: \(calibrationModel.barTopPoint!)")
+        print("📍 barBottom normalized: \(calibrationModel.barBottomPoint!)")
+        print("📐 fittedRect: \(rect)")
     }
 
     private var instructionText: String {
@@ -135,6 +158,9 @@ struct CalibrationOverlayView: View {
     private func fittedImageRect() -> CGRect {
         let imageAspect     = imageSize.width / imageSize.height
         let containerAspect = containerSize.width / containerSize.height
+        
+        print("📐 imageSize: \(imageSize), containerSize: \(containerSize)")
+
         if imageAspect > containerAspect {
             let width   = containerSize.width
             let height  = width / imageAspect
@@ -146,6 +172,7 @@ struct CalibrationOverlayView: View {
             let xOffset = (containerSize.width - width) / 2
             return CGRect(x: xOffset, y: 0, width: width, height: height)
         }
+        
     }
 
     private func normalizedToDisplay(_ point: CGPoint) -> CGPoint {
@@ -169,6 +196,9 @@ struct CrosshairGuideView: View {
     let color: Color
     let label: String
     let containerSize: CGSize
+    let imageBounds: CGRect
+    let coordinateSpaceName: String  // ADD THIS
+    let onDragEnded: () -> Void
 
     @State private var draggingH = false
     @State private var draggingV = false
@@ -178,8 +208,7 @@ struct CrosshairGuideView: View {
     private let handleSize: CGFloat = 44   // larger = easier to hit
     private let lineWidth:  CGFloat = 1.5
     
-    let coordinateSpaceName: String  // ADD THIS
-    let onDragEnded: () -> Void
+    
 
     var body: some View {
         // Use a Canvas-backed ZStack with an explicit frame.
@@ -222,8 +251,10 @@ struct CrosshairGuideView: View {
                 DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpaceName))
                     .onChanged { value in
                         if !draggingH { draggingH = true; dragStartGuideY = guideY }
-                        guideY = (dragStartGuideY + value.translation.height)
-                            .clamped(to: 0...containerSize.height)
+                        let newY = (dragStartGuideY + value.translation.height)
+                            .clamped(to: imageBounds.minY...imageBounds.maxY)
+                        print("🔴 dragStart: \(dragStartGuideY), translation: \(value.translation.height), newY: \(newY), bounds: \(imageBounds.minY)...\(imageBounds.maxY)")
+                        guideY = newY
                     }
                     .onEnded { _ in
                         draggingH = false
@@ -248,7 +279,7 @@ struct CrosshairGuideView: View {
                                 dragStartGuideX = guideX
                             }
                             guideX = (dragStartGuideX + value.translation.width)
-                                .clamped(to: 0...containerSize.width)
+                            .clamped(to: imageBounds.minX...imageBounds.maxX)
                         }
                         .onEnded { _ in
                             draggingV = false

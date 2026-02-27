@@ -391,4 +391,29 @@ class MediaManagerVM {
         }
     }
 }
-     
+
+
+extension MediaManagerVM {
+
+    /// Looks for `recording_metadata.json` in `folderURL` and, if found,
+    /// applies calibration data to `model`.  Safe to call for non-folder URLs.
+    static func applyCalibrationIfPresent(folderURL: URL,
+                                          to model: inout CalibrationModel) {
+        // Determine folder path (handle both file and directory URLs)
+        var isDir: ObjCBool = false
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: folderURL.path, isDirectory: &isDir) else { return }
+
+        let folder: URL = isDir.boolValue
+            ? folderURL
+            : folderURL.deletingLastPathComponent()
+
+        let metaURL = folder.appendingPathComponent("recording_metadata.json")
+        guard fm.fileExists(atPath: metaURL.path) else { return }
+
+        let found = model.readFromMetadata(at: metaURL)
+        if found {
+            print("📐 Calibration loaded from recording_metadata.json: \(metaURL.path)")
+        }
+    }
+}

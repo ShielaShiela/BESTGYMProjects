@@ -70,7 +70,7 @@ struct PoseBox: Codable {
         
         // Calculate average depth if available
         if hasDepthData {
-            let validDepths = keypoints.compactMap { $0.depth }
+            let validDepths = keypoints.compactMap { $0.depth != 0 ? $0.depth : nil }
             self.averageDepth = validDepths.isEmpty ? nil : validDepths.reduce(0, +) / Float(validDepths.count)
         } else {
             self.averageDepth = nil

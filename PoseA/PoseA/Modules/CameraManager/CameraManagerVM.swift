@@ -102,6 +102,9 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     private let colorWriterQueue = DispatchQueue(label: "com.yourapp.colorwriter", qos: .userInteractive)
     private let depthWriterQueue = DispatchQueue(label: "com.yourapp.depthwriter", qos: .userInteractive)
 
+    let frameCounterQueue  = DispatchQueue(label: "com.posea.frameCounter")
+    var _atomicFrameCount: Int = 0
+    let frameFirstPTSQueue = DispatchQueue(label: "com.posea.firstPTS")
     
     // MARK: - Initialization
     init(configuration: CameraConfiguration = CameraConfiguration()) {
@@ -287,373 +290,7 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
 
 // MARK: - CaptureDataReceiver Protocol
 extension CameraManagerVM {
-    // TODO: - onNewDepthData implementation for LiDAR Camera
-//    func onNewDepthData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, pts: CMTime) {
-//        self.systemFPS.tick()
-//        DispatchQueue.main.async {
-//            self.fpsStream = self.systemFPS.fps
-//        }
-//        
-//        
-//        DispatchQueue.main.async {
-//            self.frameCount += 1
-//        }
-//        
-//    }
-    
-    func onNewDepthData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, depthData: AVDepthData?, pts: CMTime) {
-        if let currentBuffer = pixelBuffer {
-            // Update FPS
-            self.systemFPS.tick()
-            DispatchQueue.main.async {
-                self.fpsStream = self.systemFPS.fps
-            }
-            
-            // Write frames to videos if recording
-            if isRecording && !isPreparingRecording {
-                // Increment frame count FIRST and capture it synchronously
-                let currentFrameCount = self.frameCount + 1
-                
-                DispatchQueue.main.async {
-                    // Update camera data
-                    self.capturedData.database.cameraIntrinsics = capturedData.cameraIntrinsics
-                    self.capturedData.database.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
-                    
-                    // Update frame count
-                    self.frameCount = currentFrameCount
-                }
-                
-                // Track first PTS and start sessions
-                // Track first PTS and start sessions
-                let isFirstFrame = (self.firstPTS == nil)
-                if isFirstFrame {
-                    self.firstPTS = pts
-                    
-                    if let colorWriter = self.assetWriter {
-                        colorWriter.startSession(atSourceTime: pts)  // ✅ Start at actual PTS
-                        log("🎬 Started color writer session at \(CMTimeGetSeconds(pts))s", level: .info)
-                    }
-                    if let depthWriter = self.videoWriter {
-                        depthWriter.startSession(atSourceTime: pts)  // ✅ Start at actual PTS
-                        log("🎬 Started depth writer session at \(CMTimeGetSeconds(pts))s", level: .info)
-                    }
-                }
-
-                // ✅ Use absolute presentation time (no subtraction)
-                let presentationTime = pts
-
-                // Write RGB frame
-                // Write RGB frame
-                if let colorInput = self.colorWriterInput,
-                   let colorAdaptor = self.colorPixelBufferAdaptor {
-                    
-                    // Capture the buffer and time outside the async block
-                    let bufferToWrite = currentBuffer
-                    let timeToWrite = presentationTime
-                    let frameNum = currentFrameCount
-                    
-                    colorWriterQueue.async { [weak self] in
-                        guard let self = self else { return }
-                        
-                        // Wait for input to be ready (with timeout)
-                        var waitCount = 0
-                        while !colorInput.isReadyForMoreMediaData && waitCount < 100 {
-                            usleep(1000) // Wait 1ms
-                            waitCount += 1
-                        }
-                        
-                        guard colorInput.isReadyForMoreMediaData else {
-                            log("⚠️ Color input timeout for frame \(frameNum)", level: .warn)
-                            return
-                        }
-                        
-                        if colorAdaptor.append(bufferToWrite, withPresentationTime: timeToWrite) {
-                            if frameNum % 30 == 0 || frameNum == 1 {
-                                log("✅ RGB frame \(frameNum) written at \(CMTimeGetSeconds(timeToWrite))s", level: .info)
-                            }
-                        } else {
-                            log("❌ Failed to append RGB frame \(frameNum)", level: .error)
-                        }
-                    }
-                }
-
-                // Write Depth frame
-                if let depthInput = self.depthWriterInput,
-                   let depthAdaptor = self.depthPixelBufferAdaptor,
-                   let depth = depthData {
-                    
-                    let depthMapToConvert = depth.depthDataMap
-                    let timeToWrite = presentationTime
-                    let frameNum = currentFrameCount
-                    
-                    depthWriterQueue.async { [weak self] in
-                        guard let self = self else { return }
-                        
-                        // Convert depth map
-                        guard let depthPixelBuffer = self.convertDepthToGrayscalePixelBuffer(depthMapToConvert) else {
-                            log("Failed to convert depth map for frame \(frameNum)", level: .error)
-                            return
-                        }
-                        
-                        // Wait for input to be ready
-                        var waitCount = 0
-                        while !depthInput.isReadyForMoreMediaData && waitCount < 100 {
-                            usleep(1000) // Wait 1ms
-                            waitCount += 1
-                        }
-                        
-                        guard depthInput.isReadyForMoreMediaData else {
-                            log("⚠️ Depth input timeout for frame \(frameNum)", level: .warn)
-                            return
-                        }
-                        
-                        if depthAdaptor.append(depthPixelBuffer, withPresentationTime: timeToWrite) {
-                            if frameNum % 30 == 0 || frameNum == 1 {
-                                log("✅ Depth frame \(frameNum) written at \(CMTimeGetSeconds(timeToWrite))s", level: .info)
-                            }
-                        } else {
-                            log("❌ Failed to append depth frame \(frameNum)", level: .error)
-                        }
-                    }
-                }
-
-
-                // ✅ Save raw depth map for this frame
-                if let depth = depthData, let folder = self.recordingFolder {
-                    DispatchQueue.global(qos: .utility).async { [weak self] in
-                        self?.saveRawDepthMap(depth, frameIndex: currentFrameCount, to: folder)
-                    }
-                }
-
-                
-
-                
-                // BETA: - YOLO Pose Detection with Depth
-                if isPoseProcessingEnabled {
-                    poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
-                        guard let self = self else { return }
-                        
-                        if !poses.isEmpty {
-                            DispatchQueue.main.async {
-                                self.poseKeypoints = poses
-                                self.fpsModel = fps
-                            }
-                        } else {
-                            DispatchQueue.main.async {
-                                self.poseKeypoints = []
-                                self.fpsModel = fps
-                            }
-                        }
-                        
-                        // Save pose data WITH depth when recording
-                        if self.isRecording && !self.isPreparingRecording {
-                            let timestamp = CMTimeGetSeconds(pts)
-                            let intrinsics = capturedData.cameraIntrinsics
-                            
-                            // Extract depth map
-                            var depthMap: CVPixelBuffer?
-                            if let depth = depthData {
-                                depthMap = depth.depthDataMap
-                            }
-                            
-                            // Process poses with depth
-                            let posesWithDepth: [PoseBox] = poses.map { pose in
-                                let keypointsWithDepth = pose.keypoints.map { keypoint in
-                                    var depthValue: Float = 0.0
-                                    
-                                    if let depthBuffer = depthMap {
-                                        depthValue = self.getDepthValue(
-                                            at: CGPoint(x: CGFloat(keypoint.x), y: CGFloat(keypoint.y)),
-                                            from: depthBuffer,
-                                            referenceDimensions: capturedData.cameraReferenceDimensions
-                                        )
-                                    }
-                                    
-                                    return KeypointData(
-                                        name: keypoint.name,
-                                        x: keypoint.x,
-                                        y: keypoint.y,
-                                        confidence: keypoint.confidence,
-                                        depth: depthValue,
-                                        frameIndex: currentFrameCount  // Use captured frame count
-                                    )
-                                }
-                                
-                                return PoseBox(
-                                    bbox: pose.bbox,
-                                    confidence: pose.confidence,
-                                    keypoints: keypointsWithDepth,
-                                    hasDepthData: true  // Set to true for LiDAR
-                                )
-                            }
-                            
-                            let frameData = PoseFrameData(
-                                frameIndex: currentFrameCount,  // Use captured frame count
-                                timestamp: timestamp,
-                                poses: posesWithDepth,
-                                pts: pts,
-                                hasDepthData: true,  // Set to true for LiDAR
-                                cameraIntrinsics: intrinsics
-                            )
-                            
-                            self.poseDataQueue.async { [weak self] in
-                                guard let self = self else { return }
-                                self.poseDataBuffer.append(frameData)
-                                
-                                if self.poseDataBuffer.count % 30 == 0 {
-                                    log("LiDAR pose buffer: \(self.poseDataBuffer.count) frames", level: .info)
-                                }
-                                
-                                if self.poseDataBuffer.count >= self.poseBufferLimit,
-                                   let folder = self.recordingFolder {
-                                    self.savePoseDataBuffer(to: folder)
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // If pose processing is disabled but still recording
-                    // Save frame info without pose data
-                    if self.isRecording && !self.isPreparingRecording {
-                        let timestamp = CMTimeGetSeconds(pts)
-                        let intrinsics = capturedData.cameraIntrinsics
-                        
-                        let frameData = PoseFrameData(
-                            frameIndex: currentFrameCount,  // Use captured frame count
-                            timestamp: timestamp,
-                            poses: [],
-                            pts: pts,
-                            hasDepthData: true,  // Set to true for LiDAR
-                            cameraIntrinsics: intrinsics
-                        )
-                        
-                        self.poseDataQueue.async { [weak self] in
-                            guard let self = self else { return }
-                            self.poseDataBuffer.append(frameData)
-                            
-                            if self.poseDataBuffer.count >= self.poseBufferLimit,
-                               let folder = self.recordingFolder {
-                                self.savePoseDataBuffer(to: folder)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
-//    private func convertDepthToGrayscalePixelBuffer(_ depthMap: CVPixelBuffer) -> CVPixelBuffer? {
-//        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
-//        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
-//        
-//        let width = CVPixelBufferGetWidth(depthMap)
-//        let height = CVPixelBufferGetHeight(depthMap)
-//        let pixelFormat = CVPixelBufferGetPixelFormatType(depthMap)
-//        
-//        // Create output pixel buffer (BGRA for video compatibility)
-//        var outputPixelBuffer: CVPixelBuffer?
-//        let options: [String: Any] = [
-//            kCVPixelBufferCGImageCompatibilityKey as String: true,
-//            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
-//        ]
-//        
-//        let status = CVPixelBufferCreate(
-//            kCFAllocatorDefault,
-//            width,
-//            height,
-//            kCVPixelFormatType_32BGRA,
-//            options as CFDictionary,
-//            &outputPixelBuffer
-//        )
-//        
-//        guard status == kCVReturnSuccess, let output = outputPixelBuffer else {
-//            log("Failed to create output pixel buffer", level: .error)
-//            return nil
-//        }
-//        
-//        CVPixelBufferLockBaseAddress(output, [])
-//        defer { CVPixelBufferUnlockBaseAddress(output, []) }
-//        
-//        let outputBaseAddress = CVPixelBufferGetBaseAddress(output)
-//        let outputBytesPerRow = CVPixelBufferGetBytesPerRow(output)
-//        
-//        // ✅ Use fixed depth range (more reliable than calculating min/max)
-//        let minDepthRange: Float = 0.0
-//        let maxDepthRange: Float = 5.0  // Adjust based on your scene depth
-//        
-//        let baseAddress = CVPixelBufferGetBaseAddress(depthMap)!
-//        let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
-//        
-//        if pixelFormat == kCVPixelFormatType_DepthFloat32 {
-//            let floatBuffer = baseAddress.assumingMemoryBound(to: Float32.self)
-//            let outputPtr = outputBaseAddress!.assumingMemoryBound(to: UInt8.self)
-//            
-//            for y in 0..<height {
-//                for x in 0..<width {
-//                    let depthIndex = y * (bytesPerRow / MemoryLayout<Float32>.stride) + x
-//                    let depth = floatBuffer[depthIndex]
-//                    
-//                    // Normalize depth to 0-255 range
-//                    let normalized: UInt8
-//                    if depth > 0 && depth.isFinite {
-//                        // Clamp to range
-//                        let clamped = min(max(depth, minDepthRange), maxDepthRange)
-//                        // Invert so closer = brighter (optional, comment out if you want far = bright)
-//                        let inverted = maxDepthRange - clamped
-//                        let normalizedFloat = inverted / (maxDepthRange - minDepthRange)
-//                        normalized = UInt8(normalizedFloat * 255.0)
-//                    } else {
-//                        normalized = 0  // Invalid depth = black
-//                    }
-//                    
-//                    // Write to BGRA output (B, G, R, A)
-//                    let outputIndex = y * outputBytesPerRow + x * 4
-//                    outputPtr[outputIndex] = normalized     // B
-//                    outputPtr[outputIndex + 1] = normalized // G
-//                    outputPtr[outputIndex + 2] = normalized // R
-//                    outputPtr[outputIndex + 3] = 255        // A (full opacity)
-//                }
-//            }
-//            
-//        } else if pixelFormat == kCVPixelFormatType_DepthFloat16 {
-//            let float16Buffer = baseAddress.assumingMemoryBound(to: UInt16.self)
-//            let outputPtr = outputBaseAddress!.assumingMemoryBound(to: UInt8.self)
-//            
-//            for y in 0..<height {
-//                for x in 0..<width {
-//                    let depthIndex = y * (bytesPerRow / MemoryLayout<UInt16>.stride) + x
-//                    let depthRaw = float16Buffer[depthIndex]
-//                    
-//                    // ✅ Proper Float16 to Float32 conversion
-//                    // Use the bits directly with proper conversion
-//                    let depth = Float(Float16(bitPattern: depthRaw))
-//                    
-//                    let normalized: UInt8
-//                    if depth > 0 && depth.isFinite {
-//                        let clamped = min(max(depth, minDepthRange), maxDepthRange)
-//                        // Invert so closer = brighter
-//                        let inverted = maxDepthRange - clamped
-//                        let normalizedFloat = inverted / (maxDepthRange - minDepthRange)
-//                        normalized = UInt8(normalizedFloat * 255.0)
-//                    } else {
-//                        normalized = 0
-//                    }
-//                    
-//                    let outputIndex = y * outputBytesPerRow + x * 4
-//                    outputPtr[outputIndex] = normalized
-//                    outputPtr[outputIndex + 1] = normalized
-//                    outputPtr[outputIndex + 2] = normalized
-//                    outputPtr[outputIndex + 3] = 255
-//                }
-//            }
-//        } else {
-//            log("Unsupported depth pixel format: \(pixelFormat)", level: .error)
-//            return nil
-//        }
-//        
-//        return output
-//    }
+   
     private func convertDepthToGrayscalePixelBuffer(_ depthMap: CVPixelBuffer) -> CVPixelBuffer? {
         CVPixelBufferLockBaseAddress(depthMap, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
@@ -825,8 +462,6 @@ extension CameraManagerVM {
         
         return output
     }
-
-
 
 
     // Helper function to extract depth value at a specific pixel location
@@ -1085,7 +720,6 @@ extension CameraManagerVM {
             }
             
             // ✅ Model is already loaded if isPoseProcessingEnabled is true
-            // Only load if poseProcessor is nil (should never happen but just in case)
             if poseProcessor == nil {
                 poseProcessor = YOLOPoseProcessor()
                 poseProcessor?.loadModel(named: self.poseProcessingModelURL) { success in
@@ -1431,122 +1065,7 @@ extension CameraManagerVM {
             }
         }
     }
-    
-    // NEW: Final consolidation after recording stops
-//    private func consolidatePoseData(in folder: URL) {
-//        log("Consolidating pose data files...", level: .info)
-//        
-//        let fileManager = FileManager.default
-//        
-//        do {
-//            // Find all pose_data_*.json files
-//            let files = try fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
-//            let poseFiles = files.filter { $0.lastPathComponent.hasPrefix("pose_data_") && $0.pathExtension == "json" }
-//            
-//            guard !poseFiles.isEmpty else {
-//                log("No pose data files to consolidate", level: .info)
-//                return
-//            }
-//            
-//            log("Found \(poseFiles.count) pose data files to consolidate", level: .info)
-//            
-//            // Collect all frame data from all files
-//            var allFrames: [PoseFrameData] = []
-//            
-//            for file in poseFiles {
-//                do {
-//                    let data = try Data(contentsOf: file)
-//                    let frames = try JSONDecoder().decode([PoseFrameData].self, from: data)
-//                    allFrames.append(contentsOf: frames)
-//                } catch {
-//                    log("Error reading pose file \(file.lastPathComponent): \(error)", level: .error)
-//                }
-//            }
-//            
-//            // Sort by frame index to ensure proper order
-//            allFrames.sort { $0.frameIndex < $1.frameIndex }
-//            
-//            log("Consolidated \(allFrames.count) total frames", level: .info)
-//            
-//            // Save consolidated data as keypoint.json
-//            let consolidatedURL = folder.appendingPathComponent("keypoint.json")
-//            let encoder = JSONEncoder()
-//            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-//            
-//            let consolidatedData = try encoder.encode(allFrames)
-//            try consolidatedData.write(to: consolidatedURL)
-//            
-//            log("Saved consolidated keypoint.json", level: .info)
-//            
-//            // ✅ DELETE the individual pose_data_*.json files after consolidation
-//            for file in poseFiles {
-//                try? fileManager.removeItem(at: file)
-//                log("Deleted temporary file: \(file.lastPathComponent)", level: .debug)
-//            }
-//            
-//        } catch {
-//            log("Error consolidating pose data: \(error)", level: .error)
-//        }
-//    }
-    
-    private func consolidatePoseData(in folder: URL) {
-        log("Consolidating pose data files...", level: .info)
-        
-        let fileManager = FileManager.default
-        
-        do {
-            let files = try fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
-            let poseFiles = files.filter { $0.lastPathComponent.hasPrefix("pose_data_") && $0.pathExtension == "json" }
-            
-            guard !poseFiles.isEmpty else {
-                log("No pose data files to consolidate", level: .info)
-                return
-            }
-            
-            var allFrames: [PoseFrameData] = []
-            for file in poseFiles {
-                do {
-                    let data = try Data(contentsOf: file)
-                    let frames = try JSONDecoder().decode([PoseFrameData].self, from: data)
-                    allFrames.append(contentsOf: frames)
-                } catch {
-                    log("Error reading pose file \(file.lastPathComponent): \(error)", level: .error)
-                }
-            }
-            
-            allFrames.sort { $0.frameIndex < $1.frameIndex }
-            log("Consolidated \(allFrames.count) total frames", level: .info)
-            
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            
-            // ✅ FIX 1: Use Int frame index as key — matches [Int: [KeypointData]] in analysis mode
-            var keypointsByFrame: [Int: [KeypointData]] = [:]
-            for frame in allFrames {
-                guard !frame.poses.isEmpty else { continue }
-                let bestPose = frame.poses.max(by: { $0.confidence < $1.confidence }) ?? frame.poses[0]
-                keypointsByFrame[frame.frameIndex] = bestPose.keypoints
-            }
-            
-            let keypointsURL = folder.appendingPathComponent("keypoints.json")
-            let keypointsData = try encoder.encode(keypointsByFrame)
-            try keypointsData.write(to: keypointsURL)
-            log("Saved keypoints.json (\(keypointsByFrame.count) frames with poses)", level: .info)
-            
-            // Keep raw_pose_frames.json as-is for debugging
-            let rawURL = folder.appendingPathComponent("raw_pose_frames.json")
-            let rawData = try encoder.encode(allFrames)
-            try rawData.write(to: rawURL)
-            log("Saved raw_pose_frames.json (\(allFrames.count) total frames)", level: .info)
-            
-            for file in poseFiles {
-                try? fileManager.removeItem(at: file)
-            }
-            
-        } catch {
-            log("Error consolidating pose data: \(error)", level: .error)
-        }
-    }
+  
     
     // Stop recording with proper cleanup
     func stopRecording(completion: @escaping (URL?) -> Void) {
@@ -2067,3 +1586,346 @@ extension CameraManagerVM {
 
 }
 
+
+// MARK: For with LiDAR Recording
+extension CameraManagerVM {
+
+    func onNewDepthData(capturedData: FrameDataModel, pixelBuffer: CVPixelBuffer?, depthData: AVDepthData?, pts: CMTime) {
+        guard let currentBuffer = pixelBuffer else { return }
+
+        // Update stream FPS
+        self.systemFPS.tick()
+        DispatchQueue.main.async {
+            self.fpsStream = self.systemFPS.fps
+        }
+
+        guard isRecording && !isPreparingRecording else { return }
+
+        // ── 1. Atomic frame counter ──────────────────────────────────────────
+        // OSAtomicIncrement32 would be ideal, but Swift-safe approach:
+        // Increment on a dedicated serial queue to avoid races.
+        let currentFrameCount: Int = frameCounterQueue.sync {
+            _atomicFrameCount += 1
+            return _atomicFrameCount
+        }
+
+        // ── 2. Update camera intrinsics on main thread (non-blocking) ────────
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.capturedData.database.cameraIntrinsics = capturedData.cameraIntrinsics
+            self.capturedData.database.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
+            self.frameCount = currentFrameCount
+        }
+
+        // ── 3. Start writer sessions on first frame ───────────────────────────
+        let isFirstFrame: Bool = frameFirstPTSQueue.sync {
+            if self.firstPTS == nil {
+                self.firstPTS = pts
+                return true
+            }
+            return false
+        }
+
+        if isFirstFrame {
+            assetWriter?.startSession(atSourceTime: pts)
+            videoWriter?.startSession(atSourceTime: pts)
+            log("🎬 Writer sessions started at \(CMTimeGetSeconds(pts))s", level: .info)
+        }
+
+        let presentationTime = pts
+
+        // ── 4. Write RGB frame ────────────────────────────────────────────────
+        if let colorInput = colorWriterInput,
+           let colorAdaptor = colorPixelBufferAdaptor {
+            let bufferToWrite = currentBuffer
+            colorWriterQueue.async { [weak self] in
+                guard let self else { return }
+                var waited = 0
+                while !colorInput.isReadyForMoreMediaData && waited < 100 {
+                    usleep(1_000); waited += 1
+                }
+                guard colorInput.isReadyForMoreMediaData else {
+                    log("⚠️ Color input timeout frame \(currentFrameCount)", level: .warn)
+                    return
+                }
+                if !colorAdaptor.append(bufferToWrite, withPresentationTime: presentationTime) {
+                    log("❌ Failed to append RGB frame \(currentFrameCount)", level: .error)
+                } else if currentFrameCount % 30 == 0 || currentFrameCount == 1 {
+                    log("✅ RGB frame \(currentFrameCount) at \(CMTimeGetSeconds(presentationTime))s", level: .info)
+                }
+            }
+        }
+
+        // ── 5. Write Depth frame ──────────────────────────────────────────────
+        if let depthInput = depthWriterInput,
+           let depthAdaptor = depthPixelBufferAdaptor,
+           let depth = depthData {
+            let depthMap = depth.depthDataMap
+            depthWriterQueue.async { [weak self] in
+                guard let self else { return }
+                guard let depthPixelBuffer = self.convertDepthToGrayscalePixelBuffer(depthMap) else {
+                    log("Failed to convert depth map frame \(currentFrameCount)", level: .error)
+                    return
+                }
+                var waited = 0
+                while !depthInput.isReadyForMoreMediaData && waited < 100 {
+                    usleep(1_000); waited += 1
+                }
+                guard depthInput.isReadyForMoreMediaData else {
+                    log("⚠️ Depth input timeout frame \(currentFrameCount)", level: .warn)
+                    return
+                }
+                if !depthAdaptor.append(depthPixelBuffer, withPresentationTime: presentationTime) {
+                    log("❌ Failed to append depth frame \(currentFrameCount)", level: .error)
+                } else if currentFrameCount % 30 == 0 || currentFrameCount == 1 {
+                    log("✅ Depth frame \(currentFrameCount) at \(CMTimeGetSeconds(presentationTime))s", level: .info)
+                }
+            }
+        }
+
+        // ── 6. Save raw depth binary (same frame index as video) ──────────────
+        // frameIndex is already captured atomically above — no mismatch with video
+        if let depth = depthData, let folder = recordingFolder {
+            let frameIdx = currentFrameCount          // ← consistent with video
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                self?.saveRawDepthMap(depth, frameIndex: frameIdx, to: folder)
+            }
+        }
+
+        // ── 7. YOLO Pose + Depth ──────────────────────────────────────────────
+        if isPoseProcessingEnabled {
+            poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, ptsOut in
+                guard let self else { return }
+
+                DispatchQueue.main.async {
+                    self.poseKeypoints = poses
+                    self.fpsModel = fps
+                }
+
+                guard self.isRecording && !self.isPreparingRecording else { return }
+
+                let timestamp   = CMTimeGetSeconds(ptsOut)
+                let intrinsics  = capturedData.cameraIntrinsics
+                let refDims     = capturedData.cameraReferenceDimensions   // ← snapshot here
+
+                // Map depth to all poses
+                let posesWithDepth: [PoseBox] = poses.map { pose in
+                    let keypointsWithDepth: [KeypointData] = pose.keypoints.map { kp in
+                        var depthValue: Float = 0.0
+                        if let depthBuffer = depthData?.depthDataMap {
+                            depthValue = self.getDepthValue(
+                                at: CGPoint(x: CGFloat(kp.x), y: CGFloat(kp.y)),
+                                from: depthBuffer,
+                                referenceDimensions: refDims   // use snapshot, not self.capturedData
+                            )
+                        }
+                        return KeypointData(
+                            name:       kp.name,
+                            x:          kp.x,
+                            y:          kp.y,
+                            confidence: kp.confidence,
+                            depth:      depthValue,
+                            frameIndex: currentFrameCount
+                        )
+                    }
+
+                    // Compute average depth for the pose box (convenience field)
+                    let validDepths = keypointsWithDepth.compactMap { $0.depth != 0 ? $0.depth : nil }
+                    let avgDepth: Float? = validDepths.isEmpty ? nil
+                        : validDepths.reduce(0, +) / Float(validDepths.count)
+
+                    return PoseBox(
+                        bbox:         pose.bbox,
+                        confidence:   pose.confidence,
+                        keypoints:    keypointsWithDepth,
+                        hasDepthData: true
+                    )
+                }
+
+                let frameData = PoseFrameData(
+                    frameIndex:      currentFrameCount,
+                    timestamp:       timestamp,
+                    poses:           posesWithDepth,   // ALL poses, not just best
+                    pts:             ptsOut,
+                    hasDepthData:    true,
+                    cameraIntrinsics: intrinsics
+                )
+
+                // ── Append to buffer (no nested async on poseDataQueue) ──────
+                self.poseDataQueue.async { [weak self] in
+                    guard let self else { return }
+                    self.poseDataBuffer.append(frameData)
+
+                    if self.poseDataBuffer.count % 30 == 0 {
+                        log("LiDAR pose buffer: \(self.poseDataBuffer.count) frames", level: .info)
+                    }
+
+                    // Flush without dispatching back onto poseDataQueue
+                    // (we're already ON poseDataQueue here — call sync helper directly)
+                    if self.poseDataBuffer.count >= self.poseBufferLimit,
+                       let folder = self.recordingFolder {
+                        self.flushPoseBuffer(to: folder)   // ← sync, already on queue
+                    }
+                }
+            }
+        } else {
+            // Recording without pose detection — store empty frame for frame-index continuity
+            let timestamp  = CMTimeGetSeconds(pts)
+            let intrinsics = capturedData.cameraIntrinsics
+            let frameData  = PoseFrameData(
+                frameIndex:       currentFrameCount,
+                timestamp:        timestamp,
+                poses:            [],
+                pts:              pts,
+                hasDepthData:     true,
+                cameraIntrinsics: intrinsics
+            )
+            poseDataQueue.async { [weak self] in
+                guard let self else { return }
+                self.poseDataBuffer.append(frameData)
+                if self.poseDataBuffer.count >= self.poseBufferLimit,
+                   let folder = self.recordingFolder {
+                    self.flushPoseBuffer(to: folder)
+                }
+            }
+        }
+    }
+
+    // MARK: - Flush helper (must be called from poseDataQueue context)
+    // Using a separate named function makes the "already on queue" contract explicit.
+    private func flushPoseBuffer(to folder: URL) {
+        // ⚠️ MUST be called while already running on poseDataQueue.
+        //    Do NOT dispatch to poseDataQueue inside here.
+        guard !poseDataBuffer.isEmpty else { return }
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        do {
+            let timestamp = Int(Date().timeIntervalSince1970)
+            let fileURL   = folder.appendingPathComponent("pose_data_\(timestamp).json")
+            let jsonData  = try encoder.encode(poseDataBuffer)
+            try jsonData.write(to: fileURL)
+            log("💾 Flushed \(poseDataBuffer.count) pose frames → \(fileURL.lastPathComponent)", level: .info)
+            poseDataBuffer.removeAll()
+        } catch {
+            log("Error flushing pose buffer: \(error.localizedDescription)", level: .error)
+        }
+    }
+}
+
+// MARK: - Fixed consolidatePoseData
+// Preserves ALL detected poses per frame (multi-person safe).
+// Also writes a convenience keypoints.json with the primary (highest-confidence) pose
+// for backward compatibility with the analysis side.
+extension CameraManagerVM {
+
+    func consolidatePoseData(in folder: URL) {
+        log("Consolidating pose data...", level: .info)
+
+        do {
+            let files     = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+            let poseFiles = files.filter { $0.lastPathComponent.hasPrefix("pose_data_") && $0.pathExtension == "json" }
+
+            guard !poseFiles.isEmpty else {
+                log("No pose data files to consolidate", level: .info)
+                return
+            }
+
+            // Collect & sort all frames
+            var allFrames: [PoseFrameData] = []
+            for file in poseFiles {
+                let data   = try Data(contentsOf: file)
+                let frames = try JSONDecoder().decode([PoseFrameData].self, from: data)
+                allFrames.append(contentsOf: frames)
+            }
+            allFrames.sort { $0.frameIndex < $1.frameIndex }
+
+            log("Consolidated \(allFrames.count) total frames from \(poseFiles.count) files", level: .info)
+
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+            // ── raw_pose_frames.json — full data, every pose per frame ──────
+            let rawURL  = folder.appendingPathComponent("raw_pose_frames.json")
+            try encoder.encode(allFrames).write(to: rawURL)
+            log("Saved raw_pose_frames.json (\(allFrames.count) frames)", level: .info)
+
+            // ── keypoints.json — primary pose per frame [Int: [KeypointData]] ─
+            // "Primary" = highest-confidence pose. Keeps analysis-side loading intact.
+            var keypointsByFrame: [Int: [KeypointData]] = [:]
+            for frame in allFrames {
+                guard !frame.poses.isEmpty else { continue }
+                // Pick the pose with the highest average keypoint confidence
+                let best = frame.poses.max {
+                    averageConfidence($0) < averageConfidence($1)
+                } ?? frame.poses[0]
+                keypointsByFrame[frame.frameIndex] = best.keypoints
+            }
+
+            let keypointsURL = folder.appendingPathComponent("keypoints.json")
+            try encoder.encode(keypointsByFrame).write(to: keypointsURL)
+            log("Saved keypoints.json (\(keypointsByFrame.count) frames with pose)", level: .info)
+
+            // ── depth_keypoints.json — per-frame depth summary ───────────────
+            // Useful for quick depth analysis without parsing full raw file.
+            struct DepthSummaryEntry: Codable {
+                let frameIndex: Int
+                let timestamp:  Double
+                let poses:      [PoseSummary]
+            }
+            struct PoseSummary: Codable {
+                let confidence:   Float
+                let averageDepth: Float?
+                let keypoints:    [KeypointDepthEntry]
+            }
+            struct KeypointDepthEntry: Codable {
+                let name:  String
+                let x, y:  Float
+                let depth: Float
+                let confidence: Float
+            }
+
+            let depthSummary: [DepthSummaryEntry] = allFrames.compactMap { frame -> DepthSummaryEntry? in
+                guard !frame.poses.isEmpty else { return nil }
+                let poseSummaries = frame.poses.map { pose in
+                    PoseSummary(
+                        confidence:   pose.confidence,
+                        averageDepth: pose.averageDepth,
+                        keypoints:    pose.keypoints.map { kp in
+                            KeypointDepthEntry(
+                                name:       kp.name,
+                                x:          Float(kp.x),
+                                y:          Float(kp.y),
+                                depth:      kp.depth ?? 0,
+                                confidence: kp.confidence
+                            )
+                        }
+                    )
+                }
+                return DepthSummaryEntry(
+                    frameIndex: frame.frameIndex,
+                    timestamp:  frame.timestamp,
+                    poses:      poseSummaries
+                )
+            }
+
+            let depthSummaryURL = folder.appendingPathComponent("depth_keypoints.json")
+            try encoder.encode(depthSummary).write(to: depthSummaryURL)
+            log("Saved depth_keypoints.json (\(depthSummary.count) frames with depth)", level: .info)
+
+            // ── Clean up chunk files ──────────────────────────────────────────
+            for file in poseFiles {
+                try? FileManager.default.removeItem(at: file)
+            }
+
+        } catch {
+            log("Error consolidating pose data: \(error)", level: .error)
+        }
+    }
+
+    private func averageConfidence(_ pose: PoseBox) -> Float {
+        guard !pose.keypoints.isEmpty else { return 0 }
+        return pose.keypoints.map(\.confidence).reduce(0, +) / Float(pose.keypoints.count)
+    }
+}

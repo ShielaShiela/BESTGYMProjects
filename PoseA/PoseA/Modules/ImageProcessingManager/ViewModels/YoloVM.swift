@@ -47,10 +47,21 @@ final class YOLOPoseProcessor {
         DispatchQueue.global(qos: .userInitiated).async {
             self.tick("LoadModel") {
                 do {
-                    guard let url = Bundle.main.url(forResource: name, withExtension: "mlmodelc") else {
-                        assertionFailure("Model not found in bundle")
+                    // Try requested model first, fall back to yolo11l-pose
+                    let modelName: String
+                    if Bundle.main.url(forResource: name, withExtension: "mlmodelc") != nil {
+                        modelName = name
+                    } else {
+                        log("Model '\(name)' not found in bundle, falling back to yolo11l-pose")
+                        modelName = "yolo11l-pose"
+                    }
+                    
+                    guard let url = Bundle.main.url(forResource: modelName, withExtension: "mlmodelc") else {
+                        log("Default model yolo11l-pose not found in bundle", level: .error)
+                        DispatchQueue.main.async { completion(false) }
                         return
                     }
+                    
                     let config = MLModelConfiguration()
                     config.computeUnits = .cpuAndNeuralEngine
                     
@@ -77,7 +88,7 @@ final class YOLOPoseProcessor {
                     }
                     
                 } catch {
-                    assertionFailure("Failed to load model: \(error)")
+                    log("Failed to load model: \(error)", level: .error)
                     DispatchQueue.main.async {
                         completion(false)
                     }

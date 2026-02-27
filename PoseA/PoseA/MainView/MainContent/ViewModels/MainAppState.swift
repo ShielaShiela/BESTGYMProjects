@@ -56,7 +56,7 @@ class MainAppState: ObservableObject {
     // Camera Settings
     @Published var useLiDAR: Bool = false
     @Published var realtimeDetection: Bool = false
-    @Published var realtimeModel: String = "yolo11n-pose"
+    @Published var realtimeModel: String = "yolo11l-pose"
     @Published var realtimeViewMode: String = "general"
 }
 
@@ -81,6 +81,7 @@ extension MainAppState {
     
     func loadUserPreferences() {
         autoDetectKeypoints = UserDefaults.standard.bool(forKey: "AutoDetectKeypoints")
+        realtimeModel = UserDefaults.standard.string(forKey: "realtimeModel") ?? "yolo11l-pose"
     }
     
     // Save preferences to UserDefaults

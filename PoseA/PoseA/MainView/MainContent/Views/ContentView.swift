@@ -170,9 +170,8 @@ struct BESTGYMPoseApp: View {
                         loadProjectData(project, keypoints: keypoints)
                     }
                 }
-                
                 .fullScreenCover(isPresented: $appState.showSettingsView) {
-                    SettingsView(appState: appState)
+                    SettingsView(appState: appState, cameraManager: cameraManager)
                 }
             }
             .navigationViewStyle(StackNavigationViewStyle())

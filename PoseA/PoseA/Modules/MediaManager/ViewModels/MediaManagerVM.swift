@@ -129,11 +129,19 @@ class MediaManagerVM {
                     return $0.pathExtension.lowercased() == "json" && filename.contains("keypoint")
                 }
                 
+                // Legacy LiDAR format: frame_X subfolders
                 let frameDirectories = contents.filter {
                     var isDir: ObjCBool = false
                     return fileManager.fileExists(atPath: $0.path, isDirectory: &isDir) &&
                         isDir.boolValue && $0.lastPathComponent.hasPrefix("frame_")
                 }
+                
+                // New LiDAR format: depth_frames subfolder
+                let depthFramesDir = contents.first(where: {
+                    var isDir: ObjCBool = false
+                    return fileManager.fileExists(atPath: $0.path, isDirectory: &isDir) &&
+                        isDir.boolValue && $0.lastPathComponent.lowercased() == "depth_frames"
+                })
                 
                 let videoFiles = contents.filter {
                     let ext = $0.pathExtension.lowercased()
@@ -141,9 +149,8 @@ class MediaManagerVM {
                 }
                 
                 if !frameDirectories.isEmpty {
+                    // ── Legacy LiDAR (frame_X subfolders) ──────────────────────────
                     self.fileLoaderViewModel.loadVideoFolder(from: url)
-                    
-                    
                     
                     for frameDir in frameDirectories {
                         let depthDataURL = frameDir.appendingPathComponent("depthData.dat")
@@ -155,7 +162,6 @@ class MediaManagerVM {
                     
                     loadingTask = Task {
                         guard !Task.isCancelled else { return }
-                        
                         if !keypointFiles.isEmpty && autoDetectKeypoints {
                             await self.fileLoaderViewModel.loadKeypoints(from: keypointFiles.first!)
                         }
@@ -165,35 +171,70 @@ class MediaManagerVM {
                         await MainActor.run { completion(nil) }
                     }
                     
+                } else if depthFramesDir != nil && !videoFiles.isEmpty {
+                    // ── New LiDAR (color_video + depth_video + depth_frames/) ───────
+                    self.isDataLIDAR = true
+                    self.isDataTemp = false
+                    
+                    // Prefer color_video; never pick depth_video
+                    let colorVideo = videoFiles.first(where: {
+                        $0.lastPathComponent.lowercased().contains("color")
+                    }) ?? videoFiles.first(where: {
+                        !$0.lastPathComponent.lowercased().contains("depth")
+                    }) ?? videoFiles.first!
+                    
+                    // Prefer keypoints.json; never pick depth_keypoints
+                    let keypointURL: URL? = keypointFiles.first(where: {
+                        !$0.lastPathComponent.lowercased().contains("depth")
+                    }) ?? keypointFiles.first
+                    
+                    log("🎬 New LiDAR folder. Color video: \(colorVideo.lastPathComponent)", level: .info)
+                    log("🔑 Keypoint file: \(keypointURL?.lastPathComponent ?? "none")", level: .info)
+                    
+                    loadingTask = Task {
+                        guard !Task.isCancelled else { return }
+                        await self.fileLoaderViewModel.loadVideoFile(from: colorVideo)
+                        guard !Task.isCancelled else { return }
+                        
+                        if let keypointURL = keypointURL {
+                            await self.fileLoaderViewModel.loadKeypoints(from: keypointURL)
+                        }
+                        
+                        guard !Task.isCancelled else { return }
+                        await self.watchMediaAvailability(expectKeypoints: (keypointURL != nil))
+                        guard !Task.isCancelled else { return }
+                        self.isDataTemp = false
+                        await MainActor.run { completion(nil) }
+                    }
+                    
                 } else if !videoFiles.isEmpty {
-                    let videoURL = videoFiles.first!
+                    // ── Non-LiDAR (plain video folder) ─────────────────────────────
                     self.isDataLIDAR = false
                     self.isDataTemp = false
                     
-                    let keypointURL: URL? = keypointFiles.first
-//                    let keypointURL: URL? = (!keypointFiles.isEmpty && autoDetectKeypoints) ? keypointFiles.first : nil
+                    // Pick any non-depth video
+                    let videoURL = videoFiles.first(where: {
+                        !$0.lastPathComponent.lowercased().contains("depth")
+                    }) ?? videoFiles.first!
                     
+                    // Pick any non-depth keypoints
+                    let keypointURL: URL? = keypointFiles.first(where: {
+                        !$0.lastPathComponent.lowercased().contains("depth")
+                    }) ?? keypointFiles.first
                     
-                    // ADD THESE:
-                    log("🎬 Video files found: \(videoFiles.map { $0.lastPathComponent })", level: .info)
-                    log("🔑 Keypoint files found: \(keypointFiles.map { $0.lastPathComponent })", level: .info)
-                    log("🔑 autoDetectKeypoints: \(autoDetectKeypoints)", level: .info)
-                    log("🔑 keypointURL resolved: \(String(describing: keypointURL?.lastPathComponent))", level: .info)
-                    
+                    log("🎬 Video folder. Video: \(videoURL.lastPathComponent)", level: .info)
+                    log("🔑 Keypoint file: \(keypointURL?.lastPathComponent ?? "none")", level: .info)
                     
                     loadingTask = Task {
                         guard !Task.isCancelled else { return }
                         await self.fileLoaderViewModel.loadVideoFile(from: videoURL)
                         guard !Task.isCancelled else { return }
                         
-                        // ✅ Await keypoints BEFORE watchMediaAvailability
                         if let keypointURL = keypointURL {
-                            await self.fileLoaderViewModel.loadKeypoints(from: keypointURL)  // now awaited
+                            await self.fileLoaderViewModel.loadKeypoints(from: keypointURL)
                         }
                         
-                        // ✅ Remove the arbitrary sleep — no longer needed
                         guard !Task.isCancelled else { return }
-                        
                         await self.watchMediaAvailability(expectKeypoints: (keypointURL != nil))
                         guard !Task.isCancelled else { return }
                         self.isDataTemp = false
@@ -211,13 +252,14 @@ class MediaManagerVM {
             }
             
         } else {
+            // ── Single file ─────────────────────────────────────────────────────
             let fileExtension = url.pathExtension.lowercased()
             switch fileExtension {
             case "json":
                 Task {
-                       await self.fileLoaderViewModel.loadKeypoints(from: url)
-                       await MainActor.run { completion(nil) }
-                   }
+                    await self.fileLoaderViewModel.loadKeypoints(from: url)
+                    await MainActor.run { completion(nil) }
+                }
             case "mp4", "mov", "m4v":
                 loadingTask = Task {
                     guard !Task.isCancelled else { return }

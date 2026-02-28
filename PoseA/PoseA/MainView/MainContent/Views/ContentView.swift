@@ -88,22 +88,26 @@ struct BESTGYMPoseApp: View {
                     .sheet(isPresented: $appState.isFilePickerPresented) {
                         DocumentPickerUI { urls in
                             if let url = urls.first {
-                                appState.isProcessing = true
-                                appState.processingStatus = "Loading data..."
-
-                                let errMsg = mediaManager.loadMedia(url: url, autoDetectKeypoints: appState.autoDetectKeypoints)
-
-                                DispatchQueue.main.async {
-                                    if let errMsg = errMsg {
-                                        self.appState.errorMessage = errMsg
-                                    } else {
-                                        self.appState.processingStatus = "Loaded frames from \(url.lastPathComponent)"
-                                        self.appState.sourceFileName = url.lastPathComponent
-                                        self.appState.sourceURL = url
-                                        self.appState.showKeypoints = true
-                                        self.appState.isVideoSource = !mediaManager.isDataLIDAR
+                                self.appState.isProcessing = true
+                                self.appState.processingStatus = "Loading data..."
+                                print("isProcessing:", self.appState.isProcessing)
+                                
+                                DispatchQueue.global(qos: .userInitiated).async {
+                                    let errMsg = mediaManager.loadMedia(url: url, autoDetectKeypoints: appState.autoDetectKeypoints)
+                                    
+                                    DispatchQueue.main.async {
+                                        if let errMsg = errMsg {
+                                            self.appState.errorMessage = errMsg
+                                        } else {
+                                            self.appState.processingStatus = "Loaded frames from \(url.lastPathComponent)"
+                                            self.appState.sourceFileName = url.lastPathComponent
+                                            self.appState.sourceURL = url
+                                            self.appState.showKeypoints = true
+                                            self.appState.isVideoSource = !mediaManager.isDataLIDAR
+                                            self.appState.isTempFiles = mediaManager.isDataTemp
+                                        }
+                                        self.appState.isProcessing = false
                                     }
-                                    self.appState.isProcessing = false
                                 }
                             }
                         }
@@ -244,11 +248,10 @@ struct BESTGYMPoseApp: View {
     }
     
     private func selectKeypointFile() {
-        if mediaManager.isKeypointAvailable || mediaManager.isMediaAvailable {
-            log("Cleaning up before folder selection...", level: .info)
-            cleanupPreviousData()
-        }
-        
+//        if mediaManager.isKeypointAvailable || mediaManager.isMediaAvailable {
+//            log("Cleaning up before folder selection...", level: .info)
+//            cleanupPreviousData()
+//        }
         // Small delay to ensure cleanup completes
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.appState.isKeypointImportPresented = true
@@ -257,7 +260,7 @@ struct BESTGYMPoseApp: View {
     
     // Save Project
     private func saveProject() {
-        if self.appState.isTempFiles {
+//        if self.appState.isTempFiles {
             do {
                 // Export to Apps
                 appState.isProcessing = true
@@ -290,9 +293,12 @@ struct BESTGYMPoseApp: View {
                     }
                 }
             } catch {
-                appState.errorMessage = "Failed to export to apps: \(error)"
+                DispatchQueue.main.async {
+                    self.appState.errorMessage = "Failed to export to apps: \(error)"
+                    self.appState.isProcessing = false
+                }
             }
-        }
+//        }
     }
     
     private func cleanupPreviousData() {

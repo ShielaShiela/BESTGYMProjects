@@ -215,13 +215,15 @@ struct RecordLandscapeView: View {
                                                     videoSize: isLandscape ? CGSize(width: self.cameraManager.cameraConfiguration.resolution.width,
                                                                                     height: self.cameraManager.cameraConfiguration.resolution.height) :
                                                                             CGSize(width: self.cameraManager.cameraConfiguration.resolution.height,
-                                                                                   height: self.cameraManager.cameraConfiguration.resolution.width))
+                                                                                   height: self.cameraManager.cameraConfiguration.resolution.width),
+                                                    scaleMode: .aspectFill)
                                 } else {
                                     PoseOverlayView(poses: self.cameraManager.poseKeypoints,
                                                     videoSize: isLandscape ? CGSize(width: self.cameraManager.cameraConfiguration.resolution.width,
                                                                                     height: self.cameraManager.cameraConfiguration.resolution.height) :
                                                                             CGSize(width: self.cameraManager.cameraConfiguration.resolution.height,
-                                                                                   height: self.cameraManager.cameraConfiguration.resolution.width))
+                                                                                   height: self.cameraManager.cameraConfiguration.resolution.width),
+                                                    scaleMode: .aspectFill)
                                 }
                                 
                                 // Pose Information Overlay

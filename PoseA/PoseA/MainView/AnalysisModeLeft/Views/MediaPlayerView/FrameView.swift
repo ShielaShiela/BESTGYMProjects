@@ -104,13 +104,9 @@ struct FrameView: View {
                            appState.showKeypoints {
                             PoseOverlayView(
                                 poses: [keypoints],
-                                videoSize: imageSize
+                                videoSize: imageSize,
+                                scaleMode: .aspectFit
                             )
-//                            KeypointOverlayView(
-//                                keypoints: keypoints.keypoints,
-//                                containerSize: geometry.size,
-//                                imageSize: imageSize
-//                            )
                         }
                         
                         // ROI

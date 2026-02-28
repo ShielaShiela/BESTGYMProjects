@@ -255,7 +255,9 @@ struct AnalysisModeRightView: View {
                     // TODO: - Export To JSON
                     self.exportKeypointsToJSON() {
                         // Load Keypoints into File Loader ViewModel
-                        self.mediaManager.fileLoaderViewModel.loadKeypoints(from: self.analysisVM.processedKeypoints)
+                        self.mediaManager.fileLoaderViewModel.loadKeypointsInternal(
+                            from: self.mediaManager.fileLoaderViewModel.keypointData
+                        )
                         
                         Task {
                             while !self.mediaManager.isKeypointAvailable {

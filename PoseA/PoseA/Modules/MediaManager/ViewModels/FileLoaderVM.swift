@@ -148,7 +148,7 @@ class FileLoaderVM: ObservableObject {
 
 
     // MARK: - Load Keypoint Files
-    func loadKeypoints(from MLOutput: [Int : PoseBox]) {
+    func loadKeypointsInternal(from MLOutput: [Int:PoseBox]) {
         // Set Keypoints
         self.keypointData = MLOutput
         // Set Data Status

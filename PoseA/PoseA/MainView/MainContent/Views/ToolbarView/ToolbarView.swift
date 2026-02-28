@@ -55,7 +55,7 @@ extension BESTGYMPoseApp {
                     ModeControlView(
                         clearAction: { print("Return Annotate") },
                         exitAction: {
-                            appState.isAnnotationMode = false
+                            appState.is3DAnimationView = false
                             toolbarVM.deactivateMode()
                         },
                         label: "Annotate"
@@ -92,8 +92,8 @@ extension BESTGYMPoseApp {
                     ToolbarButtonView(mode: .box, icon: "square.dashed", title: "Box", viewModel: toolbarVM) {
                         BoxModel.setBoxMode(true)
                     }
-                    ToolbarButtonView(mode: .annotate, icon: "figure", title: "Annotate", viewModel: toolbarVM) {
-                        appState.isAnnotationMode = true
+                    ToolbarButtonView(mode: .annotate, icon: "figure", title: "Animation", viewModel: toolbarVM) {
+                        appState.is3DAnimationView = true
                     }
                     ToolbarButtonView(mode: .zoom, icon: "plus.magnifyingglass", title: "Zoom", viewModel: toolbarVM) {
                         appState.isZoomMode = true

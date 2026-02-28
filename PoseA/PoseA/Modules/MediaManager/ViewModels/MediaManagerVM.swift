@@ -128,6 +128,13 @@ class MediaManagerVM {
                 
                 log("Found \(contents.count) items in folder \(url.lastPathComponent)", level: .debug)
                 
+                // Check for video files
+                let videoFiles = contents.filter {
+                    let filename = $0.lastPathComponent.lowercased()
+                    return $0.pathExtension.lowercased() == "mp4" || $0.pathExtension.lowercased() == "mov"
+                }
+                
+                // Check for keypoints
                 let keypointFiles = contents.filter {
                     let filename = $0.lastPathComponent.lowercased()
                     return $0.pathExtension.lowercased() == "json" &&
@@ -143,7 +150,7 @@ class MediaManagerVM {
                 }
                 
                 // If Data Structure Detected
-                if !frameDirectories.isEmpty {
+                if !frameDirectories.isEmpty && videoFiles.isEmpty {
                     // Load LiDAR recording with frame folders
                     self.fileLoaderViewModel.loadVideoFolder(from: url)
                     
@@ -170,7 +177,27 @@ class MediaManagerVM {
                         log("No depth data found in any frame directory.", level: .info)
                     }
                 }
+                
+                // If Video File Detected
+                if !videoFiles.isEmpty && frameDirectories.isEmpty {
+                    // Get Video URL
+                    let videoURL = videoFiles.first!
+                    log("Found video file in folder: \(videoURL.lastPathComponent)", level: .debug)
                     
+                    // Expand Video By Frames
+                    self.loadVideoFrames(videoURL: url) { result in
+                        log("Result: \(result ?? "None")", level: .debug)
+                        
+                        // Check for keypoints in recording folder
+                        if !keypointFiles.isEmpty && autoDetectKeypoints{
+                            let keypointURL = keypointFiles.first!
+                            log("Found keypoint file in folder: \(keypointURL.lastPathComponent)", level: .debug)
+                            
+                            self.fileLoaderViewModel.loadKeypoints(from: keypointURL)
+                        }
+                    }
+
+                }
                 Task {
                     await self.watchMediaAvailability(expectKeypoints: (!keypointFiles.isEmpty && autoDetectKeypoints))
                     self.isDataTemp = false
@@ -187,8 +214,9 @@ class MediaManagerVM {
             case "json":
                 self.fileLoaderViewModel.loadKeypoints(from: url)
             case "mp4", "mov", "m4v":
-//                await self.fileLoaderViewModel.loadVideoFile(from: url)
-                break
+                self.loadVideoFrames(videoURL: url) { result in
+                    log("Result: \(result ?? "None")", level: .debug)
+                }
             default:
                 return "Unsupported file format: \(fileExtension)"
             }
@@ -196,7 +224,22 @@ class MediaManagerVM {
         
         return nil
     }
-    
+     func loadVideoFrames(videoURL: URL, completion: @escaping (String?) -> Void) {
+         // Proceed to extract frames if not processed yet.
+         Task {
+             await self.fileLoaderViewModel.loadVideoFile(from: videoURL)
+
+             await self.watchMediaAvailability(expectKeypoints: false)
+             
+             if fileLoaderViewModel.isDataLoaded {
+                 self.isDataTemp = true
+                 completion(nil)
+             } else {
+                 self.isDataTemp = false
+                 completion("Failed to load video.")
+             }
+         }
+    }
     // MARK: - File Export
     func exportFramesContentsToAppDirectory(originalFileURL: URL) throws -> URL {
         // Get Temp Dir
@@ -229,7 +272,7 @@ class MediaManagerVM {
             // Copy each subfolder into destinationDir
             try fileManager.copyItem(at: subItem, to: destinationSubItem)
         }
-
+        
         return destinationDir
     }
 

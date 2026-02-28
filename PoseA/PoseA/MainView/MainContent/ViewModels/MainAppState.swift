@@ -18,6 +18,8 @@ class MainAppState: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var showKeypoints = false
     
+    @Published var is3DAnimationView = false
+    
     // Toolbox Status
     @Published var isAnnotationMode = false
     @Published var isROIMode = false

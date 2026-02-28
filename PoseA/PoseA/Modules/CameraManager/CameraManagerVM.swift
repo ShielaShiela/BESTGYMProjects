@@ -65,6 +65,9 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
 
     private var firstPTS: CMTime? = nil
     private var frameBuffer = [(CVPixelBuffer, CMTime)]()
+    private var framePTS = [CMTime]()
+    private var poseBuffer = [(PoseBox, CMTime)]()
+    private let poseBufferLimit = 90
     private var depthMap: CVPixelBuffer? = nil
     
     // Image Processing
@@ -79,10 +82,12 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     @Published var fpsStream: Double = 0
     @Published var fpsModel: Double = 0
     private let systemFPS = FPSMeter(label: "System")
-
+    private var frameCounter: Int = 0
     // Queues
     private let sessionQueue = DispatchQueue(label: "com.bestgym.sessionQueue", qos: .userInitiated)
     private let frameBufferQueue = DispatchQueue(label: "com.bestgym.frameBufferQueue")
+    private let poseBufferQueue = DispatchQueue(label: "com.bestgym.poseBufferQueue")
+
     private let frameWriterQueue = DispatchQueue(label: "com.bestgym.frameWriterQueue")
     private let videoWriterQueue = DispatchQueue(label: "com.bestgym.videoWriterQueue")
     
@@ -333,25 +338,40 @@ extension CameraManagerVM {
                 }
                 
                 frameBufferQueue.async {
+                    self.frameCounter += 1
                     self.frameBuffer.append((currentBuffer, pts))
+                    self.framePTS.append(pts)
                     self.frameSemaphore.signal()
                 }
             }
             
             // BETA: - YOLO Pose Detection
             if isPoseProcessingEnabled {
-                poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
+                poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { poses, fps, pts in
                     if !poses.isEmpty {
+                        // Recording Options
+                        if self.isRecording && !self.isPreparingRecording {
+                            // Frame Counter
+//                            let frameIndex = self.frameCounter
+                            self.poseBufferQueue.async {
+                                self.poseBuffer.append((poses.first!, pts) as! (PoseBox, CMTime))
+                            }
+                            if self.poseBuffer.count >= self.poseBufferLimit {
+                                self.saveDetectedPose(to: self.recordingFolder!) {
+                                    log("Saved \(self.poseBuffer.count) buffered poses to disk", level: .debug)
+                                }
+                            }
+                        }
                         DispatchQueue.main.async {
-                            self?.poseKeypoints = poses
-                            self?.fpsModel = fps
-                            self?.camIntrinsics = capturedData.cameraIntrinsics
+                            self.poseKeypoints = poses
+                            self.fpsModel = fps
+                            self.camIntrinsics = capturedData.cameraIntrinsics
                         }
                     } else {
                         DispatchQueue.main.async {
-                            self?.poseKeypoints = []
-                            self?.fpsModel = fps
-                            self?.camIntrinsics = capturedData.cameraIntrinsics
+                            self.poseKeypoints = []
+                            self.fpsModel = fps
+                            self.camIntrinsics = capturedData.cameraIntrinsics
                         }
                     }
                 }
@@ -526,6 +546,13 @@ extension CameraManagerVM {
             let frameCount = self.frameCount
             let recordingOrientation = self.recordingOrientation
             
+            // Save Pose if Available
+            if self.isPoseProcessingEnabled {
+                self.saveDetectedPose(to: folder) {
+                    self.mergePoseJSONs(in: folder)
+                }
+            }
+             
             // Process completion on background thread
             DispatchQueue.global(qos: .userInitiated).async {
                 log("Stopping recording...", level: .info)
@@ -779,4 +806,198 @@ extension CameraManagerVM {
             log("Failed to save metadata: \(error)", level: .error)
         }
     }
+    
+    private func saveDetectedPose(to: URL, completion: @escaping () -> Void) {
+        // Export all frames
+        var frameBboxData: [String: [String: Any]] = [:]
+        var framesKeyData: [String: [[String: Any]]] = [:]
+        
+        
+        for (poseBox, posePTS) in self.poseBuffer {
+            // Get PTS
+            guard let frameIndex = nearestFrameIndex(for: posePTS, in: self.framePTS) else {
+                continue // should never fail
+            }
+
+            let diff = abs(self.framePTS[frameIndex].seconds - posePTS.seconds)
+            if diff > 0.050 {    // 50 ms threshold
+                log("Skipping pose at PTS \(posePTS.seconds) due to large time difference (\(diff) s) with frame index \(frameIndex)", level: .debug)
+                continue         // pose too delayed, skip
+            }
+
+            // Keypoint Data Parse
+            let keypointData = poseBox.keypoints.map { keypoint -> [String: Any] in
+                return [
+                    "name": keypoint.name,
+                    "x": keypoint.x,
+                    "y": keypoint.y,
+                    "confidence": keypoint.confidence,
+                    "depth": keypoint.depth,
+                    "frameIndex": frameIndex,
+                    "pts": posePTS.seconds
+                ]
+            }
+            
+            // BBox Data Parse
+            var bboxData: [String: Any] = [:]
+            bboxData["x"] = poseBox.bbox.origin.x
+            bboxData["y"] = poseBox.bbox.origin.y
+            bboxData["width"] = poseBox.bbox.size.width
+            bboxData["height"] = poseBox.bbox.size.height
+            bboxData["confidence"] = poseBox.confidence
+            
+            framesKeyData["frame_\(frameIndex)"] = keypointData
+            frameBboxData["framebbox_\(frameIndex)"] = bboxData
+            
+        }
+        
+        var exportData: [String: Any] = [
+            "frames": framesKeyData,
+            "frames_bbox": frameBboxData,
+            "frameCount": self.poseBuffer.count,
+            "exportTime": Date().timeIntervalSince1970
+        ]
+        
+        // Add metadata
+        let metadata: [String: Any] = [
+            "exportDate": Date().timeIntervalSince1970,
+            "totalFrames": self.frameCounter,
+            "sourceFile": to.lastPathComponent,
+            "athleteName": self.athleteName,
+            "actionType": self.actionType
+
+        ]
+        exportData["metadata"] = metadata
+
+        // Write JSON
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: exportData, options: .prettyPrinted)
+            let timestamp = Int(Date().timeIntervalSince1970)
+            let filename = "recording_keypoints_\(timestamp).json"
+            let poseURL = to.appendingPathComponent(filename)
+            try jsonData.write(to: poseURL)
+            
+            // Clear the buffer after saving
+            self.poseBuffer.removeAll()
+            completion()
+        } catch {
+            log("Failed to write JSON: \(error)")
+            completion()
+        }
+    }
+    
+    func mergePoseJSONs(in folderURL: URL) {
+        let fileManager = FileManager.default
+        
+        do {
+            // 1. List all json files
+            let files = try fileManager.contentsOfDirectory(
+                at: folderURL,
+                includingPropertiesForKeys: nil
+            ).filter { $0.pathExtension == "json" }
+            
+            var mergedFrames: [String: Any] = [:]
+            var mergedBboxes: [String: Any] = [:]
+            var totalFrameCount = 0
+            
+            for file in files {
+                let data = try Data(contentsOf: file)
+                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+
+                    // 2. Merge frames
+                    if let frames = json["frames"] as? [String: Any] {
+                        for (key, value) in frames {
+                            mergedFrames[key] = value   // no overwrite because your keys are unique
+                        }
+                    }
+                    
+                    // 3. Merge frames_bbox
+                    if let bboxes = json["frames_bbox"] as? [String: Any] {
+                        for (key, value) in bboxes {
+                            mergedBboxes[key] = value
+                        }
+                    }
+                    
+                    // 4. Add frame counts
+                    if let count = json["frameCount"] as? Int {
+                        totalFrameCount += count
+                    }
+                }
+            }
+            
+            // 5. Build final export structure
+            let finalExport: [String: Any] = [
+                "frames": mergedFrames,
+                "frames_bbox": mergedBboxes,
+                "frameCount": totalFrameCount,
+                "exportTime": Date().timeIntervalSince1970,
+                "metadata": [
+                    "mergedFiles": files.count,
+                    "sourceFolder": folderURL.lastPathComponent,
+                    "athleteName": self.athleteName,
+                    "actionType": self.actionType
+                ]
+            ]
+            
+            // 6. Write final JSON
+            let timestamp = Int(Date().timeIntervalSince1970)
+            let filename = "recording_keypoints_\(timestamp).json"
+            let outputURL = folderURL.appendingPathComponent(filename)
+            let jsonData = try JSONSerialization.data(withJSONObject: finalExport, options: .prettyPrinted)
+            try jsonData.write(to: outputURL)
+            
+            print("Merged JSON saved at: \(outputURL.path)")
+            
+            // -----------------------------------------------------
+            //  DELETE ALL OLD JSON FILES EXCEPT THE MERGED ONE
+            // -----------------------------------------------------
+            for file in files {
+                if file.lastPathComponent != filename {
+                    try fileManager.removeItem(at: file)
+                }
+            }
+            self.framePTS.removeAll()
+            print("Deleted original split JSON files.")
+            
+        } catch {
+            print("Failed merging pose JSONs: \(error)")
+        }
+    }
+    
+    func nearestFrameIndex(for posePTS: CMTime, in framePTS: [CMTime]) -> Int? {
+        let target = posePTS.seconds
+        var low = 0
+        var high = framePTS.count - 1
+        
+        if high < 0 { return nil }
+        
+        // Fast boundary checks
+        if target <= framePTS[0].seconds { return 0 }
+        if target >= framePTS[high].seconds { return high }
+        
+        // Binary search
+        while low <= high {
+            let mid = (low + high) / 2
+            let midVal = framePTS[mid].seconds
+            
+            if midVal == target {
+                return mid
+            } else if midVal < target {
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        
+        // After exit: low is the first greater, high is the last smaller
+        // Return whichever is closer
+        if low >= framePTS.count { return framePTS.count - 1 }
+        if high < 0 { return 0 }
+        
+        let lowDiff  = abs(framePTS[low].seconds  - target)
+        let highDiff = abs(framePTS[high].seconds - target)
+        
+        return (lowDiff < highDiff) ? low : high
+    }
+
 }

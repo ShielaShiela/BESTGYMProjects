@@ -20,6 +20,7 @@ fileprivate let cocoConnections: [(Int, Int)] = [ (0, 1), (0, 2),
 struct PoseOverlayView: View {
     let poses: [PoseBox]
     let videoSize: CGSize
+    let scaleMode: ScaleMode
     
     var body: some View {
         GeometryReader { geo in
@@ -35,8 +36,11 @@ struct PoseOverlayView: View {
     private func drawPose(_ pose: PoseBox, in ctx: GraphicsContext, canvasSize: CGSize) {
         let mapper = CoordinateMapper(containerSize: canvasSize,
                                       imageSize: videoSize,
-                                      scaleMode: .aspectFill)
-
+                                      scaleMode: scaleMode)
+        
+        // Draw Parameter
+        let lineWidth = self.scaleMode == .aspectFit ? 2.0 : 4.0
+        
         // Keypoints
         let keypoints = pose.keypoints
         let pts = keypoints.map { mapper.mapPoint(CGPoint(x: $0.x, y: $0.y), normalized: false) }
@@ -47,12 +51,12 @@ struct PoseOverlayView: View {
             path.move(to: pts[a])
             path.addLine(to: pts[b])
             
-            ctx.stroke(path, with: .color(connectionColor(from: a, to: b)), lineWidth: 5)
+            ctx.stroke(path, with: .color(connectionColor(from: a, to: b)), lineWidth: lineWidth)
         }
         
         // Joints
         for (i, p) in pts.enumerated() {
-            let circle = Path(ellipseIn: CGRect(x: p.x-4, y: p.y-4, width: 8, height: 8))
+            let circle = Path(ellipseIn: CGRect(x: p.x-lineWidth, y: p.y-lineWidth, width: lineWidth * 2, height: lineWidth * 2))
             ctx.fill(circle, with: .color(dotColor(index: i)))
         }
         
@@ -60,18 +64,18 @@ struct PoseOverlayView: View {
         let p1 = mapper.mapPoint(CGPoint(x: pose.bbox.minX, y: pose.bbox.minY), normalized: false)
         let p2 = mapper.mapPoint(CGPoint(x: pose.bbox.maxX, y: pose.bbox.maxY), normalized: false)
         let rect = CGRect(x: p1.x, y: p1.y, width: p2.x - p1.x, height: p2.y - p1.y)
-        ctx.stroke(Path(rect), with: .color(.green.opacity(0.5)), lineWidth: 4)
+        ctx.stroke(Path(rect), with: .color(.green.opacity(0.25)), lineWidth: lineWidth)
     }
     
     // MARK: - Mapping
     
     private func connectionColor(from: Int, to: Int) -> Color {
         if (0...4).contains(from) && (0...4).contains(to) {
-            return .green.opacity(0.5)   // Head/face connections
+            return .green.opacity(0.25)   // Head/face connections
         } else if (5...12).contains(from) && (5...12).contains(to) {
-            return .blue.opacity(0.5)    // Torso/shoulders/hips
+            return .blue.opacity(0.25)    // Torso/shoulders/hips
         } else {
-            return .orange.opacity(0.5)  // Other limbs
+            return .orange.opacity(0.25)  // Other limbs
         }
     }
     

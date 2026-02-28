@@ -52,7 +52,7 @@ class MediaPlayerVM {
     
     private var displayLink: CADisplayLink?
     private var lastTimestamp: CFTimeInterval = 0
-    private let frameInterval: Double = 1.0 / 60.0
+    private let frameInterval: Double = 1.0 / 30.0
     
     // Image Variables
     var totalFrames: Int = 0

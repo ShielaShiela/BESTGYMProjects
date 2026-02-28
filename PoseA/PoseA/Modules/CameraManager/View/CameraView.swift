@@ -24,7 +24,7 @@ struct CameraPreviewView: UIViewRepresentable {
         // Render depth if available
         uiView.toggleDepthView(status: !appState.isLidarDepthView)
         if let texture = cameraManager.depthTexture {
-            uiView.renderDepth(texture: texture, maxDepth: 5.0)
+            uiView.renderDepth(texture: texture, maxDepth: 10.0)
         }
     }
 }

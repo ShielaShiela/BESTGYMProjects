@@ -28,7 +28,7 @@ struct PoseInformationView: View {
                             .foregroundColor(.white)
                             .font(.caption)
                         
-                        Text("Cam to Bar Distance: 8.3m")
+                        Text("Cam to Bar Distance: \(rtPoseJointVM.barPoints?.z ?? 0.0) m")
                             .foregroundColor(.white)
                             .font(.caption)
                         

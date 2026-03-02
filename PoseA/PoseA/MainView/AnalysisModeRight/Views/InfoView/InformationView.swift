@@ -112,25 +112,6 @@ struct InformationView: View {
             
             Spacer()
             
-            // Temporary debug — paste anywhere you can see it while testing
-            if calibrationModel.isCalibrated {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("🔧 Calibration Debug")
-                        .font(.caption.bold())
-                    Text("Bar top Y: \(String(format: "%.3f", calibrationModel.barTopPoint?.y ?? 0))")
-                        .font(.caption.monospaced())
-                    Text("Bar bottom Y: \(String(format: "%.3f", calibrationModel.barBottomPoint?.y ?? 0))")
-                        .font(.caption.monospaced())
-//                    Text("px/cm: \(String(format: "%.1f", calibrationModel.pixelsPerCm ?? 0))")
-//                        .font(.caption.monospaced())
-                    Text("Bar height ref: \(String(format: "%.2f", calibrationModel.realBarHeightCm)) cm")
-                        .font(.caption.monospaced())
-                }
-                .padding(8)
-                .background(Color.black.opacity(0.7))
-                .foregroundColor(.green)
-                .cornerRadius(8)
-            }
         }
     }
 }

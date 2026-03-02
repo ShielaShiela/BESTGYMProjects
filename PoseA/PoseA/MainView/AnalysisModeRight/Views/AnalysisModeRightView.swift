@@ -22,6 +22,7 @@ struct AnalysisModeRightView: View {
     @State var calibrationModel: CalibrationModel
     let resetToken: UUID
     
+    @State private var showCoachAnalysis = false
 
     
     init(appState: MainAppState, ROIModel: ROIViewModel, BoxModel: BoxViewModel, mediaManager: MediaManagerVM, calibrationModel: CalibrationModel,resetToken: UUID) {
@@ -91,6 +92,29 @@ struct AnalysisModeRightView: View {
                 // TODO: Change the layout and UI to be more compact. For now focusing on Pose Analysis Rework
                 VStack(alignment: .trailing) {
                     Spacer()
+                    
+                    Button {
+                           showCoachAnalysis = true
+                       } label: {
+                           Image(systemName: "figure.gymnastics")
+                               .resizable()
+                               .scaledToFit()
+                               .frame(width: 28, height: 28)
+                               .foregroundColor(.white)
+                               .padding(22)
+                               .background(
+                                   Circle().fill(
+                                       LinearGradient(
+                                           gradient: Gradient(colors: [Color(red:0.22,green:0.60,blue:0.98),
+                                                                        Color(red:0.12,green:0.78,blue:0.90)]),
+                                           startPoint: .topLeading,
+                                           endPoint: .bottomTrailing
+                                       ).opacity(0.75)
+                                   )
+                               )
+                               .shadow(color: Color(red:0.22,green:0.60,blue:0.98).opacity(0.45),
+                                       radius: 10, x: 0, y: 4)
+                       }
                     
                     if !appState.sourceFileName.isEmpty {
                         Menu {
@@ -197,7 +221,11 @@ struct AnalysisModeRightView: View {
                poseJointVM = PoseJointLandscapeVM(BoxModel: BoxModel, mediaManager: mediaManager)
                selectedView = .info
                appState.isAnalysisAvailable = false
-           }
+        }
+        .fullScreenCover(isPresented: $showCoachAnalysis) {
+                    CoachAnalysisView()
+                }
+
     }
     
     private func updateAnalysis() {

@@ -92,7 +92,9 @@ class MediaPlayerVM {
     
     private var displayLink: CADisplayLink?
     private var lastTimestamp: CFTimeInterval = 0
-    private let frameInterval: Double = 1.0 / 60.0
+//    private let frameInterval: Double = 1.0 / 60.0
+    var fps: Double = 30.0
+    private var frameInterval: Double { 1.0 / fps }
     
     // Image Variables
     var totalFrames: Int = 0
@@ -108,7 +110,8 @@ class MediaPlayerVM {
 //        self.firstFrame()
 //        log("New Media Updated.", level: .info)
 //    }
-    func updateMedia(imageURLs: [URL]) {
+    func updateMedia(imageURLs: [URL], fps: Double = 30.0) {
+        self.fps = fps
         self.FrameImageURLs = imageURLs
         self.totalFrames = imageURLs.count
         self.currentFrameIndex = 0

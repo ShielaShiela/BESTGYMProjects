@@ -34,6 +34,9 @@ class MediaManagerVM {
     
     
     private var loadingTask: Task<Void, Never>?  // ADD THIS
+    private var keypointFrameOffset: Double = 1.0  // ratio: keypoint fps / display fps
+
+
 
 
     // MARK: Shiela change it
@@ -316,13 +319,23 @@ class MediaManagerVM {
     
     
     // MARK: - Public Function for Media Player
-   
     func getKeypointsCurrent() -> [KeypointData]? {
         guard fileLoaderViewModel.isKeyLoaded else { return nil }
-        let playerIndex = mediaPlayerViewModel.currentFrameIndex
-        let frameKey = fileLoaderViewModel.frameIndexMap[playerIndex] ?? playerIndex
-        return fileLoaderViewModel.keypointsByFrame[frameKey]
+        
+        let arrayIndex = mediaPlayerViewModel.currentFrameIndex
+        
+        // Map display array index → original recording frame index
+        let keypointIndex: Int
+        if !fileLoaderViewModel.frameIndexMap.isEmpty {
+            keypointIndex = fileLoaderViewModel.frameIndexMap[arrayIndex] ?? arrayIndex
+        } else {
+            // LiDAR folder mode — already 0-based, no remapping needed
+            keypointIndex = arrayIndex
+        }
+        
+        return fileLoaderViewModel.keypointsByFrame[keypointIndex]
     }
+    
 
     func getKeypointsByIndex(_ index: Int) -> [KeypointData]? {
         guard fileLoaderViewModel.isKeyLoaded else { return nil }
@@ -331,12 +344,13 @@ class MediaManagerVM {
         // JSON keys ARE the original video frame numbers which match extractFramesAndSaveToDisk index
         return fileLoaderViewModel.keypointsByFrame[index]
     }
+
     func getCurrentIndex() -> Int {
-        if fileLoaderViewModel.isKeyLoaded {
-            return self.mediaPlayerViewModel.currentFrameIndex
-        } else { return 0 }
+        guard fileLoaderViewModel.isKeyLoaded else { return 0 }
+        let arrayIndex = mediaPlayerViewModel.currentFrameIndex
+        return fileLoaderViewModel.frameIndexMap[arrayIndex] ?? arrayIndex
     }
-    
+   
     func tooglePlayback() {
         // Check if the player is Done
         if self.mediaPlayerViewModel.currentFrameIndex + 1 == self.mediaPlayerViewModel.totalFrames {
@@ -382,13 +396,31 @@ class MediaManagerVM {
             if !fileLoaderViewModel.FrameFolderURLs.isEmpty && fileLoaderViewModel.isKeyLoaded {
                 fileLoaderViewModel.remapKeypointsToArrayIndex()  // LiDAR only
             }
-            
-            // 2D video: no remap, JSON keys match frame indices directly
-            mediaPlayerViewModel.updateMedia(imageURLs: fileLoaderViewModel.FrameImageURLs)
+
+            // Detect FPS from original video if available
+            let fps: Double
+            if let videoURL = fileLoaderViewModel.videoURL {
+                fps = await getVideoFPS(from: videoURL)
+            } else {
+                // Fallback: estimate from frame count and a known duration, or default
+                fps = fileLoaderViewModel.detectedFPS  // or just 30.0
+            }
+
+            mediaPlayerViewModel.updateMedia(imageURLs: fileLoaderViewModel.FrameImageURLs, fps: fps)
             isMediaAvailable = true
         } else {
             log("Timed out waiting for media.", level: .error)
         }
+    }
+    private func getVideoFPS(from videoURL: URL) async -> Double {
+        let asset = AVAsset(url: videoURL)
+        guard let track = try? await asset.loadTracks(withMediaType: .video).first else {
+            return 30.0
+        }
+        let frameRate = try? await track.load(.nominalFrameRate)
+        let fps = Double(frameRate ?? 30.0)
+        log("Detected video FPS: \(fps)", level: .info)
+        return fps
     }
 }
 

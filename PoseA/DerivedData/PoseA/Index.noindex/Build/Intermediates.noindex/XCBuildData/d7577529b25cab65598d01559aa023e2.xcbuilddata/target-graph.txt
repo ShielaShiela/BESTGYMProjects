@@ -1,0 +1,16 @@
+Target dependency graph (9 targets)
+Target 'PoseAUITests' in project 'PoseA'
+➜ Explicit dependency on target 'PoseA' in project 'PoseA'
+Target 'PoseAUITests' in project 'PoseA'
+➜ Explicit dependency on target 'PoseA' in project 'PoseA'
+Target 'PoseAUITests' in project 'PoseA'
+➜ Explicit dependency on target 'PoseA' in project 'PoseA'
+Target 'PoseATests' in project 'PoseA'
+➜ Explicit dependency on target 'PoseA' in project 'PoseA'
+Target 'PoseATests' in project 'PoseA'
+➜ Explicit dependency on target 'PoseA' in project 'PoseA'
+Target 'PoseATests' in project 'PoseA'
+➜ Explicit dependency on target 'PoseA' in project 'PoseA'
+Target 'PoseA' in project 'PoseA' (no dependencies)
+Target 'PoseA' in project 'PoseA' (no dependencies)
+Target 'PoseA' in project 'PoseA' (no dependencies)

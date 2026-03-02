@@ -1,0 +1,272 @@
+{
+  "source": "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/ProjectManager/SaveProjectView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Save Project",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 181
+        }
+      },
+      {
+        "comment": "",
+        "key": "Project Info",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 68
+        }
+      },
+      {
+        "comment": "",
+        "key": "Athlete",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 109
+        }
+      },
+      {
+        "comment": "",
+        "key": "Notes",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 151
+        }
+      },
+      {
+        "comment": "",
+        "key": "Data Status",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 157
+        }
+      },
+      {
+        "comment": "",
+        "key": "Project Name",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 69
+        }
+      },
+      {
+        "comment": "",
+        "key": "Date Recorded",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 70
+        }
+      },
+      {
+        "comment": "",
+        "key": "Skill / Action",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 77
+        }
+      },
+      {
+        "comment": "",
+        "key": "e.g. Cassina, Deloche...",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 88
+        }
+      },
+      {
+        "comment": "",
+        "key": "Skill / Action Type",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 102
+        }
+      },
+      {
+        "comment": "",
+        "key": "Choose a preset or enter a custom skill name.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 104
+        }
+      },
+      {
+        "comment": "",
+        "key": "Athlete Name",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 110
+        }
+      },
+      {
+        "comment": "",
+        "key": "Use Imperial (lb / ft)",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 121
+        }
+      },
+      {
+        "comment": "",
+        "key": "Age",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 113
+        }
+      },
+      {
+        "comment": "",
+        "key": "years",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 115
+        }
+      },
+      {
+        "comment": "",
+        "key": "Height",
+        "location": {
+          "startingColumn": 44,
+          "startingLine": 125
+        }
+      },
+      {
+        "comment": "",
+        "key": "Height",
+        "location": {
+          "startingColumn": 55,
+          "startingLine": 125
+        }
+      },
+      {
+        "comment": "",
+        "key": "ft  e.g. 5.9",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 127
+        }
+      },
+      {
+        "comment": "",
+        "key": "cm  e.g. 170",
+        "location": {
+          "startingColumn": 66,
+          "startingLine": 127
+        }
+      },
+      {
+        "comment": "",
+        "key": "ft",
+        "location": {
+          "startingColumn": 44,
+          "startingLine": 131
+        }
+      },
+      {
+        "comment": "",
+        "key": "cm",
+        "location": {
+          "startingColumn": 51,
+          "startingLine": 131
+        }
+      },
+      {
+        "comment": "",
+        "key": "Weight",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 136
+        }
+      },
+      {
+        "comment": "",
+        "key": "lb",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 138
+        }
+      },
+      {
+        "comment": "",
+        "key": "kg",
+        "location": {
+          "startingColumn": 56,
+          "startingLine": 138
+        }
+      },
+      {
+        "comment": "",
+        "key": "lb",
+        "location": {
+          "startingColumn": 44,
+          "startingLine": 142
+        }
+      },
+      {
+        "comment": "",
+        "key": "kg",
+        "location": {
+          "startingColumn": 51,
+          "startingLine": 142
+        }
+      },
+      {
+        "comment": "",
+        "key": "Source File",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 158
+        }
+      },
+      {
+        "comment": "",
+        "key": "Keypoints",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 159
+        }
+      },
+      {
+        "comment": "",
+        "key": "Calibration",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 160
+        }
+      },
+      {
+        "comment": "",
+        "key": "Analysis",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 161
+        }
+      },
+      {
+        "comment": "",
+        "key": "Media copy: %@",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 173
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 185
+        }
+      },
+      {
+        "comment": "",
+        "key": "Save",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 188
+        }
+      }
+    ]
+  },
+  "version": 1
+}

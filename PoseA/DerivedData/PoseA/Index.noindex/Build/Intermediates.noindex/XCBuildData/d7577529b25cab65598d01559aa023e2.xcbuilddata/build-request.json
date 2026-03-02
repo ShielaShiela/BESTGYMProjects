@@ -1,0 +1,54 @@
+{
+  "buildCommand" : {
+    "command" : "prepareForIndexing",
+    "enableIndexBuildArena" : true,
+    "targets" : null
+  },
+  "configuredTargets" : [
+    {
+      "guid" : "7aa5607eec36e4c1a5192f773c68133af520f9d735ea6c5e45ecaedac43cc508"
+    },
+    {
+      "guid" : "7aa5607eec36e4c1a5192f773c68133a88c30442e554cbf9c2fb40564ac46676"
+    },
+    {
+      "guid" : "7aa5607eec36e4c1a5192f773c68133a0a8504ac7918f814c2fbcad737b15d66"
+    }
+  ],
+  "containerPath" : "/Users/shielacabahug/Documents/Projects/PoseA/PoseA.xcodeproj",
+  "continueBuildingAfterErrors" : true,
+  "dependencyScope" : "workspace",
+  "enableIndexBuildArena" : false,
+  "hideShellScriptEnvironment" : false,
+  "parameters" : {
+    "action" : "indexbuild",
+    "arenaInfo" : {
+      "buildIntermediatesPath" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex",
+      "buildProductsPath" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Products",
+      "derivedDataPath" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData",
+      "indexDataStoreFolderPath" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/DataStore",
+      "indexEnableDataStore" : true,
+      "indexPCHPath" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/PrecompiledHeaders",
+      "indexRegularBuildIntermediatesPath" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex",
+      "indexRegularBuildProductsPath" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Products",
+      "pchPath" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PrecompiledHeaders"
+    },
+    "configurationName" : "Debug",
+    "overrides" : {
+      "synthesized" : {
+        "table" : {
+          "ENABLE_PREVIEWS" : "NO",
+          "ENABLE_XOJIT_PREVIEWS" : "NO",
+          "ONLY_ACTIVE_ARCH" : "YES"
+        }
+      }
+    }
+  },
+  "qos" : "utility",
+  "schemeCommand" : "launch",
+  "showNonLoggedProgress" : true,
+  "useDryRun" : false,
+  "useImplicitDependencies" : true,
+  "useLegacyBuildLocations" : false,
+  "useParallelTargets" : true
+}

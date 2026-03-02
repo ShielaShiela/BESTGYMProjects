@@ -1,0 +1,40 @@
+{
+  "source": "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/AnalysisModeLeft/Views/MediaPlayerView/ROIFrameOverlayView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "ROI (Applied to All Frames)",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 40
+        }
+      },
+      {
+        "comment": "",
+        "key": "Select Region of Interest",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 88
+        }
+      },
+      {
+        "comment": "",
+        "key": "Draw a rectangle around the person to focus on",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 93
+        }
+      },
+      {
+        "comment": "",
+        "key": "This ROI will be applied to all frames in the video",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 96
+        }
+      }
+    ]
+  },
+  "version": 1
+}

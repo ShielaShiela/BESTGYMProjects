@@ -1,0 +1,56 @@
+{
+  "source": "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/RecordCalibrationOverlay.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Bar ht (cm):",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 27
+        }
+      },
+      {
+        "comment": "",
+        "key": "260",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 31
+        }
+      },
+      {
+        "comment": "",
+        "key": "Close",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 104
+        }
+      },
+      {
+        "comment": "",
+        "key": "Calibrated · %lld cm",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 150
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cal ✓",
+        "location": {
+          "startingColumn": 37,
+          "startingLine": 209
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cal",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 209
+        }
+      }
+    ]
+  },
+  "version": 1
+}

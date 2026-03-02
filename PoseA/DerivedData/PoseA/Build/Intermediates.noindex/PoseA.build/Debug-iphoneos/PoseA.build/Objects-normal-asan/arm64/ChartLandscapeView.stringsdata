@@ -1,0 +1,56 @@
+{
+  "source": "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/AnalysisModeRight/Views/PoseAnalyzeView/ChartLandscapeView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "X",
+        "location": {
+          "startingColumn": 40,
+          "startingLine": 72
+        }
+      },
+      {
+        "comment": "",
+        "key": "Bar_X",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 51
+        }
+      },
+      {
+        "comment": "",
+        "key": "Bar_Y",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 52
+        }
+      },
+      {
+        "comment": "",
+        "key": "X",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 61
+        }
+      },
+      {
+        "comment": "",
+        "key": "Y",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 62
+        }
+      },
+      {
+        "comment": "",
+        "key": "Joint",
+        "location": {
+          "startingColumn": 44,
+          "startingLine": 63
+        }
+      }
+    ]
+  },
+  "version": 1
+}

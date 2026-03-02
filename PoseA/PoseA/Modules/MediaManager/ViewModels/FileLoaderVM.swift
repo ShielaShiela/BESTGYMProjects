@@ -25,9 +25,11 @@ class FileLoaderVM: ObservableObject {
     
     // Video Data
     var FrameCounts: Int = 0
-    
     var frameIndexMap: [Int: Int] = [:]  // array index → original video frame number
-//    var frameTimestampMap: [Int: Double] = [:]  // array index → video timestamp in seconds
+    
+    var videoURL: URL? = nil
+    var detectedFPS: Double = 30.0
+
     // MARK: - 3D LiDAR Data Loader Public Methods
     
     func loadVideoFolder(from url: URL) {
@@ -113,43 +115,11 @@ class FileLoaderVM: ObservableObject {
     
     // MARK: - Load 2D Video Files
 
-//    func loadVideoFile(from url: URL) async {
-//        log("Started load 2D video for URL: \(url.path)", level: .debug)
-//
-//        await withCheckedContinuation { continuation in
-//            Task { [weak self] in
-//                guard let self = self else {
-//                    continuation.resume()
-//                    return
-//                }
-//
-//                do {
-//                    let imageURLs = try await self.extractFramesAndSaveToDisk(url: url)
-//
-//                    await MainActor.run {
-//                        // Set Data Value
-//                        self.FrameImageURLs = imageURLs
-//                        self.FrameFolderURLs = []
-//                        self.FrameCounts = imageURLs.count
-//                        
-//                        // Set Data Status
-//                        self.isDataLoaded = !imageURLs.isEmpty
-//                    }
-//                } catch {
-//                    log("Error extracting video.", level: .error)
-//                    await MainActor.run {
-//                        self.isDataLoaded = false
-//                    }
-//                }
-//
-//                // Resume continuation when done
-//                continuation.resume()
-//            }
-//        }
-//    }
+    // In extractFramesAndSaveToDisk, change FrameResult to store actualTime:
     private struct FrameResult {
         let url: URL
-        let frameNumber: Int
+        let frameNumber: Int      // array position (0-based)
+        let actualFrameIndex: Int // real frame index computed from actualTime
     }
 
     func loadVideoFile(from url: URL) async {
@@ -164,10 +134,9 @@ class FileLoaderVM: ObservableObject {
                         self.FrameFolderURLs = []
                         self.FrameCounts = results.count
                         
-                        // ✅ frameIndexMap: arrayIndex → original 0-based frame number
-                        // This is what getKeypointsCurrent uses to look up keypointsByFrame
+                        // ✅ arrayIndex → actual video frame index (matches keypoints.json keys)
                         self.frameIndexMap = Dictionary(
-                            uniqueKeysWithValues: results.enumerated().map { ($0.offset, $0.element.frameNumber) }
+                            uniqueKeysWithValues: results.enumerated().map { ($0.offset, $0.element.actualFrameIndex) }
                         )
                         // ✅ DELETE frameTimestampMap — no longer used
                         
@@ -232,21 +201,6 @@ class FileLoaderVM: ObservableObject {
         }
         print("===========================")
     }
-//    func loadKeypoints(from keypointDict: [Int: [KeypointData]]) {
-//        DispatchQueue.main.async {
-//            self.keypointsByFrame = keypointDict
-//            self.isKeyLoaded = !keypointDict.isEmpty
-//            
-//            // DEBUG
-//            let sortedKeys = keypointDict.keys.sorted()
-//            print("🔑 Keypoint keys range: \(sortedKeys.first ?? -1) to \(sortedKeys.last ?? -1), total: \(keypointDict.count)")
-//            print("🔑 First 5 keys: \(Array(sortedKeys.prefix(5)))")
-//            print("🔑 Last 5 keys: \(Array(sortedKeys.suffix(5)))")
-//        }
-//    }
-    
-    
-    
     func loadKeypoints(from keypointDict: [Int: [KeypointData]]) {
         DispatchQueue.main.async {
             self.keypointsByFrame = keypointDict
@@ -346,94 +300,103 @@ class FileLoaderVM: ObservableObject {
         return Int(string.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) ?? 0
     }
     
-    private func extractFramesAndSaveToDisk(url: URL) async throws ->  [FrameResult] {
-        
-        var frameURLs: [URL] = []
+    
+    private func extractFramesAndSaveToDisk(url: URL) async throws -> [FrameResult] {
         var frameResults: [FrameResult] = []
 
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         let asset = AVURLAsset(url: url)
-
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
-        generator.requestedTimeToleranceBefore = .zero  // More accurate
-        generator.requestedTimeToleranceAfter = .zero   // More accurate
+        // ✅ Allow slight tolerance — avoids "Cannot Open" on boundary frames
+        generator.requestedTimeToleranceBefore = CMTime(value: 1, timescale: 600)
+        generator.requestedTimeToleranceAfter  = CMTime(value: 1, timescale: 600)
 
         let duration = try await asset.load(.duration)
-        let tracks = try await asset.loadTracks(withMediaType: .video)
+        let tracks   = try await asset.loadTracks(withMediaType: .video)
         guard let videoTrack = tracks.first else {
-            throw NSError(domain: "FileLoaderVM", code: -2, userInfo: [NSLocalizedDescriptionKey: "No video track found"])
+            throw NSError(domain: "FileLoaderVM", code: -2,
+                          userInfo: [NSLocalizedDescriptionKey: "No video track found"])
         }
 
-        let frameRate = try await videoTrack.load(.nominalFrameRate)
-        let effectiveFrameRate = frameRate > 0 ? frameRate : 30.0
-        let durationSeconds = CMTimeGetSeconds(duration)
+        let frameRate        = try await videoTrack.load(.nominalFrameRate)
+        let effectiveFrameRate = frameRate > 0 ? Double(frameRate) : 30.0
+        let durationSeconds  = CMTimeGetSeconds(duration)
 
-        let totalFramesEstimate = Int(durationSeconds * Double(effectiveFrameRate))
-        log("video fps: \(effectiveFrameRate)", level: .debug)
-        log("estimated total frames: \(totalFramesEstimate)", level: .debug)
+        // ✅ Use floor and subtract a small epsilon to avoid requesting frames past the end
+        let totalFrames = Int(floor(durationSeconds * effectiveFrameRate))
+        log("video fps: \(effectiveFrameRate), duration: \(durationSeconds)s, frames: \(totalFrames)", level: .debug)
 
-        let frameInterval = CMTime(value: 1, timescale: Int32(effectiveFrameRate))
-
-        for i in 0..<totalFramesEstimate {
-            let time = CMTimeMultiply(frameInterval, multiplier: Int32(i))
-
-            do {
-//                let cgImage = try await withCheckedThrowingContinuation { continuation in
-//                    generator.generateCGImageAsynchronously(for: time) { cgImage, actualTime, error in
-//                        if let cgImage = cgImage {
-//                            continuation.resume(returning: cgImage)
-//                        } else if let error = error {
-//                            continuation.resume(throwing: error)
-//                        } else {
-//                            continuation.resume(throwing: NSError(domain: "FrameExtraction", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unknown error generating frame"]))
-//                        }
-//                    }
-//                }
-                
-                let (cgImage, actualTime) = try await withCheckedThrowingContinuation { continuation in
-                    generator.generateCGImageAsynchronously(for: time) { cgImage, actualTime, error in
-                        if let cgImage = cgImage {
-                            continuation.resume(returning: (cgImage, actualTime))
-                        } else if let error = error {
-                            continuation.resume(throwing: error)
-                        } else {
-                            continuation.resume(throwing: NSError(domain: "FrameExtraction", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unknown error generating frame"]))
-                        }
-                    }
-                }
-
-                let uiImage = UIImage(cgImage: cgImage)
-                let imageData = uiImage.jpegData(compressionQuality: 0.8)
-
-                let frameDir = tempDir.appendingPathComponent("frame_\(i+1)")
-                try FileManager.default.createDirectory(at: frameDir, withIntermediateDirectories: true)
-
-                let frameFileURL = frameDir.appendingPathComponent("colorImage.jpg")
-                try imageData?.write(to: frameFileURL)
-
-                frameResults.append(FrameResult(
-                    url: frameFileURL,
-                    frameNumber: i
-                ))
-                
-                if i % 20 == 0 || i == totalFramesEstimate - 1 {
-                    log("Extracting: \(i+1)/\(totalFramesEstimate) frames saved to disk", level: .debug)
-                }
-
-            } catch {
-                log("Skipping frame \(i): \(error.localizedDescription)", level: .warn)
+        // ✅ Generate all times upfront, capped to just before video end
+        let endTime = CMTimeSubtract(duration, CMTime(value: 1, timescale: Int32(effectiveFrameRate * 2)))
+        
+        var times: [NSValue] = []
+        for i in 0..<totalFrames {
+            let t = CMTime(value: CMTimeValue(i), timescale: CMTimeScale(effectiveFrameRate))
+            // Don't request frames past the actual end
+            if CMTimeCompare(t, endTime) <= 0 {
+                times.append(NSValue(time: t))
             }
         }
 
-//        log("Extracted and saved \(frameURLs.count) frames successfully at \(tempDir.path)", level: .info)
-        // CORRECT:
-        log("Extracted and saved \(frameResults.count) frames successfully at \(tempDir.path)", level: .info)
+        log("Requesting \(times.count) frames from generator", level: .debug)
 
-//        return frameURLs
-        return frameResults
+        // ✅ Use batch generation — more efficient and respects actual video boundaries
+        return try await withCheckedThrowingContinuation { continuation in
+            var results: [FrameResult] = []
+            var completedCount = 0
+            let totalCount = times.count
+            var didResume = false
+
+            generator.generateCGImagesAsynchronously(forTimes: times) { requestedTime, cgImage, actualTime, result, error in
+                let i = completedCount
+                completedCount += 1
+
+                switch result {
+                case .succeeded:
+                    if let cgImage = cgImage {
+                        do {
+                            let uiImage  = UIImage(cgImage: cgImage)
+                            let imageData = uiImage.jpegData(compressionQuality: 0.8)
+                            let frameDir  = tempDir.appendingPathComponent("frame_\(i + 1)")
+                            try FileManager.default.createDirectory(at: frameDir, withIntermediateDirectories: true)
+                            let fileURL = frameDir.appendingPathComponent("colorImage.jpg")
+                            try imageData?.write(to: fileURL)
+                            let actualFrameIndex = Int(round(CMTimeGetSeconds(actualTime) * effectiveFrameRate))
+
+                            results.append(FrameResult(url: fileURL, frameNumber: i,actualFrameIndex: actualFrameIndex))
+
+                            if i % 20 == 0 {
+                                log("Extracting: \(i)/\(totalCount) frames saved", level: .debug)
+                            }
+                        } catch {
+                            log("Failed to save frame \(i): \(error.localizedDescription)", level: .warn)
+                        }
+                    }
+
+                case .failed:
+                    log("Skipping frame \(i): \(error?.localizedDescription ?? "unknown")", level: .warn)
+
+                case .cancelled:
+                    break
+
+                @unknown default:
+                    break
+                }
+
+                
+                // ✅ Resume when all frames processed
+                if completedCount >= totalCount && !didResume {
+                    didResume = true
+                    // Sort by frame number since async callbacks may arrive out of order
+                    results.sort { $0.frameNumber < $1.frameNumber }
+                    log("Extracted \(results.count)/\(totalCount) frames successfully", level: .info)
+                    continuation.resume(returning: results)
+                }
+            }
+        }
     }
 
 

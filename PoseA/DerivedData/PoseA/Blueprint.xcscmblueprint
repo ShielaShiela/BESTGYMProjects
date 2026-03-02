@@ -1,0 +1,23 @@
+{
+  "DVTSourceControlWorkspaceBlueprintPrimaryRemoteRepositoryKey" : "B4E738EF687992541678FA25F98CF602C6795E9C",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyRepositoryLocationsKey" : {
+
+  },
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyStatesKey" : {
+    "B4E738EF687992541678FA25F98CF602C6795E9C" : 0
+  },
+  "DVTSourceControlWorkspaceBlueprintIdentifierKey" : "5F80A313-EBC1-4CA7-AA51-DF966D817F47",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyPathsKey" : {
+    "B4E738EF687992541678FA25F98CF602C6795E9C" : "Projects\/"
+  },
+  "DVTSourceControlWorkspaceBlueprintNameKey" : "PoseA",
+  "DVTSourceControlWorkspaceBlueprintVersion" : 204,
+  "DVTSourceControlWorkspaceBlueprintRelativePathToProjectKey" : "PoseA\/PoseA.xcodeproj",
+  "DVTSourceControlWorkspaceBlueprintRemoteRepositoriesKey" : [
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/ShielaShiela\/BESTGYMProjects.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "B4E738EF687992541678FA25F98CF602C6795E9C"
+    }
+  ]
+}

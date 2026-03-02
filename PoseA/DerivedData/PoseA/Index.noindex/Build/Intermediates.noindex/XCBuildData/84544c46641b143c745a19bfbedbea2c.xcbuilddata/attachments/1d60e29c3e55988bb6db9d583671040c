@@ -1,0 +1,18 @@
+{
+  "" : {
+    "dependencies" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-iphonesimulator/PoseATests.build/Objects-normal/arm64/PoseATests-master.d",
+    "diagnostics" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-iphonesimulator/PoseATests.build/Objects-normal/arm64/PoseATests-master.dia",
+    "emit-module-dependencies" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-iphonesimulator/PoseATests.build/Objects-normal/arm64/PoseATests-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-iphonesimulator/PoseATests.build/Objects-normal/arm64/PoseATests-master-emit-module.dia",
+    "swift-dependencies" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-iphonesimulator/PoseATests.build/Objects-normal/arm64/PoseATests-master.swiftdeps"
+  },
+  "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-iphonesimulator/PoseATests.build/DerivedSources/CoreMLGenerated/best/best.swift" : {
+
+  },
+  "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-iphonesimulator/PoseATests.build/DerivedSources/CoreMLGenerated/yolo11l-pose/yolo11l-pose.swift" : {
+
+  },
+  "/Users/shielacabahug/Documents/Projects/PoseA/PoseATests/PoseATests.swift" : {
+
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "source": "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/AnalysisModeRight/Views/InfoView/InformationView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Video Information",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 20
+        }
+      },
+      {
+        "comment": "",
+        "key": "Filename: %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 33
+        }
+      },
+      {
+        "comment": "",
+        "key": "Filename: No file loaded",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 54
+        }
+      },
+      {
+        "comment": "",
+        "key": "Filename: %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 44
+        }
+      },
+      {
+        "comment": "",
+        "key": "Source: No file loaded",
+        "location": {
+          "startingColumn": 56,
+          "startingLine": 68
+        }
+      },
+      {
+        "comment": "",
+        "key": "Source: Video (2D pose)",
+        "location": {
+          "startingColumn": 108,
+          "startingLine": 68
+        }
+      },
+      {
+        "comment": "",
+        "key": "Source: Video+LiDAR (3D pose)",
+        "location": {
+          "startingColumn": 136,
+          "startingLine": 68
+        }
+      },
+      {
+        "comment": "",
+        "key": "Keypoints: Available",
+        "location": {
+          "startingColumn": 57,
+          "startingLine": 82
+        }
+      },
+      {
+        "comment": "",
+        "key": "Keypoints: Not Detected",
+        "location": {
+          "startingColumn": 82,
+          "startingLine": 82
+        }
+      },
+      {
+        "comment": "",
+        "key": "ROI Status: ROI Set",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 95
+        }
+      },
+      {
+        "comment": "",
+        "key": "ROI Status: ROI Unavailable",
+        "location": {
+          "startingColumn": 72,
+          "startingLine": 95
+        }
+      },
+      {
+        "comment": "",
+        "key": "Box Status: Box Set",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 108
+        }
+      },
+      {
+        "comment": "",
+        "key": "Box Status: Box Unavailable",
+        "location": {
+          "startingColumn": 72,
+          "startingLine": 108
+        }
+      }
+    ]
+  },
+  "version": 1
+}

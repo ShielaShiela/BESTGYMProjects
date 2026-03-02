@@ -1,0 +1,296 @@
+{
+  "source": "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/CoachAI/CoachAnalysis.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Coach Analytics",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 178
+        }
+      },
+      {
+        "comment": "",
+        "key": "Enter your access code to continue",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 180
+        }
+      },
+      {
+        "comment": "",
+        "key": "Demo code: COACH2025",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 214
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 211
+        }
+      },
+      {
+        "comment": "",
+        "key": "Incorrect code. Please try again.",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 194
+        }
+      },
+      {
+        "comment": "",
+        "key": "Access Code",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 184
+        }
+      },
+      {
+        "comment": "",
+        "key": "Unlock Dashboard",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 203
+        }
+      },
+      {
+        "comment": "",
+        "key": "METRIC",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 268
+        }
+      },
+      {
+        "comment": "",
+        "key": "SELECT METRIC",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 284
+        }
+      },
+      {
+        "comment": "",
+        "key": "Unit: %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 339
+        }
+      },
+      {
+        "comment": "",
+        "key": "Coming Soon",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 331
+        }
+      },
+      {
+        "comment": "",
+        "key": "SUBJECTS",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 391
+        }
+      },
+      {
+        "comment": "",
+        "key": "ACTIONS",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 405
+        }
+      },
+      {
+        "comment": "",
+        "key": "Clear %lld",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 382
+        }
+      },
+      {
+        "comment": "",
+        "key": "Comparative Dashboard",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 455
+        }
+      },
+      {
+        "comment": "",
+        "key": "COACH ANALYTICS",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 452
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ Analysis",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 563
+        }
+      },
+      {
+        "comment": "",
+        "key": "This metric is not yet available.\nData collection coming in a future update.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 565
+        }
+      },
+      {
+        "comment": "",
+        "key": "Unit: %@",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 567
+        }
+      },
+      {
+        "comment": "",
+        "key": "No data matches your filters",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 584
+        }
+      },
+      {
+        "comment": "",
+        "key": "Adjust the subject or action filters above.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 586
+        }
+      },
+      {
+        "comment": "",
+        "key": "Rank",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 615
+        }
+      },
+      {
+        "comment": "",
+        "key": "Subject",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 616
+        }
+      },
+      {
+        "comment": "",
+        "key": "Avg",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 617
+        }
+      },
+      {
+        "comment": "",
+        "key": "Best",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 618
+        }
+      },
+      {
+        "comment": "",
+        "key": "Std Dev",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 619
+        }
+      },
+      {
+        "comment": "",
+        "key": "Trials",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 620
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 640
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld trials",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 775
+        }
+      },
+      {
+        "comment": "",
+        "key": "best %@",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 786
+        }
+      },
+      {
+        "comment": "",
+        "key": "Avg %@",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 792
+        }
+      },
+      {
+        "comment": "",
+        "key": "Best %@",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 795
+        }
+      },
+      {
+        "comment": "",
+        "key": "Frame",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 850
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 863
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 965
+        }
+      },
+      {
+        "comment": "",
+        "key": "avg · %lld trials",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 976
+        }
+      }
+    ]
+  },
+  "version": 1
+}

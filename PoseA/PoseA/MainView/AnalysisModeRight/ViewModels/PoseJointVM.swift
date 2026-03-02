@@ -51,16 +51,16 @@ class PoseJointLandscapeVM {
             if !success {
                 log("Failed to fetch position data.", level: .error)
             }
-            // Compute Derivative
-            self.buildVelocityAndAcceleration()
-            
-            // Compute Joint Angles
-            self.buildAngles()
-            
-            // Compute Swing Data
-            self.estimateBar {
-                self.calculateSwingAngle()
-            }
+//            // Compute Derivative
+//            self.buildVelocityAndAcceleration()
+//            
+//            // Compute Joint Angles
+//            self.buildAngles()
+//            
+//            // Compute Swing Data
+//            self.estimateBar {
+//                self.calculateSwingAngle()
+//            }
             completion(success)
         }
     }

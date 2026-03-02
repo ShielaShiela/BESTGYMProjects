@@ -1,0 +1,21 @@
+{
+  "" : {
+    "dependencies" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-maccatalyst/PoseAUITests.build/Objects-normal/arm64/PoseAUITests-master.d",
+    "diagnostics" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-maccatalyst/PoseAUITests.build/Objects-normal/arm64/PoseAUITests-master.dia",
+    "emit-module-dependencies" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-maccatalyst/PoseAUITests.build/Objects-normal/arm64/PoseAUITests-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-maccatalyst/PoseAUITests.build/Objects-normal/arm64/PoseAUITests-master-emit-module.dia",
+    "swift-dependencies" : "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-maccatalyst/PoseAUITests.build/Objects-normal/arm64/PoseAUITests-master.swiftdeps"
+  },
+  "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-maccatalyst/PoseAUITests.build/DerivedSources/CoreMLGenerated/best/best.swift" : {
+
+  },
+  "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-maccatalyst/PoseAUITests.build/DerivedSources/CoreMLGenerated/yolo11l-pose/yolo11l-pose.swift" : {
+
+  },
+  "/Users/shielacabahug/Documents/Projects/PoseA/PoseAUITests/PoseAUITests.swift" : {
+
+  },
+  "/Users/shielacabahug/Documents/Projects/PoseA/PoseAUITests/PoseAUITestsLaunchTests.swift" : {
+
+  }
+}

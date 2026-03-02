@@ -100,6 +100,27 @@ struct CalibrationOverlayView: View {
 
     // MARK: - Guide Initialisation
 
+//    private func initializeGuides() {
+//        let rect = fittedImageRect()
+//        guard rect.width > 0, rect.height > 0 else { return }
+//
+//        if let top = calibrationModel.barTopPoint {
+//            let dp = normalizedToDisplay(top)
+//            topGuideX = dp.x; topGuideY = dp.y
+//        } else {
+//            topGuideX = rect.midX
+//            topGuideY = rect.origin.y + rect.height * 0.25
+//        }
+//
+//        if let bottom = calibrationModel.barBottomPoint {
+//            let dp = normalizedToDisplay(bottom)
+//            bottomGuideX = dp.x; bottomGuideY = dp.y
+//        } else {
+//            bottomGuideX = rect.midX
+//            bottomGuideY = rect.origin.y + rect.height * 0.80
+//        }
+//    }
+    
     private func initializeGuides() {
         let rect = fittedImageRect()
         guard rect.width > 0, rect.height > 0 else { return }
@@ -108,16 +129,18 @@ struct CalibrationOverlayView: View {
             let dp = normalizedToDisplay(top)
             topGuideX = dp.x; topGuideY = dp.y
         } else {
-            topGuideX = rect.midX
-            topGuideY = rect.origin.y + rect.height * 0.25
+            let defaultTop = CGPoint(x: 0.5155440414507773, y: 0.507915947035118)
+            let dp = normalizedToDisplay(defaultTop)
+            topGuideX = dp.x; topGuideY = dp.y
         }
 
         if let bottom = calibrationModel.barBottomPoint {
             let dp = normalizedToDisplay(bottom)
             bottomGuideX = dp.x; bottomGuideY = dp.y
         } else {
-            bottomGuideX = rect.midX
-            bottomGuideY = rect.origin.y + rect.height * 0.80
+            let defaultBottom = CGPoint(x: 0.5164075993091537, y: 0.9842256764536558)
+            let dp = normalizedToDisplay(defaultBottom)
+            bottomGuideX = dp.x; bottomGuideY = dp.y
         }
     }
 

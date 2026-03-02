@@ -1,0 +1,96 @@
+{
+  "source": "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/ProjectManager/ProjectListView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Projects",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 42
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete Project?",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 49
+        }
+      },
+      {
+        "comment": "",
+        "key": "Save a project first to see it here.",
+        "location": {
+          "startingColumn": 62,
+          "startingLine": 24
+        }
+      },
+      {
+        "comment": "",
+        "key": "No Projects",
+        "location": {
+          "startingColumn": 44,
+          "startingLine": 22
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete",
+        "location": {
+          "startingColumn": 47,
+          "startingLine": 35
+        }
+      },
+      {
+        "comment": "",
+        "key": "Close",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 46
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 53
+        }
+      },
+      {
+        "comment": "",
+        "key": "Modified %@ ago",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 111
+        }
+      },
+      {
+        "comment": "",
+        "key": "· %lld yrs",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 93
+        }
+      },
+      {
+        "comment": "",
+        "key": "· %@ cm",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 96
+        }
+      },
+      {
+        "comment": "",
+        "key": "· %@ kg",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 99
+        }
+      }
+    ]
+  },
+  "version": 1
+}

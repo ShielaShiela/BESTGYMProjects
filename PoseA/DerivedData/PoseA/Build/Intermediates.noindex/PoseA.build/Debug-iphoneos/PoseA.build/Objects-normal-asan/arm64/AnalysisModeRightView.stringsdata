@@ -1,0 +1,88 @@
+{
+  "source": "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/AnalysisModeRight/Views/AnalysisModeRightView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Media Information",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 123
+        }
+      },
+      {
+        "comment": "",
+        "key": "Giant Swing Analysis",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 132
+        }
+      },
+      {
+        "comment": "",
+        "key": "Angle Analysis",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 140
+        }
+      },
+      {
+        "comment": "",
+        "key": "Single Axes Analysis",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 146
+        }
+      },
+      {
+        "comment": "",
+        "key": "Velocity Analysis",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 152
+        }
+      },
+      {
+        "comment": "",
+        "key": "Acceleration Analysis",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 157
+        }
+      },
+      {
+        "comment": "",
+        "key": "Data Metrics",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 163
+        }
+      },
+      {
+        "comment": "",
+        "key": "Flight Height",
+        "location": {
+          "startingColumn": 50,
+          "startingLine": 169
+        }
+      },
+      {
+        "comment": "",
+        "key": "ReAnalyze!",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 177
+        }
+      },
+      {
+        "comment": "",
+        "key": "Start Analysis!",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 189
+        }
+      }
+    ]
+  },
+  "version": 1
+}

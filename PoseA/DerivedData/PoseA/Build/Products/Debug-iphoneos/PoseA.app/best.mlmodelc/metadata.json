@@ -1,0 +1,91 @@
+[
+  {
+    "shortDescription" : "Ultralytics YOLO11l-pose model trained on cocov8.yaml",
+    "metadataOutputVersion" : "3.0",
+    "outputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 56 × 8400)",
+        "shortDescription" : "",
+        "shape" : "[1, 56, 8400]",
+        "name" : "var_2340",
+        "type" : "MultiArray"
+      }
+    ],
+    "version" : "8.3.180",
+    "modelParameters" : [
+
+    ],
+    "author" : "Ultralytics",
+    "specificationVersion" : 6,
+    "storagePrecision" : "Float16",
+    "license" : "AGPL-3.0 License (https:\/\/ultralytics.com\/license)",
+    "mlProgramOperationTypeHistogram" : {
+      "Concat" : 38,
+      "Silu" : 165,
+      "SliceByIndex" : 2,
+      "Sub" : 2,
+      "Transpose" : 1,
+      "Matmul" : 4,
+      "UpsampleNearestNeighbor" : 2,
+      "Softmax" : 3,
+      "Mul" : 7,
+      "Cast" : 2,
+      "Reshape" : 16,
+      "Add" : 41,
+      "MaxPool" : 3,
+      "Sigmoid" : 2,
+      "Split" : 13,
+      "Conv" : 183
+    },
+    "computePrecision" : "Mixed (Float16, Float32, Int32)",
+    "stateSchema" : [
+
+    ],
+    "isUpdatable" : "0",
+    "availability" : {
+      "macOS" : "12.0",
+      "tvOS" : "15.0",
+      "visionOS" : "1.0",
+      "watchOS" : "8.0",
+      "iOS" : "15.0",
+      "macCatalyst" : "15.0"
+    },
+    "modelType" : {
+      "name" : "MLModelType_mlProgram"
+    },
+    "inputSchema" : [
+      {
+        "height" : "640",
+        "colorspace" : "RGB",
+        "isOptional" : "0",
+        "width" : "640",
+        "isColor" : "1",
+        "formattedType" : "Image (Color 640 × 640)",
+        "hasSizeFlexibility" : "0",
+        "type" : "Image",
+        "shortDescription" : "",
+        "name" : "image"
+      }
+    ],
+    "userDefinedMetadata" : {
+      "batch" : "1",
+      "docs" : "https:\/\/docs.ultralytics.com",
+      "com.github.apple.coremltools.version" : "8.3.0",
+      "imgsz" : "[640, 640]",
+      "names" : "{0: 'person'}",
+      "channels" : "3",
+      "stride" : "32",
+      "args" : "{'batch': 1, 'half': False, 'int8': False, 'nms': False}",
+      "date" : "2025-09-26T16:26:57.631381",
+      "com.github.apple.coremltools.source_dialect" : "TorchScript",
+      "com.github.apple.coremltools.source" : "torch==2.8.0+cu128",
+      "kpt_shape" : "[17, 3]",
+      "task" : "pose"
+    },
+    "generatedClassName" : "best",
+    "method" : "predict"
+  }
+]

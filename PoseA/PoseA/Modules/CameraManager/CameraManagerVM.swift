@@ -63,7 +63,9 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     private let frameSemaphore = DispatchSemaphore(value: 0)
 
     private var firstPTS: CMTime? = nil
-    private var frameBuffer = [(CVPixelBuffer, CMTime)]()
+//    private var frameBuffer = [(CVPixelBuffer, CMTime)]()
+    // Change frameBuffer type to include frame index
+    private var frameBuffer = [(CVPixelBuffer, CMTime, Int)]()  // ← add Int for frameIndex
 
     // Depth detection
     @Published var depthValue: Float?
@@ -523,7 +525,7 @@ extension CameraManagerVM {
             let currentFrameCount: Int = frameBufferQueue.sync {
                 let index = self.recordingFrameCounter
                 self.recordingFrameCounter += 1
-                self.frameBuffer.append((currentBuffer, pts))
+                self.frameBuffer.append((currentBuffer, pts, index))
                 self.frameSemaphore.signal()
                 return index
             }
@@ -843,41 +845,33 @@ extension CameraManagerVM {
             guard let self = self else { return }
             
             while true {
-                // Wait until a frame is ready
                 self.frameSemaphore.wait()
                 
-                if !self.isRecording && self.frameBuffer.isEmpty {
-                    break // exit loop cleanly
-                }
+                if !self.isRecording && self.frameBuffer.isEmpty { break }
                 
-                // Drain one frame if available
-                if let (frame, pts) = self.frameBufferQueue.sync(execute: {
+                if let (frame, pts, frameIndex) = self.frameBufferQueue.sync(execute: {  // ← unpack frameIndex
                     return self.frameBuffer.isEmpty ? nil : self.frameBuffer.removeFirst()
                 }) {
-                    // Guard against nil video writer or input
                     guard let input = self.videoWriterInput,
                           let adaptor = self.pixelBufferAdaptor,
                           let writer = self.videoWriter else { return }
 
-                    // Set Timestamp
                     if firstPTS == nil {
                         firstPTS = pts
                         writer.startSession(atSourceTime: pts)
                     }
                     
-                    // Get a buffer from the adaptor’s pool
                     guard input.isReadyForMoreMediaData else { return }
 
-                    // Use append to adaptor pool
-                    if !adaptor.append(frame, withPresentationTime: pts) {
-                        log("Failed to append pixel buffer to video", level: .error)
-                    } else {
+                    if adaptor.append(frame, withPresentationTime: pts) {
                         self.frameCount += 1
+                        // ✅ Frame successfully written — now we know frameIndex is in the video
+                        log("✅ Video frame \(frameIndex) written at \(CMTimeGetSeconds(pts))s", level: .debug)
+                    } else {
+                        log("Failed to append frame \(frameIndex)", level: .error)
                     }
                 }
             }
-            
-            log("Frame writer loop exited", level: .info)
         }
     }
     
@@ -1854,9 +1848,16 @@ extension CameraManagerVM {
                 allFrames.append(contentsOf: frames)
             }
             allFrames.sort { $0.frameIndex < $1.frameIndex }
-
+            
             log("Consolidated \(allFrames.count) total frames from \(poseFiles.count) files", level: .info)
-
+            for i in 1..<allFrames.count {
+                let expected = allFrames[i-1].frameIndex + 1
+                let actual = allFrames[i].frameIndex
+                if actual != expected {
+                    log("⚠️ Frame index gap: expected \(expected), got \(actual)", level: .warn)
+                }
+            }
+            
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
@@ -1868,14 +1869,23 @@ extension CameraManagerVM {
             // ── keypoints.json — primary pose per frame [Int: [KeypointData]] ─
             // "Primary" = highest-confidence pose. Keeps analysis-side loading intact.
             var keypointsByFrame: [Int: [KeypointData]] = [:]
-            for frame in allFrames {
-                guard !frame.poses.isEmpty else { continue }
-                // Pick the pose with the highest average keypoint confidence
-                let best = frame.poses.max {
-                    averageConfidence($0) < averageConfidence($1)
-                } ?? frame.poses[0]
-                keypointsByFrame[frame.frameIndex] = best.keypoints
+            // Get the total frame count from the video (use the max frame index written)
+            let maxFrameIndex = allFrames.map { $0.frameIndex }.max() ?? 0
+            
+            for frameIdx in 0...maxFrameIndex {
+                // Find pose data for this frame
+                if let frame = allFrames.first(where: { $0.frameIndex == frameIdx }),
+                   !frame.poses.isEmpty {
+                    let best = frame.poses.max {
+                        averageConfidence($0) < averageConfidence($1)
+                    } ?? frame.poses[0]
+                    keypointsByFrame[frameIdx] = best.keypoints
+                } else {
+                    // No pose detected — store empty array instead of skipping
+                    keypointsByFrame[frameIdx] = []
+                }
             }
+            
 
             let keypointsURL = folder.appendingPathComponent("keypoints.json")
             try encoder.encode(keypointsByFrame).write(to: keypointsURL)

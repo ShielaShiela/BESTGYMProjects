@@ -220,13 +220,13 @@ struct BESTGYMPoseApp: View {
         }
         // Watch for keypoint detection completion
         .onChange(of: mediaManager.isKeypointAvailable) { _, newValue in
-            if newValue {
+            if newValue && !appState.isRecordMode {   // ✅ skip during recording
                 autoSaveIfNeeded()
             }
         }
         // Watch for calibration completion
         .onChange(of: calibrationModel.calibrationStep) { _, newStep in
-            if newStep == .complete {
+            if newStep == .complete && !appState.isRecordMode {   // ✅ skip during recording
                 autoSaveIfNeeded()
             }
         }
@@ -378,18 +378,32 @@ struct BESTGYMPoseApp: View {
         // Clear Media Manager
         mediaManager.clearAllData()
         
+        currentProject = nil
+        
         analysisResetToken = UUID()
         
         print("Cleanup complete")
     }
     
     private func autoSaveIfNeeded() {
-        guard mediaManager.isKeypointAvailable || calibrationModel.isCalibrated else { return }
+        // ❌ Don't auto-save while in recording/camera mode
+        guard !appState.isRecordMode else { return }
         
+        // ❌ Don't auto-save unless media is actually loaded in this session
+        guard !appState.sourceFileName.isEmpty else { return }
+        
+        // ❌ Only proceed if something meaningful is ready
+        guard mediaManager.isKeypointAvailable || calibrationModel.isCalibrated else { return }
+
         if currentProject == nil {
             showSaveProjectSheet = true   // first time — prompt for name
         } else {
-            // Silent update — reuses existing UUID
+            // ✅ Only silently update if the project belongs to the currently loaded file
+            guard currentProject?.sourceFileName == appState.sourceFileName else {
+                // Source changed but currentProject wasn't cleared — skip silent update
+                return
+            }
+
             var updated = currentProject!
             updated.calibrationData = SavedCalibration(
                 isCalibrated: calibrationModel.isCalibrated,
@@ -399,7 +413,7 @@ struct BESTGYMPoseApp: View {
             )
             updated.isAnalysisAvailable = appState.isAnalysisAvailable
             ProjectManager.shared.updateProjectMetadata(&updated) { _ in }
-            currentProject = updated     // ← keep currentProject in sync
+            currentProject = updated
         }
     }
 }

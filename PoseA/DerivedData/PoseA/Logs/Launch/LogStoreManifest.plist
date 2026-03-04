@@ -6,10 +6,10 @@
 	<integer>11</integer>
 	<key>logs</key>
 	<dict>
-		<key>193489D0-D336-4134-AF88-F65816206033</key>
+		<key>138D816C-C233-4834-8DB3-B6B8A7615163</key>
 		<dict>
 			<key>auxiliaryLogUniqueIdentifier</key>
-			<string>F9F59AD4-F5BF-4201-BD80-00C3B33FA110</string>
+			<string>FDD940E3-B963-43C4-9046-04DDFA03207D</string>
 			<key>auxiliaryObservable</key>
 			<dict>
 				<key>highLevelStatus</key>
@@ -21,7 +21,7 @@
 				<key>totalNumberOfTestFailures</key>
 				<integer>0</integer>
 				<key>totalNumberOfWarnings</key>
-				<integer>24</integer>
+				<integer>111</integer>
 			</dict>
 			<key>className</key>
 			<string>IDESchemeActionsInvocationRecord</string>
@@ -30,129 +30,7 @@
 			<key>domainType</key>
 			<string>com.apple.dt.IDE.LaunchSchemeAction</string>
 			<key>fileName</key>
-			<string>Run-PoseA-2026.03.02_14-55-15-+0800.xcresult</string>
-			<key>hasAuxiliaryLog</key>
-			<true/>
-			<key>hasConsoleLog</key>
-			<true/>
-			<key>hasPrimaryLog</key>
-			<true/>
-			<key>primaryObservable</key>
-			<dict>
-				<key>highLevelStatus</key>
-				<string>W</string>
-				<key>totalNumberOfAnalyzerIssues</key>
-				<integer>0</integer>
-				<key>totalNumberOfErrors</key>
-				<integer>0</integer>
-				<key>totalNumberOfTestFailures</key>
-				<integer>0</integer>
-				<key>totalNumberOfWarnings</key>
-				<integer>24</integer>
-			</dict>
-			<key>schemeIdentifier-containerName</key>
-			<string>PoseA project</string>
-			<key>schemeIdentifier-schemeName</key>
-			<string>PoseA</string>
-			<key>schemeIdentifier-sharedScheme</key>
-			<integer>1</integer>
-			<key>signature</key>
-			<string>Run PoseA</string>
-			<key>timeStartedRecording</key>
-			<real>794127315.25839496</real>
-			<key>timeStoppedRecording</key>
-			<real>0.0</real>
-			<key>title</key>
-			<string>Run PoseA</string>
-			<key>uniqueIdentifier</key>
-			<string>193489D0-D336-4134-AF88-F65816206033</string>
-		</dict>
-		<key>1CEFFBBF-EDA1-447D-A377-739D39F71313</key>
-		<dict>
-			<key>auxiliaryLogUniqueIdentifier</key>
-			<string>22D04B11-00B4-4C9D-ADE7-AF6BB6025C61</string>
-			<key>auxiliaryObservable</key>
-			<dict>
-				<key>highLevelStatus</key>
-				<string>S</string>
-				<key>totalNumberOfAnalyzerIssues</key>
-				<integer>0</integer>
-				<key>totalNumberOfErrors</key>
-				<integer>0</integer>
-				<key>totalNumberOfTestFailures</key>
-				<integer>0</integer>
-				<key>totalNumberOfWarnings</key>
-				<integer>0</integer>
-			</dict>
-			<key>className</key>
-			<string>IDESchemeActionsInvocationRecord</string>
-			<key>documentTypeString</key>
-			<string>&lt;nil&gt;</string>
-			<key>domainType</key>
-			<string>com.apple.dt.IDE.LaunchSchemeAction</string>
-			<key>fileName</key>
-			<string>Run-PoseA-2026.03.02_14-02-40-+0800.xcresult</string>
-			<key>hasAuxiliaryLog</key>
-			<true/>
-			<key>hasConsoleLog</key>
-			<true/>
-			<key>hasPrimaryLog</key>
-			<true/>
-			<key>primaryObservable</key>
-			<dict>
-				<key>highLevelStatus</key>
-				<string>S</string>
-				<key>totalNumberOfAnalyzerIssues</key>
-				<integer>0</integer>
-				<key>totalNumberOfErrors</key>
-				<integer>0</integer>
-				<key>totalNumberOfTestFailures</key>
-				<integer>0</integer>
-				<key>totalNumberOfWarnings</key>
-				<integer>0</integer>
-			</dict>
-			<key>schemeIdentifier-containerName</key>
-			<string>PoseA project</string>
-			<key>schemeIdentifier-schemeName</key>
-			<string>PoseA</string>
-			<key>schemeIdentifier-sharedScheme</key>
-			<integer>1</integer>
-			<key>signature</key>
-			<string>Run PoseA</string>
-			<key>timeStartedRecording</key>
-			<real>794124160.88633096</real>
-			<key>timeStoppedRecording</key>
-			<real>0.0</real>
-			<key>title</key>
-			<string>Run PoseA</string>
-			<key>uniqueIdentifier</key>
-			<string>1CEFFBBF-EDA1-447D-A377-739D39F71313</string>
-		</dict>
-		<key>45D714E4-5A70-475F-854C-4834168C4FED</key>
-		<dict>
-			<key>auxiliaryLogUniqueIdentifier</key>
-			<string>BAFB323D-CDA8-4DE3-99ED-6F42926A76D5</string>
-			<key>auxiliaryObservable</key>
-			<dict>
-				<key>highLevelStatus</key>
-				<string>W</string>
-				<key>totalNumberOfAnalyzerIssues</key>
-				<integer>0</integer>
-				<key>totalNumberOfErrors</key>
-				<integer>0</integer>
-				<key>totalNumberOfTestFailures</key>
-				<integer>0</integer>
-				<key>totalNumberOfWarnings</key>
-				<integer>8</integer>
-			</dict>
-			<key>className</key>
-			<string>IDESchemeActionsInvocationRecord</string>
-			<key>documentTypeString</key>
-			<string>&lt;nil&gt;</string>
-			<key>domainType</key>
-			<string>com.apple.dt.IDE.LaunchSchemeAction</string>
-			<key>fileName</key>
-			<string>Run-PoseA-2026.03.02_13-14-12-+0800.xcresult</string>
+			<string>Run-PoseA-2026.03.04_15-07-48-+0800.xcresult</string>
 			<key>hasAuxiliaryLog</key>
 			<true/>
 			<key>hasConsoleLog</key>
@@ -170,7 +48,7 @@
 				<key>totalNumberOfTestFailures</key>
 				<integer>0</integer>
 				<key>totalNumberOfWarnings</key>
-				<integer>7</integer>
+				<integer>27</integer>
 			</dict>
 			<key>schemeIdentifier-containerName</key>
 			<string>PoseA project</string>
@@ -181,79 +59,18 @@
 			<key>signature</key>
 			<string>Run PoseA</string>
 			<key>timeStartedRecording</key>
-			<real>794121252.24215698</real>
+			<real>794300868.26181197</real>
 			<key>timeStoppedRecording</key>
 			<real>0.0</real>
 			<key>title</key>
 			<string>Run PoseA</string>
 			<key>uniqueIdentifier</key>
-			<string>45D714E4-5A70-475F-854C-4834168C4FED</string>
+			<string>138D816C-C233-4834-8DB3-B6B8A7615163</string>
 		</dict>
-		<key>4806EAE1-3E90-488A-902B-0A8C368AEEC2</key>
+		<key>3A46296A-9D7D-4F52-8045-64E98734A7CC</key>
 		<dict>
 			<key>auxiliaryLogUniqueIdentifier</key>
-			<string>CEF99CD3-21C9-4BA2-9E73-F6859B1D45DA</string>
-			<key>auxiliaryObservable</key>
-			<dict>
-				<key>highLevelStatus</key>
-				<string>W</string>
-				<key>totalNumberOfAnalyzerIssues</key>
-				<integer>0</integer>
-				<key>totalNumberOfErrors</key>
-				<integer>0</integer>
-				<key>totalNumberOfTestFailures</key>
-				<integer>0</integer>
-				<key>totalNumberOfWarnings</key>
-				<integer>8</integer>
-			</dict>
-			<key>className</key>
-			<string>IDESchemeActionsInvocationRecord</string>
-			<key>documentTypeString</key>
-			<string>&lt;nil&gt;</string>
-			<key>domainType</key>
-			<string>com.apple.dt.IDE.LaunchSchemeAction</string>
-			<key>fileName</key>
-			<string>Run-PoseA-2026.03.02_13-54-23-+0800.xcresult</string>
-			<key>hasAuxiliaryLog</key>
-			<true/>
-			<key>hasConsoleLog</key>
-			<true/>
-			<key>hasPrimaryLog</key>
-			<true/>
-			<key>primaryObservable</key>
-			<dict>
-				<key>highLevelStatus</key>
-				<string>E</string>
-				<key>totalNumberOfAnalyzerIssues</key>
-				<integer>0</integer>
-				<key>totalNumberOfErrors</key>
-				<integer>1</integer>
-				<key>totalNumberOfTestFailures</key>
-				<integer>0</integer>
-				<key>totalNumberOfWarnings</key>
-				<integer>7</integer>
-			</dict>
-			<key>schemeIdentifier-containerName</key>
-			<string>PoseA project</string>
-			<key>schemeIdentifier-schemeName</key>
-			<string>PoseA</string>
-			<key>schemeIdentifier-sharedScheme</key>
-			<integer>1</integer>
-			<key>signature</key>
-			<string>Run PoseA</string>
-			<key>timeStartedRecording</key>
-			<real>794123663.24557602</real>
-			<key>timeStoppedRecording</key>
-			<real>0.0</real>
-			<key>title</key>
-			<string>Run PoseA</string>
-			<key>uniqueIdentifier</key>
-			<string>4806EAE1-3E90-488A-902B-0A8C368AEEC2</string>
-		</dict>
-		<key>52821A8E-E4C3-4ACF-9F1F-45B8081781C3</key>
-		<dict>
-			<key>auxiliaryLogUniqueIdentifier</key>
-			<string>935EAB81-3179-40BD-884A-6FDC43AAE8EF</string>
+			<string>7496EC28-BD5A-4B53-AA3C-80E743A75AF4</string>
 			<key>auxiliaryObservable</key>
 			<dict>
 				<key>highLevelStatus</key>
@@ -274,7 +91,68 @@
 			<key>domainType</key>
 			<string>com.apple.dt.IDE.LaunchSchemeAction</string>
 			<key>fileName</key>
-			<string>Run-PoseA-2026.03.02_14-56-55-+0800.xcresult</string>
+			<string>Run-PoseA-2026.03.04_14-58-06-+0800.xcresult</string>
+			<key>hasAuxiliaryLog</key>
+			<true/>
+			<key>hasConsoleLog</key>
+			<true/>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>S</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>0</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>PoseA project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>PoseA</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Run PoseA</string>
+			<key>timeStartedRecording</key>
+			<real>794300286.10103595</real>
+			<key>timeStoppedRecording</key>
+			<real>0.0</real>
+			<key>title</key>
+			<string>Run PoseA</string>
+			<key>uniqueIdentifier</key>
+			<string>3A46296A-9D7D-4F52-8045-64E98734A7CC</string>
+		</dict>
+		<key>850FDB9D-7CAC-46F2-8074-A52FA5784B37</key>
+		<dict>
+			<key>auxiliaryLogUniqueIdentifier</key>
+			<string>BB29B0FB-0CF3-4C54-99EE-D71BAA1AC05A</string>
+			<key>auxiliaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>E</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>1</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>0</integer>
+			</dict>
+			<key>className</key>
+			<string>IDESchemeActionsInvocationRecord</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>com.apple.dt.IDE.LaunchSchemeAction</string>
+			<key>fileName</key>
+			<string>Run-PoseA-2026.03.04_14-54-35-+0800.xcresult</string>
 			<key>hasAuxiliaryLog</key>
 			<true/>
 			<key>hasConsoleLog</key>
@@ -303,18 +181,140 @@
 			<key>signature</key>
 			<string>Run PoseA</string>
 			<key>timeStartedRecording</key>
-			<real>794127415.55807996</real>
+			<real>794300075.46796</real>
 			<key>timeStoppedRecording</key>
 			<real>0.0</real>
 			<key>title</key>
 			<string>Run PoseA</string>
 			<key>uniqueIdentifier</key>
-			<string>52821A8E-E4C3-4ACF-9F1F-45B8081781C3</string>
+			<string>850FDB9D-7CAC-46F2-8074-A52FA5784B37</string>
 		</dict>
-		<key>DA28822D-14EB-4F0E-8A28-D2269E37BB9B</key>
+		<key>983CE976-6CBB-4117-9A84-12AF7E3593EF</key>
 		<dict>
 			<key>auxiliaryLogUniqueIdentifier</key>
-			<string>6C1F889A-6564-4DF2-BB46-449B0C094D16</string>
+			<string>DF416A1E-9DEE-4320-900C-A58847779447</string>
+			<key>auxiliaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>W</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>111</integer>
+			</dict>
+			<key>className</key>
+			<string>IDESchemeActionsInvocationRecord</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>com.apple.dt.IDE.LaunchSchemeAction</string>
+			<key>fileName</key>
+			<string>Run-PoseA-2026.03.04_14-49-45-+0800.xcresult</string>
+			<key>hasAuxiliaryLog</key>
+			<true/>
+			<key>hasConsoleLog</key>
+			<true/>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>W</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>26</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>PoseA project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>PoseA</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Run PoseA</string>
+			<key>timeStartedRecording</key>
+			<real>794299785.61382699</real>
+			<key>timeStoppedRecording</key>
+			<real>0.0</real>
+			<key>title</key>
+			<string>Run PoseA</string>
+			<key>uniqueIdentifier</key>
+			<string>983CE976-6CBB-4117-9A84-12AF7E3593EF</string>
+		</dict>
+		<key>E35D35BA-7BCE-41AC-BA7B-53D1D9E478D5</key>
+		<dict>
+			<key>auxiliaryLogUniqueIdentifier</key>
+			<string>8E3D200F-D154-405D-B3C7-44A1FDBF55A8</string>
+			<key>auxiliaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>E</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>1</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>0</integer>
+			</dict>
+			<key>className</key>
+			<string>IDESchemeActionsInvocationRecord</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>com.apple.dt.IDE.LaunchSchemeAction</string>
+			<key>fileName</key>
+			<string>Run-PoseA-2026.03.04_14-47-54-+0800.xcresult</string>
+			<key>hasAuxiliaryLog</key>
+			<true/>
+			<key>hasConsoleLog</key>
+			<true/>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>E</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>1</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>0</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>PoseA project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>PoseA</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Run PoseA</string>
+			<key>timeStartedRecording</key>
+			<real>794299674.938784</real>
+			<key>timeStoppedRecording</key>
+			<real>0.0</real>
+			<key>title</key>
+			<string>Run PoseA</string>
+			<key>uniqueIdentifier</key>
+			<string>E35D35BA-7BCE-41AC-BA7B-53D1D9E478D5</string>
+		</dict>
+		<key>ED90B6A0-DD80-4EA0-A5C2-A07BB70DE8D3</key>
+		<dict>
+			<key>auxiliaryLogUniqueIdentifier</key>
+			<string>F47F9A14-FD49-4FCD-9E66-0A423E93F895</string>
 			<key>auxiliaryObservable</key>
 			<dict>
 				<key>highLevelStatus</key>
@@ -335,7 +335,7 @@
 			<key>domainType</key>
 			<string>com.apple.dt.IDE.LaunchSchemeAction</string>
 			<key>fileName</key>
-			<string>Run-PoseA-2026.03.02_16-08-49-+0800.xcresult</string>
+			<string>Run-PoseA-2026.03.02_17-19-35-+0800.xcresult</string>
 			<key>hasAuxiliaryLog</key>
 			<true/>
 			<key>hasConsoleLog</key>
@@ -364,74 +364,13 @@
 			<key>signature</key>
 			<string>Run PoseA</string>
 			<key>timeStartedRecording</key>
-			<real>794131729.29765701</real>
+			<real>794135975.588696</real>
 			<key>timeStoppedRecording</key>
 			<real>0.0</real>
 			<key>title</key>
 			<string>Run PoseA</string>
 			<key>uniqueIdentifier</key>
-			<string>DA28822D-14EB-4F0E-8A28-D2269E37BB9B</string>
-		</dict>
-		<key>EE32BAC1-C523-4E8D-B215-A04727559ADD</key>
-		<dict>
-			<key>auxiliaryLogUniqueIdentifier</key>
-			<string>55C8E62B-7993-4364-9723-6880EE50CDA6</string>
-			<key>auxiliaryObservable</key>
-			<dict>
-				<key>highLevelStatus</key>
-				<string>S</string>
-				<key>totalNumberOfAnalyzerIssues</key>
-				<integer>0</integer>
-				<key>totalNumberOfErrors</key>
-				<integer>0</integer>
-				<key>totalNumberOfTestFailures</key>
-				<integer>0</integer>
-				<key>totalNumberOfWarnings</key>
-				<integer>0</integer>
-			</dict>
-			<key>className</key>
-			<string>IDESchemeActionsInvocationRecord</string>
-			<key>documentTypeString</key>
-			<string>&lt;nil&gt;</string>
-			<key>domainType</key>
-			<string>com.apple.dt.IDE.LaunchSchemeAction</string>
-			<key>fileName</key>
-			<string>Run-PoseA-2026.02.28_20-40-20-+0800.xcresult</string>
-			<key>hasAuxiliaryLog</key>
-			<true/>
-			<key>hasConsoleLog</key>
-			<true/>
-			<key>hasPrimaryLog</key>
-			<true/>
-			<key>primaryObservable</key>
-			<dict>
-				<key>highLevelStatus</key>
-				<string>S</string>
-				<key>totalNumberOfAnalyzerIssues</key>
-				<integer>0</integer>
-				<key>totalNumberOfErrors</key>
-				<integer>0</integer>
-				<key>totalNumberOfTestFailures</key>
-				<integer>0</integer>
-				<key>totalNumberOfWarnings</key>
-				<integer>0</integer>
-			</dict>
-			<key>schemeIdentifier-containerName</key>
-			<string>PoseA project</string>
-			<key>schemeIdentifier-schemeName</key>
-			<string>PoseA</string>
-			<key>schemeIdentifier-sharedScheme</key>
-			<integer>1</integer>
-			<key>signature</key>
-			<string>Run PoseA</string>
-			<key>timeStartedRecording</key>
-			<real>793975220.39590597</real>
-			<key>timeStoppedRecording</key>
-			<real>0.0</real>
-			<key>title</key>
-			<string>Run PoseA</string>
-			<key>uniqueIdentifier</key>
-			<string>EE32BAC1-C523-4E8D-B215-A04727559ADD</string>
+			<string>ED90B6A0-DD80-4EA0-A5C2-A07BB70DE8D3</string>
 		</dict>
 	</dict>
 </dict>

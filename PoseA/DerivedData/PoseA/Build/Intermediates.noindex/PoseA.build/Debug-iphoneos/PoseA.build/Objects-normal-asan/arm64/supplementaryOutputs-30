@@ -1,0 +1,42 @@
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/Utility/Math.swift":
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Math.o"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Math.dia"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Math.swiftconstvalues"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Math.d"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Math.swiftdeps"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/Utility/Item.swift":
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Item.d"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Item.swiftdeps"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Item.swiftconstvalues"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Item.o"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Item.dia"
+"/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/DerivedSources/CoreMLGenerated/best/best.swift":
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/best.dia"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/best.swiftdeps"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/best.o"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/best.d"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/best.swiftconstvalues"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/ProjectManager/SaveProjectView.swift":
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/SaveProjectView.d"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/SaveProjectView.swiftdeps"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/SaveProjectView.o"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/SaveProjectView.dia"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/SaveProjectView.swiftconstvalues"
+"/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/DerivedSources/CoreMLGenerated/yolo11l-pose/yolo11l-pose.swift":
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/yolo11l-pose.swiftdeps"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/yolo11l-pose.o"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/yolo11l-pose.d"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/yolo11l-pose.dia"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/yolo11l-pose.swiftconstvalues"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/Utility/Logger.swift":
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Logger.o"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Logger.swiftdeps"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Logger.dia"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Logger.d"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/Logger.swiftconstvalues"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/PoseAApp.swift":
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PoseAApp.o"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PoseAApp.swiftconstvalues"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PoseAApp.swiftdeps"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PoseAApp.dia"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PoseAApp.d"

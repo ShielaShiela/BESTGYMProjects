@@ -1,0 +1,42 @@
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/CameraManager/CameraManagerVM.swift":
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CameraManagerVM.d"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CameraManagerVM.o"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CameraManagerVM.swiftconstvalues"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CameraManagerVM.swiftdeps"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CameraManagerVM.dia"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/ImageProcessingManager/ViewModels/YoloInferenceCoor.swift":
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloInferenceCoor.o"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloInferenceCoor.swiftconstvalues"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloInferenceCoor.swiftdeps"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloInferenceCoor.dia"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloInferenceCoor.d"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/ImageProcessingManager/Models/YOLOModel.swift":
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YOLOModel.swiftconstvalues"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YOLOModel.d"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YOLOModel.dia"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YOLOModel.swiftdeps"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YOLOModel.o"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/ImageProcessingManager/Models/VitPoseModel.swift":
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/VitPoseModel.o"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/VitPoseModel.swiftconstvalues"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/VitPoseModel.dia"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/VitPoseModel.d"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/VitPoseModel.swiftdeps"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/ImageProcessingManager/ViewModels/TrackerVM.swift":
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/TrackerVM.o"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/TrackerVM.swiftconstvalues"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/TrackerVM.swiftdeps"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/TrackerVM.dia"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/TrackerVM.d"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/ImageProcessingManager/Models/YoloInference.swift":
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloInference.swiftconstvalues"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloInference.swiftdeps"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloInference.d"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloInference.dia"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloInference.o"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/ImageProcessingManager/ViewModels/YoloVM.swift":
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloVM.d"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloVM.o"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloVM.swiftconstvalues"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloVM.swiftdeps"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/YoloVM.dia"

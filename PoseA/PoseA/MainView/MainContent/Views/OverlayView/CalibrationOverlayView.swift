@@ -269,7 +269,7 @@ struct CrosshairGuideView: View {
                 Color.clear.frame(width: handleSize + 32, height: handleSize + 32) // hit area
                 DragHandle(icon: "arrow.up.and.down", color: color, size: handleSize, isActive: draggingH)
             }
-            .position(x: containerSize.width - handleSize / 2 - 8, y: guideY)
+            .position(x: containerSize.width/4 - handleSize / 2 - 8, y: guideY)
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpaceName))
                     .onChanged { value in
@@ -293,7 +293,7 @@ struct CrosshairGuideView: View {
                 .frame(width: handleSize, height: handleSize)
                 .contentShape(Rectangle().size(width: handleSize + 32, height: handleSize + 32)
                     .offset(x: -(handleSize + 32) / 2, y: -(handleSize + 32) / 2))
-                .position(x: guideX, y: containerSize.height - handleSize / 2 - 8)
+                .position(x: guideX, y: containerSize.height - handleSize / 2 - 50)
                 .gesture(
                     DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpaceName))
                         .onChanged { value in

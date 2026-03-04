@@ -1,7 +1,7 @@
 version: "Apple Swift version 6.0.2 (swiftlang-6.0.2.1.2 clang-1600.0.26.4)"
 options: "0a3a03a2a4c8b9e4f0f3938ec1ece17e695346e1fb18daebf235688ba7836f64"
-build_start_time: [1772440804, 697037000]
-build_end_time: [1772440806, 119284000]
+build_start_time: [1772606982, 824096000]
+build_end_time: [1772606984, 438127000]
 inputs:
   ? "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Index.noindex/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/DerivedSources/CoreMLGenerated/best/best.swift"
   : [1772269658, 136007837]
@@ -49,14 +49,15 @@ inputs:
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/ViewModels/RealtimePoseJointVM.swift": [1761375980, 840000033]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/ContentView.swift": [1772282082, 791499053]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/CalibrationModeView.swift": [1771999732, 165246988]
-  "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/CalibrationOverlayView.swift": [1772217087, 819847807]
+  "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/CalibrationOverlayView.swift": [1772443175, 544274933]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/ErrorOverlayView.swift": [1755245957, 580000043]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/ProcessingOverlayView.swift": [1755245957, 580000043]
+  "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/RealtimeFlightHeightOverlay.swift": [1772606982, 638601608]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/RecordCalibrationOverlay.swift": [1772213863, 46991740]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/RecordView/PointPickerView.swift": [1761375980, 840000033]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/RecordView/PoseInformationView.swift": [1761375980, 840000033]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/RecordView/PoseOverlayView.swift": [1771837539, 375361262]
-  "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/RecordView/RecordLandscapeView.swift": [1772215902, 858128345]
+  "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/RecordView/RecordLandscapeView.swift": [1772606874, 929346331]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/SettingsView/SettingsView.swift": [1772201951, 300299341]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/ToolbarView/ToolbarButtonView.swift": [1757301388, 879999995]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/ToolbarView/ToolbarView.swift": [1771830925, 585112599]
@@ -84,7 +85,7 @@ inputs:
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/ImageProcessingManager/ViewModels/YoloVM.swift": [1772205792, 67417345]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/MediaManager/Models/SecurityScopedResourceManager.swift": [1755245957, 590000033]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/MediaManager/ViewModels/FileLoaderVM.swift": [1772440804, 565200318]
-  "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/MediaManager/ViewModels/MediaManagerVM.swift": [1772440770, 997192243]
+  "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/MediaManager/ViewModels/MediaManagerVM.swift": [1772441471, 377031480]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/MediaManager/ViewModels/MediaPlayerVM.swift": [1772434419, 331320253]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/Metals/NV12ToBGRAMetalConverter.swift": [1757301388, 879999995]
   "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/Modules/ProjectManager/ProjectListView.swift": [1771828882, 614585377]

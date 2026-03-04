@@ -7,7 +7,7 @@
         "key": "%.0f fps",
         "location": {
           "startingColumn": 34,
-          "startingLine": 219
+          "startingLine": 226
         }
       },
       {
@@ -15,7 +15,7 @@
         "key": "REC  %@",
         "location": {
           "startingColumn": 30,
-          "startingLine": 269
+          "startingLine": 276
         }
       },
       {
@@ -23,7 +23,7 @@
         "key": "Camera Info",
         "location": {
           "startingColumn": 18,
-          "startingLine": 290
+          "startingLine": 297
         }
       },
       {
@@ -31,7 +31,7 @@
         "key": "Athlete Info",
         "location": {
           "startingColumn": 18,
-          "startingLine": 320
+          "startingLine": 327
         }
       },
       {
@@ -39,7 +39,7 @@
         "key": "Name",
         "location": {
           "startingColumn": 23,
-          "startingLine": 324
+          "startingLine": 331
         }
       },
       {
@@ -47,7 +47,7 @@
         "key": "Athlete name",
         "location": {
           "startingColumn": 27,
-          "startingLine": 327
+          "startingLine": 334
         }
       },
       {
@@ -55,7 +55,7 @@
         "key": "Action",
         "location": {
           "startingColumn": 23,
-          "startingLine": 334
+          "startingLine": 341
         }
       },
       {
@@ -63,7 +63,7 @@
         "key": "e.g. giant swing, release",
         "location": {
           "startingColumn": 27,
-          "startingLine": 337
+          "startingLine": 344
         }
       },
       {
@@ -71,7 +71,7 @@
         "key": "View Mode",
         "location": {
           "startingColumn": 27,
-          "startingLine": 347
+          "startingLine": 354
         }
       },
       {
@@ -79,7 +79,7 @@
         "key": "",
         "location": {
           "startingColumn": 28,
-          "startingLine": 350
+          "startingLine": 357
         }
       },
       {
@@ -87,7 +87,7 @@
         "key": "General",
         "location": {
           "startingColumn": 30,
-          "startingLine": 351
+          "startingLine": 358
         }
       },
       {
@@ -95,7 +95,7 @@
         "key": "Side View",
         "location": {
           "startingColumn": 30,
-          "startingLine": 352
+          "startingLine": 359
         }
       },
       {
@@ -103,7 +103,7 @@
         "key": "Front View",
         "location": {
           "startingColumn": 30,
-          "startingLine": 353
+          "startingLine": 360
         }
       },
       {
@@ -111,7 +111,7 @@
         "key": "Corner View",
         "location": {
           "startingColumn": 30,
-          "startingLine": 354
+          "startingLine": 361
         }
       }
     ]

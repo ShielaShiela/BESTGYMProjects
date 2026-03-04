@@ -1,0 +1,40 @@
+{
+  "source": "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/RealtimeFlightHeightOverlay.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Calibrate bar",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 129
+        }
+      },
+      {
+        "comment": "",
+        "key": "--",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 172
+        }
+      },
+      {
+        "comment": "",
+        "key": "cm",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 168
+        }
+      },
+      {
+        "comment": "",
+        "key": "cm",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 175
+        }
+      }
+    ]
+  },
+  "version": 1
+}

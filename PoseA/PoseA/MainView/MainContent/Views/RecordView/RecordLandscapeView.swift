@@ -47,6 +47,13 @@ struct RecordLandscapeView: View {
                                 PointPickerView().allowsHitTesting(true)
                             }
                             
+
+                            RealtimeFlightHeightOverlay(
+                                cameraManager: cameraManager,
+                                calibrationModel: $calibrationModel
+                            )
+                            
+                            
                         }
                         
                         // ── Calibration crosshair guides on the live feed ────────────

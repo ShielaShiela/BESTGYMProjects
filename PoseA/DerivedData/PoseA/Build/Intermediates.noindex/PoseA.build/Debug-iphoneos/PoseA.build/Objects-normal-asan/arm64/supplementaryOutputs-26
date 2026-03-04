@@ -1,0 +1,48 @@
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/SettingsView/SettingsView.swift":
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/SettingsView.o"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/SettingsView.swiftconstvalues"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/SettingsView.dia"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/SettingsView.d"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/SettingsView.swiftdeps"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/RecordView/PointPickerView.swift":
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PointPickerView.swiftdeps"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PointPickerView.dia"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PointPickerView.o"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PointPickerView.swiftconstvalues"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PointPickerView.d"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/ViewModels/DeviceOrientationVM.swift":
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/DeviceOrientationVM.d"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/DeviceOrientationVM.swiftdeps"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/DeviceOrientationVM.dia"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/DeviceOrientationVM.o"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/DeviceOrientationVM.swiftconstvalues"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/RecordCalibrationOverlay.swift":
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/RecordCalibrationOverlay.dia"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/RecordCalibrationOverlay.swiftconstvalues"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/RecordCalibrationOverlay.swiftdeps"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/RecordCalibrationOverlay.d"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/RecordCalibrationOverlay.o"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/CalibrationOverlayView.swift":
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CalibrationOverlayView.o"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CalibrationOverlayView.swiftconstvalues"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CalibrationOverlayView.swiftdeps"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CalibrationOverlayView.dia"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CalibrationOverlayView.d"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/CalibrationModeView.swift":
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CalibrationModeView.swiftconstvalues"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CalibrationModeView.swiftdeps"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CalibrationModeView.dia"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CalibrationModeView.o"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/CalibrationModeView.d"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/RecordView/PoseOverlayView.swift":
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PoseOverlayView.swiftconstvalues"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PoseOverlayView.dia"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PoseOverlayView.d"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PoseOverlayView.o"
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/PoseOverlayView.swiftdeps"
+"/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/ViewModels/ButtonContextVM.swift":
+  swift-dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/ButtonContextVM.swiftdeps"
+  dependencies: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/ButtonContextVM.d"
+  object: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/ButtonContextVM.o"
+  const-values: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/ButtonContextVM.swiftconstvalues"
+  diagnostics: "/Users/shielacabahug/Documents/Projects/PoseA/DerivedData/PoseA/Build/Intermediates.noindex/PoseA.build/Debug-iphoneos/PoseA.build/Objects-normal-asan/arm64/ButtonContextVM.dia"

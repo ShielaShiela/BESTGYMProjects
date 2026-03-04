@@ -319,23 +319,44 @@ class MediaManagerVM {
     
     
     // MARK: - Public Function for Media Player
+//    func getKeypointsCurrent() -> [KeypointData]? {
+//        guard fileLoaderViewModel.isKeyLoaded else { return nil }
+//        
+//        let arrayIndex = mediaPlayerViewModel.currentFrameIndex
+//        
+//        // Map display array index → original recording frame index
+//        let keypointIndex: Int
+//        if !fileLoaderViewModel.frameIndexMap.isEmpty {
+//            keypointIndex = fileLoaderViewModel.frameIndexMap[arrayIndex] ?? arrayIndex
+//        } else {
+//            // LiDAR folder mode — already 0-based, no remapping needed
+//            keypointIndex = arrayIndex
+//        }
+//        
+//        return fileLoaderViewModel.keypointsByFrame[keypointIndex]
+//    }
     func getKeypointsCurrent() -> [KeypointData]? {
         guard fileLoaderViewModel.isKeyLoaded else { return nil }
         
         let arrayIndex = mediaPlayerViewModel.currentFrameIndex
         
-        // Map display array index → original recording frame index
         let keypointIndex: Int
-        if !fileLoaderViewModel.frameIndexMap.isEmpty {
-            keypointIndex = fileLoaderViewModel.frameIndexMap[arrayIndex] ?? arrayIndex
-        } else {
-            // LiDAR folder mode — already 0-based, no remapping needed
+        if !fileLoaderViewModel.FrameFolderURLs.isEmpty {
+            // Legacy LiDAR folder mode — remapKeypointsToArrayIndex() already handled this
             keypointIndex = arrayIndex
+        } else if isDataLIDAR {
+            // ✅ New LiDAR format: keypoints.json keys are sequential recording frame
+            // indices (0,1,2...) written during capture — NOT video PTS frame numbers.
+            // AVAssetReader guarantees no skips so arrayIndex == recording frame index.
+            keypointIndex = arrayIndex
+        } else {
+            // 2D video: keypoints.json keys ARE original video frame numbers from
+            // the recording's pose detection, so we need the PTS-based mapping.
+            keypointIndex = fileLoaderViewModel.frameIndexMap[arrayIndex] ?? arrayIndex
         }
         
         return fileLoaderViewModel.keypointsByFrame[keypointIndex]
     }
-    
 
     func getKeypointsByIndex(_ index: Int) -> [KeypointData]? {
         guard fileLoaderViewModel.isKeyLoaded else { return nil }
@@ -407,6 +428,18 @@ class MediaManagerVM {
             }
 
             mediaPlayerViewModel.updateMedia(imageURLs: fileLoaderViewModel.FrameImageURLs, fps: fps)
+            // ── Temporary alignment diagnostic ──────────────────────────
+            if isDataLIDAR && fileLoaderViewModel.FrameFolderURLs.isEmpty {
+                let kpKeys = fileLoaderViewModel.keypointsByFrame.keys.sorted()
+                let totalFrames = fileLoaderViewModel.FrameCounts
+                print("🔍 LiDAR alignment check:")
+                print("   Video frames extracted: \(totalFrames)")
+                print("   Keypoint frame range: \(kpKeys.first ?? -1) to \(kpKeys.last ?? -1), count: \(kpKeys.count)")
+                print("   frameIndexMap range: \(fileLoaderViewModel.frameIndexMap.values.sorted().first ?? -1) to \(fileLoaderViewModel.frameIndexMap.values.sorted().last ?? -1)")
+                if let lastKP = kpKeys.last, lastKP > totalFrames + 5 {
+                    print("⚠️  Keypoint indices exceed frame count — keys may be timestamps, not frame numbers")
+                }
+            }
             isMediaAvailable = true
         } else {
             log("Timed out waiting for media.", level: .error)

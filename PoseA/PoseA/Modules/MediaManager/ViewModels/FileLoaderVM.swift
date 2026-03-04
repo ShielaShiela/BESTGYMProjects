@@ -301,102 +301,193 @@ class FileLoaderVM: ObservableObject {
     }
     
     
+//    private func extractFramesAndSaveToDisk(url: URL) async throws -> [FrameResult] {
+//        var frameResults: [FrameResult] = []
+//
+//        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+//        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+//
+//        let asset = AVURLAsset(url: url)
+//        let generator = AVAssetImageGenerator(asset: asset)
+//        generator.appliesPreferredTrackTransform = true
+//        // ✅ Allow slight tolerance — avoids "Cannot Open" on boundary frames
+//        generator.requestedTimeToleranceBefore = CMTime(value: 1, timescale: 600)
+//        generator.requestedTimeToleranceAfter  = CMTime(value: 1, timescale: 600)
+//
+//        let duration = try await asset.load(.duration)
+//        let tracks   = try await asset.loadTracks(withMediaType: .video)
+//        guard let videoTrack = tracks.first else {
+//            throw NSError(domain: "FileLoaderVM", code: -2,
+//                          userInfo: [NSLocalizedDescriptionKey: "No video track found"])
+//        }
+//
+//        let frameRate        = try await videoTrack.load(.nominalFrameRate)
+//        let effectiveFrameRate = frameRate > 0 ? Double(frameRate) : 30.0
+//        let durationSeconds  = CMTimeGetSeconds(duration)
+//
+//        // ✅ Use floor and subtract a small epsilon to avoid requesting frames past the end
+//        let totalFrames = Int(floor(durationSeconds * effectiveFrameRate))
+//        log("video fps: \(effectiveFrameRate), duration: \(durationSeconds)s, frames: \(totalFrames)", level: .debug)
+//
+//        // ✅ Generate all times upfront, capped to just before video end
+//        let endTime = CMTimeSubtract(duration, CMTime(value: 1, timescale: Int32(effectiveFrameRate * 2)))
+//        
+//        var times: [NSValue] = []
+//        for i in 0..<totalFrames {
+//            let t = CMTime(value: CMTimeValue(i), timescale: CMTimeScale(effectiveFrameRate))
+//            // Don't request frames past the actual end
+//            if CMTimeCompare(t, endTime) <= 0 {
+//                times.append(NSValue(time: t))
+//            }
+//        }
+//
+//        log("Requesting \(times.count) frames from generator", level: .debug)
+//
+//        // ✅ Use batch generation — more efficient and respects actual video boundaries
+//        return try await withCheckedThrowingContinuation { continuation in
+//            var results: [FrameResult] = []
+//            var completedCount = 0
+//            let totalCount = times.count
+//            var didResume = false
+//
+//            generator.generateCGImagesAsynchronously(forTimes: times) { requestedTime, cgImage, actualTime, result, error in
+//                let i = completedCount
+//                completedCount += 1
+//
+//                switch result {
+//                case .succeeded:
+//                    if let cgImage = cgImage {
+//                        do {
+//                            let uiImage  = UIImage(cgImage: cgImage)
+//                            let imageData = uiImage.jpegData(compressionQuality: 0.8)
+//                            let frameDir  = tempDir.appendingPathComponent("frame_\(i + 1)")
+//                            try FileManager.default.createDirectory(at: frameDir, withIntermediateDirectories: true)
+//                            let fileURL = frameDir.appendingPathComponent("colorImage.jpg")
+//                            try imageData?.write(to: fileURL)
+//                            let actualFrameIndex = Int(round(CMTimeGetSeconds(actualTime) * effectiveFrameRate))
+//
+//                            results.append(FrameResult(url: fileURL, frameNumber: i,actualFrameIndex: actualFrameIndex))
+//
+//                            if i % 20 == 0 {
+//                                log("Extracting: \(i)/\(totalCount) frames saved", level: .debug)
+//                            }
+//                        } catch {
+//                            log("Failed to save frame \(i): \(error.localizedDescription)", level: .warn)
+//                        }
+//                    }
+//
+//                case .failed:
+//                    log("Skipping frame \(i): \(error?.localizedDescription ?? "unknown")", level: .warn)
+//
+//                case .cancelled:
+//                    break
+//
+//                @unknown default:
+//                    break
+//                }
+//
+//                
+//                // ✅ Resume when all frames processed
+//                if completedCount >= totalCount && !didResume {
+//                    didResume = true
+//                    // Sort by frame number since async callbacks may arrive out of order
+//                    results.sort { $0.frameNumber < $1.frameNumber }
+//                    log("Extracted \(results.count)/\(totalCount) frames successfully", level: .info)
+//                    continuation.resume(returning: results)
+//                }
+//            }
+//        }
+//    }
+    
     private func extractFramesAndSaveToDisk(url: URL) async throws -> [FrameResult] {
-        var frameResults: [FrameResult] = []
-
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         let asset = AVURLAsset(url: url)
-        let generator = AVAssetImageGenerator(asset: asset)
-        generator.appliesPreferredTrackTransform = true
-        // ✅ Allow slight tolerance — avoids "Cannot Open" on boundary frames
-        generator.requestedTimeToleranceBefore = CMTime(value: 1, timescale: 600)
-        generator.requestedTimeToleranceAfter  = CMTime(value: 1, timescale: 600)
-
-        let duration = try await asset.load(.duration)
-        let tracks   = try await asset.loadTracks(withMediaType: .video)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
         guard let videoTrack = tracks.first else {
             throw NSError(domain: "FileLoaderVM", code: -2,
                           userInfo: [NSLocalizedDescriptionKey: "No video track found"])
         }
 
-        let frameRate        = try await videoTrack.load(.nominalFrameRate)
+        let frameRate = try await videoTrack.load(.nominalFrameRate)
         let effectiveFrameRate = frameRate > 0 ? Double(frameRate) : 30.0
-        let durationSeconds  = CMTimeGetSeconds(duration)
 
-        // ✅ Use floor and subtract a small epsilon to avoid requesting frames past the end
-        let totalFrames = Int(floor(durationSeconds * effectiveFrameRate))
-        log("video fps: \(effectiveFrameRate), duration: \(durationSeconds)s, frames: \(totalFrames)", level: .debug)
+        // Store detected FPS for MediaPlayerVM
+        await MainActor.run { self.detectedFPS = effectiveFrameRate }
 
-        // ✅ Generate all times upfront, capped to just before video end
-        let endTime = CMTimeSubtract(duration, CMTime(value: 1, timescale: Int32(effectiveFrameRate * 2)))
-        
-        var times: [NSValue] = []
-        for i in 0..<totalFrames {
-            let t = CMTime(value: CMTimeValue(i), timescale: CMTimeScale(effectiveFrameRate))
-            // Don't request frames past the actual end
-            if CMTimeCompare(t, endTime) <= 0 {
-                times.append(NSValue(time: t))
-            }
+        log("video fps: \(effectiveFrameRate) — using AVAssetReader (no skips)", level: .debug)
+
+        // ── AVAssetReader: reads every decodable sample in order ─────────────
+        let reader = try AVAssetReader(asset: asset)
+
+        let outputSettings: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+        ]
+        let trackOutput = AVAssetReaderTrackOutput(track: videoTrack,
+                                                   outputSettings: outputSettings)
+        trackOutput.alwaysCopiesSampleData = false
+        reader.add(trackOutput)
+
+        guard reader.startReading() else {
+            throw NSError(domain: "FileLoaderVM", code: -3,
+                          userInfo: [NSLocalizedDescriptionKey:
+                            "AVAssetReader failed to start: \(reader.error?.localizedDescription ?? "unknown")"])
         }
 
-        log("Requesting \(times.count) frames from generator", level: .debug)
+        var results: [FrameResult] = []
+        var arrayIndex = 0
 
-        // ✅ Use batch generation — more efficient and respects actual video boundaries
-        return try await withCheckedThrowingContinuation { continuation in
-            var results: [FrameResult] = []
-            var completedCount = 0
-            let totalCount = times.count
-            var didResume = false
+        while reader.status == .reading {
+            guard let sampleBuffer = trackOutput.copyNextSampleBuffer() else { break }
 
-            generator.generateCGImagesAsynchronously(forTimes: times) { requestedTime, cgImage, actualTime, result, error in
-                let i = completedCount
-                completedCount += 1
+            // ── Derive the actual frame index from the sample's timestamp ──
+            let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+            let actualFrameIndex = Int(round(CMTimeGetSeconds(pts) * effectiveFrameRate))
 
-                switch result {
-                case .succeeded:
-                    if let cgImage = cgImage {
-                        do {
-                            let uiImage  = UIImage(cgImage: cgImage)
-                            let imageData = uiImage.jpegData(compressionQuality: 0.8)
-                            let frameDir  = tempDir.appendingPathComponent("frame_\(i + 1)")
-                            try FileManager.default.createDirectory(at: frameDir, withIntermediateDirectories: true)
-                            let fileURL = frameDir.appendingPathComponent("colorImage.jpg")
-                            try imageData?.write(to: fileURL)
-                            let actualFrameIndex = Int(round(CMTimeGetSeconds(actualTime) * effectiveFrameRate))
-
-                            results.append(FrameResult(url: fileURL, frameNumber: i,actualFrameIndex: actualFrameIndex))
-
-                            if i % 20 == 0 {
-                                log("Extracting: \(i)/\(totalCount) frames saved", level: .debug)
-                            }
-                        } catch {
-                            log("Failed to save frame \(i): \(error.localizedDescription)", level: .warn)
-                        }
-                    }
-
-                case .failed:
-                    log("Skipping frame \(i): \(error?.localizedDescription ?? "unknown")", level: .warn)
-
-                case .cancelled:
-                    break
-
-                @unknown default:
-                    break
-                }
-
-                
-                // ✅ Resume when all frames processed
-                if completedCount >= totalCount && !didResume {
-                    didResume = true
-                    // Sort by frame number since async callbacks may arrive out of order
-                    results.sort { $0.frameNumber < $1.frameNumber }
-                    log("Extracted \(results.count)/\(totalCount) frames successfully", level: .info)
-                    continuation.resume(returning: results)
-                }
+            // ── Convert pixel buffer → JPEG ────────────────────────────────
+            guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                arrayIndex += 1
+                continue
             }
+
+            let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+            let context = CIContext()
+            guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+                arrayIndex += 1
+                continue
+            }
+
+            let uiImage = UIImage(cgImage: cgImage)
+            guard let imageData = uiImage.jpegData(compressionQuality: 0.85) else {
+                arrayIndex += 1
+                continue
+            }
+
+            // ── Save to temp disk ──────────────────────────────────────────
+            let frameDir = tempDir.appendingPathComponent("frame_\(arrayIndex + 1)")
+            try FileManager.default.createDirectory(at: frameDir,
+                                                    withIntermediateDirectories: true)
+            let fileURL = frameDir.appendingPathComponent("colorImage.jpg")
+            try imageData.write(to: fileURL)
+
+            results.append(FrameResult(url: fileURL,
+                                       frameNumber: arrayIndex,
+                                       actualFrameIndex: actualFrameIndex))
+
+            if arrayIndex % 20 == 0 {
+                log("Extracting: \(arrayIndex) frames saved", level: .debug)
+            }
+            arrayIndex += 1
         }
+
+        if reader.status == .failed {
+            log("AVAssetReader failed mid-read: \(reader.error?.localizedDescription ?? "unknown")", level: .error)
+        }
+
+        log("Extracted \(results.count) frames (0 skipped — AVAssetReader)", level: .info)
+        return results
     }
 
 

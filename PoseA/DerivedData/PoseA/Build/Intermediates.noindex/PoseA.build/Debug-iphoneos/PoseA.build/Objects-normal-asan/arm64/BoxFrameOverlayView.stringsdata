@@ -7,7 +7,7 @@
         "key": "Tap to place point %lld/4",
         "location": {
           "startingColumn": 26,
-          "startingLine": 80
+          "startingLine": 79
         }
       },
       {
@@ -15,7 +15,7 @@
         "key": "Define a quadrilateral region of interest.",
         "location": {
           "startingColumn": 26,
-          "startingLine": 84
+          "startingLine": 83
         }
       },
       {
@@ -23,7 +23,7 @@
         "key": "You can move points later.",
         "location": {
           "startingColumn": 26,
-          "startingLine": 87
+          "startingLine": 86
         }
       }
     ]

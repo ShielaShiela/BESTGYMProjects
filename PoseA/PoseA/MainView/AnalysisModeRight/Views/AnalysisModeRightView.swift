@@ -4,7 +4,7 @@
 //
 //  Created by Ardhika Maulidani on 7/9/25.
 //
-
+  
 import SwiftUI
 
 struct AnalysisModeRightView: View {
@@ -14,25 +14,35 @@ struct AnalysisModeRightView: View {
     @State var mediaManager: MediaManagerVM
 //    @State var MLModel: VitPoseProcessor
     
-    @State var selectedView: RightViewModel = .info
+//    @State var selectedView: RightViewModel = .info
     @State private var poseJointVM: PoseJointLandscapeVM
     
     // ✅ ADD: one coordinator, lives with the view
     @State private var inferenceCoordinator = InferenceCoordinator()
     @State var calibrationModel: CalibrationModel
+    
     let resetToken: UUID
     
     @State private var showCoachAnalysis = false
-
     
-    init(appState: MainAppState, ROIModel: ROIViewModel, BoxModel: BoxViewModel, mediaManager: MediaManagerVM, calibrationModel: CalibrationModel,resetToken: UUID) {
+    // ── REPLACE internal @State selectedView with these two bindings ──
+    @Binding var annotationVM: ManualAnnotationVM
+    @Binding var selectedView: RightViewModel    // was @State, now @Binding
+
+    @Bindable var quadCalibrationModel: QuadCalibrationModel
+    
+    init(appState: MainAppState, ROIModel: ROIViewModel, BoxModel: BoxViewModel, mediaManager: MediaManagerVM, calibrationModel: CalibrationModel,resetToken: UUID,  annotationVM: Binding<ManualAnnotationVM>,selectedRightView: Binding<RightViewModel>,
+         quadCalibrationModel: QuadCalibrationModel ) {
         self.appState = appState
         self.ROIModel = ROIModel
         self.BoxModel = BoxModel
         self.mediaManager = mediaManager
         self.calibrationModel = calibrationModel
         self.resetToken = resetToken
-//        self.MLModel = MLModel
+        self._annotationVM = annotationVM
+        self._selectedView = selectedRightView
+        self.quadCalibrationModel = quadCalibrationModel 
+
         
         // Initialize the PoseJointLandscapeVM with the provided BoxModel and mediaManager
         self._poseJointVM = State(wrappedValue: PoseJointLandscapeVM(BoxModel: BoxModel,
@@ -73,11 +83,21 @@ struct AnalysisModeRightView: View {
                         appState: appState,
                         poseJointVM: poseJointVM,
                         mediaManager: mediaManager,
-                        calibrationModel: calibrationModel   // pass through
+                        calibrationModel: calibrationModel,
+                        quadCalibrationModel: quadCalibrationModel
                     )
                     .frame(height: geometry.size.height)
                     .padding(.horizontal)
-                
+               case .manualAnnotation:
+                   ManualAnnotationView(
+                       appState: appState,
+                       mediaManager: mediaManager,
+                       calibrationModel: calibrationModel,
+                       isLiDAR: mediaManager.isDataLIDAR,
+                       vm: annotationVM
+                   )
+                   .frame(height: geometry.size.height)
+                   .padding(.horizontal)
                 default:
                     // Pose Analysis View
                     PoseAnalysisView(appState: appState,
@@ -171,6 +191,11 @@ struct AnalysisModeRightView: View {
                                                 .padding(2)
                                         }
                                     
+                                       Button(action: { selectedView = .manualAnnotation }) {  // ← ADD
+                                           Text("Manual Annotation")                           // ← ADD
+                                               .font(.system(size: 10))                        // ← ADD
+                                               .padding(2)                                     // ← ADD
+                                       }
                                     Divider()
                                     
                                     Button(action: { updateData() }) {

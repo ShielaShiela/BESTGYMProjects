@@ -6,7 +6,7 @@
 	<dict>
 		<key>Frameworks/libclang_rt.asan_ios_dynamic.dylib</key>
 		<data>
-		SlP9IMRdJ7wpmFusl3E1q8nj2sk=
+		gt9LZJuDavIhPJNGCn/5GG7bhLA=
 		</data>
 		<key>Info.plist</key>
 		<data>
@@ -18,19 +18,11 @@
 		</data>
 		<key>PoseA.debug.dylib</key>
 		<data>
-		kkeiArZI5UttN01tLKcQBlGjHy0=
+		MYNOH/3MJoDOAk3xcnir8fj7DkA=
 		</data>
 		<key>__preview.dylib</key>
 		<data>
-		105/U1U2MTGhSaOMwBV8OrI4iig=
-		</data>
-		<key>best.mlmodelc/analytics/coremldata.bin</key>
-		<data>
-		tVeiqKj7uvhI0j/ehgax26qKpgM=
-		</data>
-		<key>best.mlmodelc/coremldata.bin</key>
-		<data>
-		KHPy0xxFnfnFe6NjmiVbV+B56I8=
+		951bWDubzfnhn70EBn9PDEKW5hc=
 		</data>
 		<key>best.mlmodelc/metadata.json</key>
 		<data>
@@ -40,17 +32,13 @@
 		<data>
 		weWZIysu13i2M35VufiuZpJT/Gc=
 		</data>
-		<key>best.mlmodelc/weights/weight.bin</key>
-		<data>
-		9upa5JoglrlZDrhI1VDgRi2CWHY=
-		</data>
 		<key>default.metallib</key>
 		<data>
 		xx64MB6JQBcDoYyZW8ALWJh0J24=
 		</data>
 		<key>embedded.mobileprovision</key>
 		<data>
-		2sCjtN5FS5fFXSzuojecnL/sWz8=
+		N1IDNJl4elWp6Du6MvU4n+6I0Qs=
 		</data>
 		<key>yolo11l-pose.mlmodelc/analytics/coremldata.bin</key>
 		<data>
@@ -58,7 +46,7 @@
 		</data>
 		<key>yolo11l-pose.mlmodelc/coremldata.bin</key>
 		<data>
-		JwWHeuhAvXvfGBtYkNBtL0p9oaM=
+		zNEuvKOr85u8B8fUc2r/LCzoD/I=
 		</data>
 		<key>yolo11l-pose.mlmodelc/metadata.json</key>
 		<data>
@@ -79,35 +67,21 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			kO1ctpmzjLVArNLbmylLlP8pNHYzr54BWgXxhj1gMz8=
+			/K38E8MHT3m8TUyn2GpW9I8/x1EAAZIB4LjdllC5BFM=
 			</data>
 		</dict>
 		<key>PoseA.debug.dylib</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			gm0ZEmJzZBra+28wDMAosQ45/fyV9OvhvFTW2qR2rA0=
+			HExznt3YHjL6WM6/88UblL4zZFKaD9XCaFUEPrGEwYI=
 			</data>
 		</dict>
 		<key>__preview.dylib</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			0eVRSImDIBzsHZ+zjFfNK+q5jltmCQOQobOIGNU67yU=
-			</data>
-		</dict>
-		<key>best.mlmodelc/analytics/coremldata.bin</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			oboAFuNTzNOdjedokGk3k4xkoYHXdrPnqXfjUYHplnk=
-			</data>
-		</dict>
-		<key>best.mlmodelc/coremldata.bin</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			Vvv495AnRgDzmS7ZBUVDxRckjvzzuCN55iBywCDBLgc=
+			lPdsyJt2p8/T+5Q2Kx46LfSuIgTLxQQ0lyUAIo5u3x8=
 			</data>
 		</dict>
 		<key>best.mlmodelc/metadata.json</key>
@@ -124,13 +98,6 @@
 			3Odk1RyMoGP16zeeCb5uGHVVLg4Dslzo0Qkq1cElPPM=
 			</data>
 		</dict>
-		<key>best.mlmodelc/weights/weight.bin</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			sXZXjS+e3AUTlRed5Pp+7++cpADDp8W9bscFIbEfpTI=
-			</data>
-		</dict>
 		<key>default.metallib</key>
 		<dict>
 			<key>hash2</key>
@@ -142,7 +109,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			U1oOqbFItvFGzdBQIergiYwuAUGJLX8n68u33Q7tsII=
+			X1J3cuTnvVibRKHHVqsaEia0bbc2dfZaHxaPe6B5TNo=
 			</data>
 		</dict>
 		<key>yolo11l-pose.mlmodelc/analytics/coremldata.bin</key>
@@ -156,7 +123,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			UDIwRO20E1AkMOv5ByScBoj42fJoQFnnZkTO5vRWmfo=
+			KePZiK3FsYhdImDyq+cEm/5czL5kSlZ89AtUU0HI6eI=
 			</data>
 		</dict>
 		<key>yolo11l-pose.mlmodelc/metadata.json</key>

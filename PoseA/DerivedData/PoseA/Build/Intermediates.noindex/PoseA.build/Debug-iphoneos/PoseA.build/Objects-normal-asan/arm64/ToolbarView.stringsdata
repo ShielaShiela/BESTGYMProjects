@@ -15,7 +15,7 @@
         "key": "Open File/Folder",
         "location": {
           "startingColumn": 31,
-          "startingLine": 152
+          "startingLine": 195
         }
       },
       {
@@ -23,7 +23,7 @@
         "key": "Video from Library",
         "location": {
           "startingColumn": 31,
-          "startingLine": 155
+          "startingLine": 198
         }
       },
       {
@@ -31,15 +31,15 @@
         "key": "Import Keypoints (.json)",
         "location": {
           "startingColumn": 31,
-          "startingLine": 159
+          "startingLine": 202
         }
       },
       {
         "comment": "",
         "key": "Save Project",
         "location": {
-          "startingColumn": 35,
-          "startingLine": 162
+          "startingColumn": 31,
+          "startingLine": 205
         }
       },
       {
@@ -47,7 +47,7 @@
         "key": "Open Project",
         "location": {
           "startingColumn": 31,
-          "startingLine": 166
+          "startingLine": 208
         }
       },
       {
@@ -55,7 +55,7 @@
         "key": "Settings",
         "location": {
           "startingColumn": 31,
-          "startingLine": 170
+          "startingLine": 212
         }
       },
       {
@@ -63,7 +63,7 @@
         "key": "Actions",
         "location": {
           "startingColumn": 27,
-          "startingLine": 173
+          "startingLine": 215
         }
       }
     ]

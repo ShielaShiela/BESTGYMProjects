@@ -18,6 +18,7 @@ struct BESTGYMPoseApp: View {
     @StateObject private var appState = MainAppState()
     @State private var toolbarVM = ToolbarButtonVM()
     @State private var calibrationModel = CalibrationModel()
+    @State var quadCalibrationModel: QuadCalibrationModel = QuadCalibrationModel()
     
     // ML Model Related VM
 //    @State private var MLModel = VitPoseProcessor()
@@ -27,6 +28,12 @@ struct BESTGYMPoseApp: View {
     @State private var showProjectList = false
     @State private var currentProject: GymProject? = nil
     @State private var analysisResetToken: UUID = UUID()
+    
+    @State private var sharedAnnotationVM = ManualAnnotationVM()
+    @State private var selectedRightView: RightViewModel = .info  // lift this up
+    
+    @State private var showKeypointOverlay: Bool = true
+    @State private var showBoxOverlay: Bool = true
     
     // MARK: - Body
     var body: some View {
@@ -41,7 +48,13 @@ struct BESTGYMPoseApp: View {
                                                  ROIModel: $ROIModel,
                                                  BoxModel: $BoxModel,
                                                  mediaManager: self.mediaManager,
-                                                 calibrationModel: self.calibrationModel)
+                                                 calibrationModel: self.calibrationModel,
+                                                 annotationVM: $sharedAnnotationVM,          // ← NEW
+                                                 selectedRightView: $selectedRightView ,
+                                                 showKeypointOverlay: $showKeypointOverlay,   // ← NEW
+                                                 showBoxOverlay: $showBoxOverlay,
+                                                 quadCalibrationModel: quadCalibrationModel  // ← NEW
+                            )
                             .frame(width: geometry.size.width / 2 - 10) // Half of screen minus spacing
                             
                             Spacer()
@@ -53,7 +66,11 @@ struct BESTGYMPoseApp: View {
                                                   BoxModel: self.BoxModel,
                                                   mediaManager: self.mediaManager,
                                                   calibrationModel: self.calibrationModel,
-                                                  resetToken: analysisResetToken)
+                                                  resetToken: analysisResetToken,
+                                                  annotationVM: $sharedAnnotationVM,          // ← NEW
+                                                  selectedRightView: $selectedRightView,
+                                                  quadCalibrationModel: quadCalibrationModel 
+                            )
                             .frame(width: geometry.size.width / 2 - 10)
                         }
                         .frame(width: geometry.size.width, height: geometry.size.height)
@@ -61,32 +78,37 @@ struct BESTGYMPoseApp: View {
                     }
                     
                     .toolbar {
+                        
                         // Left Toolbar
                         ToolbarItemGroup(placement: .topBarLeading) {
                             ToolbarLeft(appState: appState, toggleMode: toggleMode)
                         }
                         
-                        // Principal Toolbar
+                        
                         ToolbarItemGroup(placement: .topBarTrailing) {
-                            ToolbarActiveMode(appState: appState,
-                                              toolbarVM: toolbarVM,
-                                              ROIModel: ROIModel,
-                                              BoxModel: BoxModel,
-                                              calibrationModel: calibrationModel
+                            ToolbarActiveMode(
+                                appState: appState,
+                                toolbarVM: toolbarVM,
+                                ROIModel: ROIModel,
+                                BoxModel: BoxModel,
+                                calibrationModel: calibrationModel,
+                                quadCalibrationModel: quadCalibrationModel                            )
+                        }
+                         
+                        ToolbarItemGroup(placement: .topBarTrailing) {
+                            ToolbarMainActions(
+                                appState: appState,
+                                toolbarVM: toolbarVM,
+                                mediaManager: mediaManager,
+                                ROIModel: ROIModel,
+                                BoxModel: BoxModel,
+                                calibrationModel: calibrationModel,
+                                quadCalibrationModel: quadCalibrationModel,
+                                showKeypointOverlay: $showKeypointOverlay,
+                                showBoxOverlay: $showBoxOverlay
                             )
                         }
-                        
-                        // Principal Toolbar
-                        ToolbarItemGroup(placement: .topBarTrailing) {
-                            ToolbarMainActions(appState: appState,
-                                               toolbarVM: toolbarVM,
-                                               mediaManager: mediaManager,
-                                               ROIModel: ROIModel,
-                                               BoxModel: BoxModel,
-                                               calibrationModel: calibrationModel
-                            )
-                        }
-                        
+
                         // Right Toolbar
                         ToolbarItemGroup(placement: .topBarTrailing) {
                             ToolbarRight(appState: appState,
@@ -201,6 +223,7 @@ struct BESTGYMPoseApp: View {
             _ = OrientationCache.shared
             appState.loadUserPreferences()
             calibrationModel.loadFromUserDefaults()
+            quadCalibrationModel.loadFromUserDefaults()
         }
         
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
@@ -381,6 +404,8 @@ struct BESTGYMPoseApp: View {
         currentProject = nil
         
         analysisResetToken = UUID()
+        
+        sharedAnnotationVM = ManualAnnotationVM()
         
         print("Cleanup complete")
     }

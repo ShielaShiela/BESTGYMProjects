@@ -7,7 +7,7 @@
         "key": "Media Information",
         "location": {
           "startingColumn": 42,
-          "startingLine": 123
+          "startingLine": 143
         }
       },
       {
@@ -15,7 +15,7 @@
         "key": "Giant Swing Analysis",
         "location": {
           "startingColumn": 46,
-          "startingLine": 132
+          "startingLine": 152
         }
       },
       {
@@ -23,7 +23,7 @@
         "key": "Angle Analysis",
         "location": {
           "startingColumn": 46,
-          "startingLine": 140
+          "startingLine": 160
         }
       },
       {
@@ -31,7 +31,7 @@
         "key": "Single Axes Analysis",
         "location": {
           "startingColumn": 46,
-          "startingLine": 146
+          "startingLine": 166
         }
       },
       {
@@ -39,7 +39,7 @@
         "key": "Velocity Analysis",
         "location": {
           "startingColumn": 46,
-          "startingLine": 152
+          "startingLine": 172
         }
       },
       {
@@ -47,7 +47,7 @@
         "key": "Acceleration Analysis",
         "location": {
           "startingColumn": 46,
-          "startingLine": 157
+          "startingLine": 177
         }
       },
       {
@@ -55,7 +55,7 @@
         "key": "Data Metrics",
         "location": {
           "startingColumn": 46,
-          "startingLine": 163
+          "startingLine": 183
         }
       },
       {
@@ -63,7 +63,15 @@
         "key": "Flight Height",
         "location": {
           "startingColumn": 50,
-          "startingLine": 169
+          "startingLine": 189
+        }
+      },
+      {
+        "comment": "",
+        "key": "Manual Annotation",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 195
         }
       },
       {
@@ -71,7 +79,7 @@
         "key": "ReAnalyze!",
         "location": {
           "startingColumn": 46,
-          "startingLine": 177
+          "startingLine": 202
         }
       },
       {
@@ -79,7 +87,7 @@
         "key": "Start Analysis!",
         "location": {
           "startingColumn": 46,
-          "startingLine": 189
+          "startingLine": 214
         }
       }
     ]

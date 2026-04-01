@@ -105,29 +105,31 @@ struct FrameView: View {
                         } else {
                             Color.clear
                         }
-                        // ROI
-                        if ROIModel.isROIMode {
-                            ROIFrameOverlayView(
-                                ROIModel: $ROIModel,
-                                containerSize: geometry.size,
-                                imageSize: imageSize
-                            )
-                        }
                         
-                        // Box
-                        if BoxModel.isBoxMode {
-                            BoxFrameOverlayView(
-                                BoxModel: $BoxModel,
-                                containerSize: geometry.size,
-                                imageSize: imageSize
-                            )
-                        }
                         
                     }
                     .scaleEffect(zoomScale)
                     .offset(offset)
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
+                    
+                    // ROI
+                    if ROIModel.isROIMode {
+                        ROIFrameOverlayView(
+                            ROIModel: $ROIModel,
+                            containerSize: geometry.size,
+                            imageSize: imageSize
+                        )
+                    }
+                    
+                    // Box
+                    if BoxModel.isBoxMode {
+                        BoxFrameOverlayView(
+                            BoxModel: $BoxModel,
+                            containerSize: geometry.size,
+                            imageSize: imageSize
+                        )
+                    }
                 }
             }
             

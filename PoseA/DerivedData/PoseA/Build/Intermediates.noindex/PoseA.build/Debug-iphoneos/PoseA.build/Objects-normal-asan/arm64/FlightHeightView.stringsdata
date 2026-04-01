@@ -4,10 +4,26 @@
     "Localizable": [
       {
         "comment": "",
-        "key": "Calibrate the bar first using the ruler button in the toolbar",
+        "key": "Tracking Keypoint",
         "location": {
-          "startingColumn": 30,
-          "startingLine": 29
+          "startingColumn": 22,
+          "startingLine": 159
+        }
+      },
+      {
+        "comment": "",
+        "key": "Body Keypoints",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 166
+        }
+      },
+      {
+        "comment": "",
+        "key": "Midpoints (L+R average)",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 183
         }
       },
       {
@@ -15,7 +31,7 @@
         "key": "Flight Height Over Time",
         "location": {
           "startingColumn": 18,
-          "startingLine": 140
+          "startingLine": 303
         }
       },
       {
@@ -23,7 +39,7 @@
         "key": "Bar Top",
         "location": {
           "startingColumn": 36,
-          "startingLine": 147
+          "startingLine": 309
         }
       },
       {
@@ -31,7 +47,7 @@
         "key": "Max",
         "location": {
           "startingColumn": 40,
-          "startingLine": 158
+          "startingLine": 319
         }
       },
       {
@@ -39,7 +55,7 @@
         "key": "Frame",
         "location": {
           "startingColumn": 36,
-          "startingLine": 164
+          "startingLine": 324
         }
       },
       {
@@ -47,7 +63,7 @@
         "key": "Bar",
         "location": {
           "startingColumn": 30,
-          "startingLine": 151
+          "startingLine": 313
         }
       },
       {
@@ -55,7 +71,7 @@
         "key": "Frame",
         "location": {
           "startingColumn": 35,
-          "startingLine": 171
+          "startingLine": 330
         }
       },
       {
@@ -63,7 +79,7 @@
         "key": "Height (cm)",
         "location": {
           "startingColumn": 35,
-          "startingLine": 172
+          "startingLine": 331
         }
       },
       {
@@ -71,7 +87,7 @@
         "key": "Frame",
         "location": {
           "startingColumn": 35,
-          "startingLine": 182
+          "startingLine": 340
         }
       },
       {
@@ -79,7 +95,7 @@
         "key": "Zero",
         "location": {
           "startingColumn": 40,
-          "startingLine": 183
+          "startingLine": 341
         }
       },
       {
@@ -87,7 +103,7 @@
         "key": "Height",
         "location": {
           "startingColumn": 38,
-          "startingLine": 184
+          "startingLine": 342
         }
       },
       {
@@ -95,7 +111,7 @@
         "key": "%lld",
         "location": {
           "startingColumn": 34,
-          "startingLine": 206
+          "startingLine": 365
         }
       },
       {
@@ -103,7 +119,7 @@
         "key": "Peak Moments",
         "location": {
           "startingColumn": 18,
-          "startingLine": 227
+          "startingLine": 386
         }
       },
       {
@@ -111,7 +127,7 @@
         "key": "No significant peaks detected above bar level",
         "location": {
           "startingColumn": 22,
-          "startingLine": 232
+          "startingLine": 391
         }
       },
       {
@@ -119,7 +135,7 @@
         "key": "Peak %lld",
         "location": {
           "startingColumn": 30,
-          "startingLine": 238
+          "startingLine": 397
         }
       },
       {
@@ -127,7 +143,7 @@
         "key": "Frame %lld",
         "location": {
           "startingColumn": 30,
-          "startingLine": 243
+          "startingLine": 402
         }
       },
       {
@@ -135,7 +151,15 @@
         "key": "--",
         "location": {
           "startingColumn": 22,
-          "startingLine": 318
+          "startingLine": 477
+        }
+      },
+      {
+        "comment": "",
+        "key": "Bar top ref %@",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 526
         }
       }
     ]

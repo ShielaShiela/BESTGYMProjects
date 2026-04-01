@@ -17,7 +17,6 @@ struct ToolbarButtonView: View {
     var context: ButtonContext {
         viewModel.context(for: mode)
     }
-
     var body: some View {
         if !context.isHidden {
             Button {

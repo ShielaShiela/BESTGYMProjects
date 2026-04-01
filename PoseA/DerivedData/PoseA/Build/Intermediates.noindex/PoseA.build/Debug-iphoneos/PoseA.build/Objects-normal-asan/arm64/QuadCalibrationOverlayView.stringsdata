@@ -1,0 +1,152 @@
+{
+  "source": "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/Calibration/QuadCalibrationOverlayView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Quad Calibration",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 155
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tap corner %lld/4: %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 158
+        }
+      },
+      {
+        "comment": "",
+        "key": "Place in clockwise order starting top-left",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 161
+        }
+      },
+      {
+        "comment": "",
+        "key": "Quad Reference Size",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 336
+        }
+      },
+      {
+        "comment": "",
+        "key": "Width (horizontal, cm)",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 311
+        }
+      },
+      {
+        "comment": "",
+        "key": "Height (vertical, cm)",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 316
+        }
+      },
+      {
+        "comment": "",
+        "key": "Scale Preview",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 322
+        }
+      },
+      {
+        "comment": "",
+        "key": "Enter the real-world size of the reference rectangle you placed.",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 299
+        }
+      },
+      {
+        "comment": "",
+        "key": "Example: a 100×60 cm mat, a door frame, court markings…",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 302
+        }
+      },
+      {
+        "comment": "",
+        "key": "Reference Dimensions",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 308
+        }
+      },
+      {
+        "comment": "",
+        "key": "e.g. 100",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 312
+        }
+      },
+      {
+        "comment": "",
+        "key": "e.g. 60",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 317
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 340
+        }
+      },
+      {
+        "comment": "",
+        "key": "Confirm",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 343
+        }
+      },
+      {
+        "comment": "",
+        "key": "Done",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 389
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tap 4 corners →",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 427
+        }
+      },
+      {
+        "comment": "",
+        "key": "Re-place",
+        "location": {
+          "startingColumn": 66,
+          "startingLine": 417
+        }
+      },
+      {
+        "comment": "",
+        "key": "Place Quad",
+        "location": {
+          "startingColumn": 79,
+          "startingLine": 417
+        }
+      }
+    ]
+  },
+  "version": 1
+}

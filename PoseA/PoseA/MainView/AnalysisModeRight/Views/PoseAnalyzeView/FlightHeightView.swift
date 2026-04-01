@@ -13,29 +13,49 @@ struct FlightHeightView: View {
     @State var poseJointVM: PoseJointLandscapeVM
     @State var mediaManager: MediaManagerVM
     @State var calibrationModel: CalibrationModel
+    @State var quadCalibrationModel: QuadCalibrationModel
 
-    // Compute once and store — avoids compiler timeout
     @State private var cachedFlightData: [FlightHeightData] = []
+    // ── NEW: persisted keypoint selection ──
+    @State private var selectedKeypointMode: FlightKeypointMode = .nose
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                
+                CalibrationSourceBadge(
+                    calibrationModel: calibrationModel,
+                    quadCalibrationModel: quadCalibrationModel
+                )
+                .padding(.horizontal)
+                
+                
 
-                // Not calibrated warning
-                if !calibrationModel.isCalibrated {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
-                        Text("Calibrate the bar first using the ruler button in the toolbar")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(8)
+                // Replace the single warning HStack with these two:
+
+                // Warning 1: Bar top reference missing
+                if calibrationModel.barTopPoint == nil {
+                    WarningBanner(
+                        icon: "scope",
+                        message: "Tap the ruler button → mark the bar top position (required as height zero reference)",
+                        color: .red
+                    )
                     .padding(.horizontal)
                 }
+
+                // Warning 2: Scale calibration missing
+                if !isScaleCalibrated {
+                    WarningBanner(
+                        icon: "exclamationmark.triangle.fill",
+                        message: scaleWarningMessage,
+                        color: .orange
+                    )
+                    .padding(.horizontal)
+                }
+
+                // ── NEW: Keypoint picker ──
+                KeypointSelectorRow(selectedMode: $selectedKeypointMode)
+                    .padding(.horizontal)
 
                 // Stat cards
                 FlightHeightStatsRow(
@@ -43,7 +63,6 @@ struct FlightHeightView: View {
                     currentFrameIndex: mediaManager.currentFrameIndex,
                     calibrationModel: calibrationModel,
                     imagePixelHeight: Double(mediaManager.currentFrameImage?.size.height ?? 0)
-
                 )
                 .padding(.horizontal)
 
@@ -53,10 +72,10 @@ struct FlightHeightView: View {
                         flightData: cachedFlightData,
                         currentFrameIndex: mediaManager.currentFrameIndex
                     )
-                    
+
                     FlightPeaksTableView(
                         flightData: cachedFlightData,
-                        onSeek: handleSeek        // change this line
+                        onSeek: handleSeek
                     )
                     .padding(.horizontal)
                 }
@@ -65,24 +84,168 @@ struct FlightHeightView: View {
         }
         .onAppear { rebuildData() }
         .onChange(of: calibrationModel.isCalibrated) { _, _ in rebuildData() }
-        .onChange(of: appState.isAnalysisAvailable) { _, _ in rebuildData() }
+        .onChange(of: quadCalibrationModel.step) { _, _ in rebuildData() }
+        .onChange(of: appState.isAnalysisAvailable)  { _, _ in rebuildData() }
+        // ── NEW: rebuild when keypoint changes ──
+        .onChange(of: selectedKeypointMode)          { _, _ in rebuildData() }
     }
-    
-    private func handleSeek(_ frameIndex: Int) {
-           mediaManager.seekToFrame(frameIndex)
-       }
 
+    private var isScaleCalibrated: Bool {
+        quadCalibrationModel.isCalibrated || calibrationModel.isCalibrated
+    }
+
+    private var scaleWarningMessage: String {
+        if quadCalibrationModel.isCalibrated {
+            return "Quad calibration active"
+        } else if calibrationModel.isCalibrated {
+            return "Complete 2-point calibration — mark both bar top and bar bottom"
+        } else {
+            return "Complete bar or quad calibration to get cm measurements"
+        }
+    }
+
+    private var isEffectivelyCalibrated: Bool {
+        calibrationModel.barTopPoint != nil && isScaleCalibrated
+    }
+
+    private func handleSeek(_ frameIndex: Int) {
+        mediaManager.seekToFrame(frameIndex)
+    }
+
+    
     private func rebuildData() {
-        guard calibrationModel.isCalibrated else {
+        guard calibrationModel.barTopPoint != nil, isScaleCalibrated else {
             cachedFlightData = []
             return
         }
         cachedFlightData = FlightHeightCalculator.calculate(
             mediaManager: mediaManager,
-            calibration: calibrationModel
+            calibration: calibrationModel,
+            quadCalibration: quadCalibrationModel,
+            keypointMode: selectedKeypointMode
         )
     }
 }
+
+// MARK: - Keypoint Selector Row
+struct KeypointSelectorRow: View {
+    @Binding var selectedMode: FlightKeypointMode
+
+    // Group the full list into sections for the picker
+    private let singleKeypoints: [FlightKeypointMode] = [
+        .nose,
+        .leftEye, .rightEye,
+        .leftEar, .rightEar,
+        .leftShoulder, .rightShoulder,
+        .leftElbow, .rightElbow,
+        .leftWrist, .rightWrist,
+        .leftHip, .rightHip,
+        .leftKnee, .rightKnee,
+        .leftAnkle, .rightAnkle
+    ]
+
+    private let midpointKeypoints: [FlightKeypointMode] = [
+        .midEyes, .midEars,
+        .midShoulders, .midElbows, .midWrists,
+        .midHips, .midKnees, .midAnkles
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "figure.walk")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                Text("Tracking Keypoint")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+            }
+
+            Menu {
+                // Single keypoints
+                Section("Body Keypoints") {
+                    ForEach(singleKeypoints) { mode in
+                        Button {
+                            selectedMode = mode
+                        } label: {
+                            HStack {
+                                Text(mode.rawValue)
+                                if selectedMode == mode {
+                                    Spacer()
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Midpoint options
+                Section("Midpoints (L+R average)") {
+                    ForEach(midpointKeypoints) { mode in
+                        Button {
+                            selectedMode = mode
+                        } label: {
+                            HStack {
+                                Text(mode.rawValue)
+                                if selectedMode == mode {
+                                    Spacer()
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    // Color dot matching the keypoint (reuse jointColors if available)
+                    Circle()
+                        .fill(keypointColor(for: selectedMode))
+                        .frame(width: 8, height: 8)
+                    Text(selectedMode.rawValue)
+                        .font(.caption)
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(.systemGray6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        )
+                )
+            }
+        }
+    }
+
+    /// Maps each mode to a representative color (falls back to cyan)
+    private func keypointColor(for mode: FlightKeypointMode) -> Color {
+        switch mode {
+        case .nose, .leftEye, .rightEye, .leftEar, .rightEar,
+             .midEyes, .midEars:
+            return .yellow
+        case .leftShoulder, .rightShoulder, .midShoulders:
+            return .orange
+        case .leftElbow, .rightElbow, .midElbows:
+            return .red
+        case .leftWrist, .rightWrist, .midWrists:
+            return .pink
+        case .leftHip, .rightHip, .midHips:
+            return .green
+        case .leftKnee, .rightKnee, .midKnees:
+            return .mint
+        case .leftAnkle, .rightAnkle, .midAnkles:
+            return .cyan
+        }
+    }
+}
+
+// ── The rest of FlightHeightView.swift is unchanged ──
 
 // MARK: - Stats Row
 struct FlightHeightStatsRow: View {
@@ -143,7 +306,6 @@ struct FlightHeightChartView: View {
                 .padding(.horizontal)
 
             Chart {
-                // Bar top reference line
                 RuleMark(y: .value("Bar Top", 0.0))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                     .foregroundStyle(Color.yellow.opacity(0.8))
@@ -153,19 +315,16 @@ struct FlightHeightChartView: View {
                             .foregroundColor(.yellow)
                     }
 
-                // Max height reference
                 if let maxH = maxEntry?.cmAboveBar {
                     RuleMark(y: .value("Max", maxH))
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                         .foregroundStyle(Color.cyan.opacity(0.5))
                 }
 
-                // Current frame marker
                 RuleMark(x: .value("Frame", currentFrameIndex))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
                     .foregroundStyle(Color.orange.opacity(0.7))
 
-                // Height line
                 ForEach(flightData, id: \.frameIndex) { entry in
                     LineMark(
                         x: .value("Frame", entry.frameIndex),
@@ -175,7 +334,6 @@ struct FlightHeightChartView: View {
                     .lineStyle(StrokeStyle(lineWidth: 1.5))
                 }
 
-                // Above-bar shading
                 ForEach(flightData.filter { ($0.cmAboveBar ?? 0) > 0 },
                         id: \.frameIndex) { entry in
                     AreaMark(
@@ -193,9 +351,10 @@ struct FlightHeightChartView: View {
                     AxisGridLine()
                     AxisValueLabel {
                         if let d = value.as(Double.self) {
-                           Text(String(format: "%.0fcm", d))   // change this
-                               .font(.system(size: 9))
-                       }                    }
+                            Text(String(format: "%.0fcm", d))
+                                .font(.system(size: 9))
+                        }
+                    }
                 }
             }
             .chartXAxis {
@@ -246,7 +405,7 @@ struct FlightPeaksTableView: View {
                         Spacer()
 
                         if let h = peak.cmAboveBar {
-                            Text(String(format: "+%.1f cm",h))
+                            Text(String(format: "+%.1f cm", h))
                                 .font(.caption.bold())
                                 .foregroundColor(.cyan)
                         }
@@ -323,6 +482,91 @@ struct FlightStatCard: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
         .background(Color(.systemGray6))
+        .cornerRadius(8)
+    }
+}
+
+struct CalibrationSourceBadge: View {
+    let calibrationModel: CalibrationModel
+    let quadCalibrationModel: QuadCalibrationModel
+
+    private var barTopStatus: String {
+        calibrationModel.barTopPoint != nil ? "✓" : "✗"
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            // Scale source pill — quad takes priority if calibrated
+            if quadCalibrationModel.isCalibrated {
+                label(
+                    String(format: "Quad  %.0f×%.0f cm",
+                           quadCalibrationModel.realWidthCm,
+                           quadCalibrationModel.realHeightCm),
+                    icon: "square.grid.2x2",
+                    color: .purple
+                )
+            } else if calibrationModel.isCalibrated {
+                label(
+                    String(format: "2-pt  %.0f cm", calibrationModel.realBarHeightCm),
+                    icon: "ruler",
+                    color: .orange
+                )
+            } else {
+                label("No Scale", icon: "exclamationmark.circle", color: .red)
+            }
+
+            Spacer()
+
+            // Bar top reference pill
+            HStack(spacing: 4) {
+                Image(systemName: calibrationModel.barTopPoint != nil
+                      ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .foregroundColor(calibrationModel.barTopPoint != nil ? .green : .red)
+                    .font(.system(size: 11))
+                Text("Bar top ref \(calibrationModel.barTopPoint != nil ? "✓" : "✗")")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(.systemGray5))
+            .cornerRadius(6)
+        }
+    }
+
+    @ViewBuilder
+    private func label(_ text: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 11))
+                .foregroundColor(color)
+            Text(text)
+                .font(.caption2.bold())
+                .foregroundColor(color)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.12))
+        .cornerRadius(6)
+    }
+}
+
+struct WarningBanner: View {
+    let icon: String
+    let message: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundColor(color)
+            Text(message)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(color.opacity(0.1))
         .cornerRadius(8)
     }
 }

@@ -12,8 +12,7 @@ struct InformationView: View {
     @State var ROIModel: ROIViewModel
     @State var BoxModel: BoxViewModel
     @State var mediaManager: MediaManagerVM
-    @State var calibrationModel: CalibrationModel
-    
+    @State var calibrationModel: CalibrationModel    
     var body: some View {
         // Status indicator
         VStack(alignment: .leading, spacing: 8) {

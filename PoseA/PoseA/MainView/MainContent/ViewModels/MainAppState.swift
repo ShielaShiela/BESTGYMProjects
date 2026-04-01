@@ -58,6 +58,9 @@ class MainAppState: ObservableObject {
     @Published var realtimeDetection: Bool = false
     @Published var realtimeModel: String = "yolo11l-pose"
     @Published var realtimeViewMode: String = "general"
+    
+    @Published var showKeypointOverlay: Bool = true
+    @Published var showBoxOverlay: Bool = true
 }
 
 extension MainAppState {

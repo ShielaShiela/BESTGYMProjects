@@ -6,24 +6,24 @@
         "comment": "",
         "key": "Frame: %lld/%lld",
         "location": {
-          "startingColumn": 46,
-          "startingLine": 39
+          "startingColumn": 42,
+          "startingLine": 64
         }
       },
       {
         "comment": "",
         "key": "No Keypoints",
         "location": {
-          "startingColumn": 50,
-          "startingLine": 57
+          "startingColumn": 46,
+          "startingLine": 85
         }
       },
       {
         "comment": "",
         "key": "Keypoints: %lld",
         "location": {
-          "startingColumn": 50,
-          "startingLine": 49
+          "startingColumn": 46,
+          "startingLine": 74
         }
       },
       {
@@ -31,7 +31,7 @@
         "key": "No File Selected",
         "location": {
           "startingColumn": 38,
-          "startingLine": 74
+          "startingLine": 135
         }
       },
       {
@@ -39,7 +39,7 @@
         "key": "Open a file or video to analyze",
         "location": {
           "startingColumn": 38,
-          "startingLine": 83
+          "startingLine": 144
         }
       },
       {
@@ -47,7 +47,15 @@
         "key": "Select File",
         "location": {
           "startingColumn": 42,
-          "startingLine": 91
+          "startingLine": 150
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tap to annotate",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 244
         }
       }
     ]

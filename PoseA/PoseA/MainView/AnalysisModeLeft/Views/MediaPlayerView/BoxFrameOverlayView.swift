@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftUI
 
 struct BoxFrameOverlayView: View {
     @Binding var BoxModel: BoxViewModel

@@ -16,5 +16,15 @@ enum RightViewModel {
     case acceleration
     case swing
     case dataMetrics
-    case flightHeight 
+    case flightHeight
+    case manualAnnotation   
+
+    var isChartView: Bool {
+        switch self {
+        case .swing, .angle, .trajectoryAxes, .velocity, .acceleration, .dataMetrics, .flightHeight:
+            return true
+        case .info, .manualAnnotation:
+            return false
+        }
+    }
 }

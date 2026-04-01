@@ -318,23 +318,6 @@ class MediaManagerVM {
 
     
     
-    // MARK: - Public Function for Media Player
-//    func getKeypointsCurrent() -> [KeypointData]? {
-//        guard fileLoaderViewModel.isKeyLoaded else { return nil }
-//        
-//        let arrayIndex = mediaPlayerViewModel.currentFrameIndex
-//        
-//        // Map display array index → original recording frame index
-//        let keypointIndex: Int
-//        if !fileLoaderViewModel.frameIndexMap.isEmpty {
-//            keypointIndex = fileLoaderViewModel.frameIndexMap[arrayIndex] ?? arrayIndex
-//        } else {
-//            // LiDAR folder mode — already 0-based, no remapping needed
-//            keypointIndex = arrayIndex
-//        }
-//        
-//        return fileLoaderViewModel.keypointsByFrame[keypointIndex]
-//    }
     func getKeypointsCurrent() -> [KeypointData]? {
         guard fileLoaderViewModel.isKeyLoaded else { return nil }
         

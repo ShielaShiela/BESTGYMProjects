@@ -7,7 +7,7 @@
         "key": "Video Information",
         "location": {
           "startingColumn": 18,
-          "startingLine": 20
+          "startingLine": 19
         }
       },
       {
@@ -15,7 +15,7 @@
         "key": "Filename: %@",
         "location": {
           "startingColumn": 26,
-          "startingLine": 33
+          "startingLine": 32
         }
       },
       {
@@ -23,7 +23,7 @@
         "key": "Filename: No file loaded",
         "location": {
           "startingColumn": 26,
-          "startingLine": 54
+          "startingLine": 53
         }
       },
       {
@@ -31,7 +31,7 @@
         "key": "Filename: %@",
         "location": {
           "startingColumn": 26,
-          "startingLine": 44
+          "startingLine": 43
         }
       },
       {
@@ -39,7 +39,7 @@
         "key": "Source: No file loaded",
         "location": {
           "startingColumn": 56,
-          "startingLine": 68
+          "startingLine": 67
         }
       },
       {
@@ -47,7 +47,7 @@
         "key": "Source: Video (2D pose)",
         "location": {
           "startingColumn": 108,
-          "startingLine": 68
+          "startingLine": 67
         }
       },
       {
@@ -55,7 +55,7 @@
         "key": "Source: Video+LiDAR (3D pose)",
         "location": {
           "startingColumn": 136,
-          "startingLine": 68
+          "startingLine": 67
         }
       },
       {
@@ -63,7 +63,7 @@
         "key": "Keypoints: Available",
         "location": {
           "startingColumn": 57,
-          "startingLine": 82
+          "startingLine": 81
         }
       },
       {
@@ -71,7 +71,7 @@
         "key": "Keypoints: Not Detected",
         "location": {
           "startingColumn": 82,
-          "startingLine": 82
+          "startingLine": 81
         }
       },
       {
@@ -79,7 +79,7 @@
         "key": "ROI Status: ROI Set",
         "location": {
           "startingColumn": 48,
-          "startingLine": 95
+          "startingLine": 94
         }
       },
       {
@@ -87,7 +87,7 @@
         "key": "ROI Status: ROI Unavailable",
         "location": {
           "startingColumn": 72,
-          "startingLine": 95
+          "startingLine": 94
         }
       },
       {
@@ -95,7 +95,7 @@
         "key": "Box Status: Box Set",
         "location": {
           "startingColumn": 48,
-          "startingLine": 108
+          "startingLine": 107
         }
       },
       {
@@ -103,7 +103,7 @@
         "key": "Box Status: Box Unavailable",
         "location": {
           "startingColumn": 72,
-          "startingLine": 108
+          "startingLine": 107
         }
       }
     ]

@@ -7,17 +7,17 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "D611BDFC-0C1A-4090-B5A7-8D491B99C53C"
-            shouldBeEnabled = "No"
+            uuid = "09EDD710-BB8C-47A1-818C-378B9A2D57BB"
+            shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "PoseA/MainView/AnalysisModeRight/Views/PoseAnalyzeView/FlightHeightView.swift"
+            filePath = "PoseA/MainView/MainContent/Views/ContentView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "201"
-            endingLineNumber = "201"
-            landmarkName = "body"
-            landmarkType = "24">
+            startingLineNumber = "442"
+            endingLineNumber = "442"
+            landmarkName = "autoSaveIfNeeded()"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

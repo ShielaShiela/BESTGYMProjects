@@ -1,13 +1,29 @@
 {
-  "source": "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/MainContent/Views/OverlayView/CalibrationModeView.swift",
+  "source": "/Users/shielacabahug/Documents/Projects/PoseA/PoseA/MainView/Calibration/CalibrationModeView.swift",
   "tables": {
     "Localizable": [
       {
         "comment": "",
-        "key": "Bar Height (cm)",
+        "key": "Done",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 20
+        }
+      },
+      {
+        "comment": "",
+        "key": "Reference Height (cm)",
         "location": {
           "startingColumn": 26,
-          "startingLine": 34
+          "startingLine": 64
+        }
+      },
+      {
+        "comment": "",
+        "key": "Enter the real-world vertical distance\nbetween the two crosshair positions.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 66
         }
       },
       {
@@ -15,7 +31,7 @@
         "key": "e.g. 260",
         "location": {
           "startingColumn": 31,
-          "startingLine": 37
+          "startingLine": 70
         }
       },
       {
@@ -23,7 +39,7 @@
         "key": "Cancel",
         "location": {
           "startingColumn": 32,
-          "startingLine": 43
+          "startingLine": 76
         }
       },
       {
@@ -31,7 +47,7 @@
         "key": "Set",
         "location": {
           "startingColumn": 32,
-          "startingLine": 45
+          "startingLine": 78
         }
       },
       {
@@ -39,15 +55,7 @@
         "key": "Next",
         "location": {
           "startingColumn": 30,
-          "startingLine": 65
-        }
-      },
-      {
-        "comment": "",
-        "key": "Done",
-        "location": {
-          "startingColumn": 22,
-          "startingLine": 87
+          "startingLine": 97
         }
       }
     ]

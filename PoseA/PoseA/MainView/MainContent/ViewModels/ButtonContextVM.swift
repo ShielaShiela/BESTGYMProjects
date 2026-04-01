@@ -19,9 +19,11 @@ class ToolbarButtonVM {
     var boxContext = ButtonContext()
     var annotateContext = ButtonContext()
     var zoomContext = ButtonContext()
+    var calibrateBarContext = ButtonContext()
+    var calibrateQuadContext = ButtonContext()
 
     func activateMode(_ mode: ToolbarMode) {
-        guard activeMode == .none else { return } // prevent re-activation or switching
+        guard activeMode == .none else { return }
         activeMode = mode
     }
 
@@ -31,13 +33,16 @@ class ToolbarButtonVM {
 
     func context(for mode: ToolbarMode) -> ButtonContext {
         switch mode {
-        case .roi: return roiContext
-        case .box: return boxContext
-        case .annotate: return annotateContext
-        case .zoom: return zoomContext
-        default: return ButtonContext()
+        case .roi:           return roiContext
+        case .box:           return boxContext
+        case .annotate:      return annotateContext
+        case .zoom:          return zoomContext
+        case .calibrateBar:  return calibrateBarContext
+        case .calibrateQuad: return calibrateQuadContext
+        default:             return ButtonContext()
         }
     }
+
 
     private func updateContexts() {
         for mode in ToolbarMode.allCases {

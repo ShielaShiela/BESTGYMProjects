@@ -1,5 +1,5 @@
 //
-//  ButtonState.swift
+//  ToolbarButtonVM.swift
 //  PoseA
 //
 //  Created by Ardhika Maulidani on 7/13/25.
@@ -17,7 +17,6 @@ class ToolbarButtonVM {
 
     var roiContext = ButtonContext()
     var boxContext = ButtonContext()
-    var annotateContext = ButtonContext()
     var zoomContext = ButtonContext()
 
     func activateMode(_ mode: ToolbarMode) {
@@ -33,7 +32,6 @@ class ToolbarButtonVM {
         switch mode {
         case .roi: return roiContext
         case .box: return boxContext
-        case .annotate: return annotateContext
         case .zoom: return zoomContext
         default: return ButtonContext()
         }

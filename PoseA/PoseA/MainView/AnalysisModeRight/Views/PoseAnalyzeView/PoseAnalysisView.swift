@@ -12,7 +12,7 @@ struct PoseAnalysisView: View {
     
     // Declare State ViewModel Variable
     @ObservedObject var appState: MainAppState
-    @State private var poseJointVM: PoseJointLandscapeVM
+    @State private var featureExtractionVM: FeatureExtractionVM
     @State private var chartBuilderViewModel: ChartBuilderLandscapeVM
     @State private var mediaManager: MediaManagerVM
     
@@ -26,12 +26,12 @@ struct PoseAnalysisView: View {
     
     // MARK: - Initialization
     
-    init (appState: MainAppState, selectedView: RightViewModel, poseJointVM: PoseJointLandscapeVM, mediaManager: MediaManagerVM) {
+    init (appState: MainAppState, selectedView: RightViewModel, featureExtractionVM: FeatureExtractionVM, mediaManager: MediaManagerVM) {
         self.appState = appState
         self.selectedView = selectedView
-        self.poseJointVM = poseJointVM
+        self.featureExtractionVM = featureExtractionVM
         self.mediaManager = mediaManager
-        self._chartBuilderViewModel = State(wrappedValue: ChartBuilderLandscapeVM(poseJointViewModel: poseJointVM))
+        self._chartBuilderViewModel = State(wrappedValue: ChartBuilderLandscapeVM(featureExtractionVM: featureExtractionVM))
     }
 
     // MARK: - Body

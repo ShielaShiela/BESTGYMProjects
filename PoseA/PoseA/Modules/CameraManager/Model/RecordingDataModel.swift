@@ -47,8 +47,6 @@ struct RecordingMetadata: Codable {
         }
     }
         
-
-    
     // Static method to create a default metadata with portrait orientation
     static func defaultMetadata() -> RecordingMetadata {
         return RecordingMetadata(

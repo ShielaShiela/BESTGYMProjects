@@ -21,14 +21,6 @@ final class FrameDataVM: ObservableObject {
             self.saveStatusMessage = "Save failed: \(error.localizedDescription)"
         }
     }
-
-    func loadData(from directory: URL, device: MTLDevice) {
-        do {
-            database = try ioService.load(from: directory, device: device)
-        } catch {
-            print("Load failed: \(error.localizedDescription)")
-        }
-    }
     
     func loadMetadata(from directory: URL) {
         do {

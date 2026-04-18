@@ -10,7 +10,7 @@ import SwiftUI
 struct DataMetricsView: View {
     // MARK: - Properties
     @ObservedObject var appState: MainAppState
-    @State private var poseJointVM: PoseJointLandscapeVM
+    @State private var featureExtractionVM: FeatureExtractionVM
     @State private var chartBuilderViewModel: ChartBuilderLandscapeVM
 
     @State private var selectedOption: String? = nil
@@ -19,10 +19,10 @@ struct DataMetricsView: View {
     @State private var expandedJoints: Set<String> = []
         
     // MARK: - Initialization
-    init(appState: MainAppState, poseJointVM: PoseJointLandscapeVM) {
+    init(appState: MainAppState, featureExtractionVM: FeatureExtractionVM) {
         self.appState = appState
-        self.poseJointVM = poseJointVM
-        self._chartBuilderViewModel = State(wrappedValue: ChartBuilderLandscapeVM(poseJointViewModel: poseJointVM))
+        self.featureExtractionVM = featureExtractionVM
+        self._chartBuilderViewModel = State(wrappedValue: ChartBuilderLandscapeVM(featureExtractionVM: featureExtractionVM))
     }
 
     // MARK: - Body

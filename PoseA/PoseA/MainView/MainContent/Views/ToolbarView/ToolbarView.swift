@@ -28,45 +28,42 @@ extension BESTGYMPoseApp {
         @ObservedObject var appState: MainAppState
         @State var toolbarVM: ToolbarButtonVM
         @State var ROIModel: ROIViewModel
-        @State var BoxModel: BoxViewModel
+        @State var barPointVM: BarPointVM
         
         var body: some View {
             Group {
                 switch toolbarVM.activeMode {
                 case .roi:
                     ModeControlView(
-                        clearAction: { ROIModel.clearROI() },
-                        exitAction: {
-                            ROIModel.setROIMode(false)
-                            toolbarVM.deactivateMode()
-                        },
+                        actions: [
+                            .clear { ROIModel.clearROI() },
+                            .exit {
+                                ROIModel.setROIMode(false)
+                                toolbarVM.deactivateMode()
+                            }
+                        ],
                         label: "ROI"
                     )
                 case .box:
                     ModeControlView(
-                        clearAction: { BoxModel.clearBox() },
-                        exitAction: {
-                            BoxModel.setBoxMode(false)
-                            toolbarVM.deactivateMode()
-                        },
-                        label: "Box"
-                    )
-                case .annotate:
-                    ModeControlView(
-                        clearAction: { print("Return Annotate") },
-                        exitAction: {
-                            appState.is3DAnimationView = false
-                            toolbarVM.deactivateMode()
-                        },
-                        label: "Annotate"
+                        actions: [
+                            .custom(icon: "arrowshape.right", style: .blue) { barPointVM.nextPoint() },
+                            .clear { barPointVM.clear() },
+                            .exit {
+                                barPointVM.setSelectMode(false)
+                                toolbarVM.deactivateMode()
+                            }
+                        ],
+                        label: "BarPoint"
                     )
                 case .zoom:
                     ModeControlView(
-                        clearAction: { print("Return Zoom") },
-                        exitAction: {
-                            appState.isZoomMode = false
-                            toolbarVM.deactivateMode()
-                        },
+                        actions: [
+                            .exit {
+                                appState.isZoomMode = false
+                                toolbarVM.deactivateMode()
+                            }
+                        ],
                         label: "Zoom"
                     )
                 default:
@@ -81,7 +78,7 @@ extension BESTGYMPoseApp {
         @State var toolbarVM: ToolbarButtonVM
         @State var mediaManager: MediaManagerVM
         @State var ROIModel: ROIViewModel
-        @State var BoxModel: BoxViewModel
+        @State var barPointVM: BarPointVM
 
         var body: some View {
             if mediaManager.isMediaAvailable {
@@ -90,10 +87,7 @@ extension BESTGYMPoseApp {
                         ROIModel.setROIMode(true)
                     }
                     ToolbarButtonView(mode: .box, icon: "square.dashed", title: "Box", viewModel: toolbarVM) {
-                        BoxModel.setBoxMode(true)
-                    }
-                    ToolbarButtonView(mode: .annotate, icon: "figure", title: "Animation", viewModel: toolbarVM) {
-                        appState.is3DAnimationView = true
+                        barPointVM.setSelectMode(true)
                     }
                     ToolbarButtonView(mode: .zoom, icon: "plus.magnifyingglass", title: "Zoom", viewModel: toolbarVM) {
                         appState.isZoomMode = true
@@ -111,7 +105,6 @@ extension BESTGYMPoseApp {
         let selectFileOrFolder: () -> Void
         let selectVideoFromLibrary: () -> Void
         let selectKeypointFile: () -> Void
-        let saveProject: () -> Void
         
         var body: some View {
             HStack(spacing: 6) {
@@ -134,9 +127,6 @@ extension BESTGYMPoseApp {
                     Button(action: selectKeypointFile) {
                         Label("Import Keypoints (.json)", systemImage: "square.and.arrow.down")
                     }
-                    Button(action: saveProject) {
-                        Label("Save Projects", systemImage: "square.and.arrow.down")
-                    }
                     Divider()
                     Button { appState.showSettingsView = true } label: {
                         Label("Settings", systemImage: "gear")
@@ -151,20 +141,38 @@ extension BESTGYMPoseApp {
     }
 
     private struct ModeControlView: View {
-        let clearAction: () -> Void
-        let exitAction: () -> Void
+        let actions: [ModeAction]
         let label: String
         
         var body: some View {
             HStack(spacing: 6) {
-                Button(action: clearAction) {
-                    Label(label, systemImage: "trash").foregroundStyle(.red)
-                }
-                Button(action: exitAction) {
-                    Label(label, systemImage: "xmark").foregroundStyle(.gray)
+                ForEach(actions, id: \.id) { action in
+                    Button(action: action.handler) {
+                        Label(label, systemImage: action.icon)
+                            .foregroundStyle(action.style)
+                    }
                 }
             }
             .toolbarCapsuleStyle()
+        }
+    }
+    
+    struct ModeAction {
+        let id = UUID()
+        let icon: String
+        let style: Color
+        let handler: () -> Void
+        
+        static func clear(action: @escaping () -> Void) -> ModeAction {
+            ModeAction(icon: "trash", style: .red, handler: action)
+        }
+        
+        static func exit(action: @escaping () -> Void) -> ModeAction {
+            ModeAction(icon: "xmark", style: .gray, handler: action)
+        }
+        
+        static func custom(icon: String, style: Color = .primary, action: @escaping () -> Void) -> ModeAction {
+            ModeAction(icon: icon, style: style, handler: action)
         }
     }
 }

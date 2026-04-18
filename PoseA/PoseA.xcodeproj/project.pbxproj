@@ -30,20 +30,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		97BAF6B82D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseATests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Modules/ImageProcessingManager/MLModel/VitPoseh.mlpackage,
-			);
-			target = 97BAF65A2D7543FC008E34D4 /* PoseATests */;
-		};
-		97BAF6B92D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseAUITests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Modules/ImageProcessingManager/MLModel/VitPoseh.mlpackage,
-			);
-			target = 97BAF6642D7543FC008E34D4 /* PoseAUITests */;
-		};
 		97BAF6ED2D756979008E34D4 /* Exceptions for "PoseA" folder in "PoseA" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -58,8 +44,6 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				97BAF6ED2D756979008E34D4 /* Exceptions for "PoseA" folder in "PoseA" target */,
-				97BAF6B82D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseATests" target */,
-				97BAF6B92D754C86008E34D4 /* Exceptions for "PoseA" folder in "PoseAUITests" target */,
 			);
 			path = PoseA;
 			sourceTree = "<group>";

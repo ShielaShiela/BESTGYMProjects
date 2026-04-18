@@ -8,33 +8,31 @@
 import SwiftUI
 
 @Observable
-class BoxViewModel {
-    var isBoxMode: Bool = false
-    var isBoxSelectMode: Bool = false
-    var isBoxAvailable: Bool = false
-    var pointsDisplay: [CGPoint] = [] // Display space
-    var pointsImage: [CGPoint] = [] // Image space
+class BarPointVM {
+    var isSelectMode: Bool = false
+    var isFirstPointAvailable: Bool = false
+    var isSecondPointAvailable: Bool = false
+    var currentEditingPoint: Int = 0 // 0 for first point, 1 for second point
+    var pointsDisplay: [Int : CGPoint] = [:] // Display space
+    var pointsImage: [Int : CGPoint] = [:] // Image space
 
+
+    func setSelectMode(_ isSelectMode: Bool) {
+        self.isSelectMode = isSelectMode
+    }
     
-    func setBoxMode(_ isBoxMode: Bool) {
-        self.isBoxMode = isBoxMode
-        if pointsDisplay.isEmpty {
-            setBoxSelectMode(true)
+    func nextPoint() {
+        self.currentEditingPoint = (currentEditingPoint == 0) ? 1 : 0
+    }
+    
+    func addPoint(pos: Int, point: CGPoint) {
+        guard pointsDisplay.count < 2 else { return }
+        pointsDisplay[pos] = (point)
+        
+        if pos == 0 {
+            isFirstPointAvailable = true
         } else {
-            setBoxSelectMode(false)
-        }
-    }
-
-    private func setBoxSelectMode(_ isBoxSelectMode: Bool) {
-        self.isBoxSelectMode = isBoxSelectMode
-    }
-
-    func addPoint(_ point: CGPoint) {
-        guard pointsDisplay.count < 4 else { return }
-        pointsDisplay.append(point)
-        if pointsDisplay.count == 4 {
-            isBoxAvailable = true
-            setBoxSelectMode(false)
+            isSecondPointAvailable = true
         }
     }
 
@@ -45,35 +43,35 @@ class BoxViewModel {
         pointsDisplay = updatedPoints     // <- Re-assign to trigger @Published
     }
 
-    func clearBox() {
-        pointsDisplay = []
-        pointsImage = []
-        isBoxAvailable = false
-        setBoxSelectMode(true)
+    func clear() {
+        pointsDisplay = [:]
+        pointsImage = [:]
+        isFirstPointAvailable = false
+        isSecondPointAvailable = false
+        currentEditingPoint = 0
     }
 
     // MARK: - Coordinate Conversions
 
     func updateImageSpace(from containerSize: CGSize, imageSize: CGSize) {
         guard !pointsDisplay.isEmpty else {
-            self.pointsImage = []
+            self.pointsImage = [:]
             return
         }
 
         let mapper = CoordinateMapper(containerSize: containerSize,
                                       imageSize: imageSize,
                                       scaleMode: .aspectFit)
-
-        self.pointsImage =  pointsDisplay.map { displayPoint in
-            mapper.mapPointInverse(displayPoint)
-        }
         
+        for i in 0..<pointsDisplay.count {
+            self.pointsImage[i] = mapper.mapPointInverse(self.pointsDisplay[i]!)
+        }
         log("Box Image updated: \(self.pointsImage)", level: .debug)
     }
 
     func updateDisplaySpace(from containerSize: CGSize, imageSize: CGSize) {
-        guard !pointsDisplay.isEmpty else {
-            self.pointsDisplay = []
+        guard !pointsImage.isEmpty else {
+            self.pointsDisplay = [:]
             return
         }
         
@@ -81,9 +79,10 @@ class BoxViewModel {
                                       imageSize: imageSize,
                                       scaleMode: .aspectFit)
 
-        self.pointsDisplay =  pointsImage.map { imagePoint in
-            mapper.mapPoint(imagePoint)
+        for i in 0..<pointsImage.count {
+            self.pointsDisplay[i] = mapper.mapPoint(self.pointsImage[i]!)
         }
+        
         log("Box Display updated: \(self.pointsDisplay)", level: .debug)
     }
 }

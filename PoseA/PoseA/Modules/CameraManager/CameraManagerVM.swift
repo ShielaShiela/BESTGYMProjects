@@ -74,8 +74,7 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     @Published var poseKeypoints: [PoseBox] = []
     @Published var camIntrinsics: matrix_float3x3 = matrix_identity_float3x3
     @Published var depthTexture: MTLTexture? = nil
-    
-    private var poseProcessor: YOLOPoseProcessor?
+ 
     private var isProcessingPose = false // Mutex Lock
 
     // FPS Tracker
@@ -108,9 +107,6 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
      
         // Set delegate
         controller.delegate = self
-        
-        // Init Pose
-        self.poseProcessor = YOLOPoseProcessor()
     }
     
     // MARK: - Camera Setup
@@ -248,28 +244,6 @@ class CameraManagerVM: ObservableObject, CaptureDataReceiver {
     func toogleRealtimeDetection() {
         isPoseProcessingEnabled.toggle()
         log("Realtime pose processing is \(isPoseProcessingEnabled ? "enabled" : "disabled")", level: .info)
-        
-        // Load Model if On
-        if isPoseProcessingEnabled {
-            self.setRealtimeModelVersion(self.poseProcessingModelURL)
-        }
-    }
-    
-    func setRealtimeModelVersion(_ version: String) {
-        if isPoseProcessingEnabled {
-            isPoseProcessingEnabled = false
-            log("Realtime pose processing is disabled to reload the model", level: .info)
-            
-            self.poseProcessingModelURL = version
-            poseProcessor?.loadModel(named: self.poseProcessingModelURL) { success in
-                if success {
-                    log("Model changed to \(version)", level: .info)
-                    self.isPoseProcessingEnabled = true
-                }
-            }
-        } else {
-            self.poseProcessingModelURL = version
-        }
     }
 }
 
@@ -289,7 +263,7 @@ extension CameraManagerVM {
             
             // BETA: - YOLO Pose Detection
             if isPoseProcessingEnabled {
-                poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
+                YOLOPoseProcessor.shared.process(pixelBuffer: currentBuffer, pts: pts) { [weak self] poses, fps, pts in
                     // Add depth points to each pose
                     var result = poses
                     if !result.isEmpty {
@@ -347,12 +321,10 @@ extension CameraManagerVM {
             
             // BETA: - YOLO Pose Detection
             if isPoseProcessingEnabled {
-                poseProcessor?.process(pixelBuffer: currentBuffer, pts: pts) { poses, fps, pts in
+                YOLOPoseProcessor.shared.process(pixelBuffer: currentBuffer, pts: pts) { poses, fps, pts in
                     if !poses.isEmpty {
                         // Recording Options
                         if self.isRecording && !self.isPreparingRecording {
-                            // Frame Counter
-//                            let frameIndex = self.frameCounter
                             self.poseBufferQueue.async {
                                 self.poseBuffer.append((poses.first!, pts) as! (PoseBox, CMTime))
                             }

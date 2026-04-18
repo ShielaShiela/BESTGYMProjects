@@ -12,7 +12,7 @@ struct SwingAnalysisView: View {
     
     // Declare State ViewModel Variable
     @ObservedObject var appState: MainAppState
-    @State private var poseJointVM: PoseJointLandscapeVM
+    @State private var featureExtractionVM: FeatureExtractionVM
     @State private var chartBuilderViewModel: ChartBuilderLandscapeVM
     @State private var mediaManager: MediaManagerVM
     
@@ -21,11 +21,11 @@ struct SwingAnalysisView: View {
     
     // MARK: - Initialization
     
-    init (appState: MainAppState, poseJointVM: PoseJointLandscapeVM, mediaManager: MediaManagerVM) {
+    init (appState: MainAppState, featureExtractionVM: FeatureExtractionVM, mediaManager: MediaManagerVM) {
         self.appState = appState
-        self.poseJointVM = poseJointVM
+        self.featureExtractionVM = featureExtractionVM
         self.mediaManager = mediaManager
-        self._chartBuilderViewModel = State(wrappedValue: ChartBuilderLandscapeVM(poseJointViewModel: poseJointVM))
+        self._chartBuilderViewModel = State(wrappedValue: ChartBuilderLandscapeVM(featureExtractionVM: featureExtractionVM))
     }
 
     // MARK: - Body

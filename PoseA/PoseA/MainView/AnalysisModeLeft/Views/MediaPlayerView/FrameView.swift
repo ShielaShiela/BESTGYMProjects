@@ -11,10 +11,11 @@ import SwiftUI
 struct FrameView: View {
     let image: UIImage?
     let keypoints: PoseBox?
-
+    let CoM: CGPoint?
+    
     @ObservedObject var appState: MainAppState
     @Binding var ROIModel: ROIViewModel
-    @Binding var BoxModel: BoxViewModel
+    @Binding var barPointVM: BarPointVM
     
     // New Feature
     @State private var isDataLoading = false
@@ -38,7 +39,7 @@ struct FrameView: View {
             
             // Define Gesture Condition
             let zoomEnabled = appState.isZoomMode
-            let childEnabled = ROIModel.isROIMode || BoxModel.isBoxMode
+            let childEnabled = ROIModel.isROIMode || barPointVM.isSelectMode
             
             // Define Gesture
             let magnificationGesture = MagnificationGesture()
@@ -100,10 +101,10 @@ struct FrameView: View {
                         
                         // Keypoints
                         if let keypoints = keypoints,
-                           !keypoints.keypoints.isEmpty,
-                           appState.showKeypoints {
+                           !keypoints.keypoints.isEmpty {
                             PoseOverlayView(
                                 poses: [keypoints],
+                                CoM: CoM,
                                 videoSize: imageSize,
                                 scaleMode: .aspectFit
                             )
@@ -119,9 +120,9 @@ struct FrameView: View {
                         }
                         
                         // Box
-                        if BoxModel.isBoxMode {
-                            BoxFrameOverlayView(
-                                BoxModel: $BoxModel,
+                        if barPointVM.isSelectMode {
+                            BarOverlayView(
+                                barPointVM: $barPointVM,
                                 containerSize: geometry.size,
                                 imageSize: imageSize
                             )

@@ -18,12 +18,12 @@ class ChartBuilderLandscapeVM {
     var rawCompleteJointData: [JointData3D] = []
     
     // Define ViewModel
-    private let poseJointViewModel: PoseJointLandscapeVM
+    private let featureExtractionVM: FeatureExtractionVM
     
     // MARK: - Init
     
-    init(poseJointViewModel: PoseJointLandscapeVM) {
-        self.poseJointViewModel = poseJointViewModel
+    init(featureExtractionVM: FeatureExtractionVM) {
+        self.featureExtractionVM = featureExtractionVM
     }
     
     // MARK: - Data Fetching
@@ -52,19 +52,19 @@ class ChartBuilderLandscapeVM {
     func BuildDataMetricsData(selectedView: String?) {
         switch(selectedView) {
         case "Trajectory":
-            self.rawCompleteJointData = poseJointViewModel.positionCompleteData
+            self.rawCompleteJointData = featureExtractionVM.positionCompleteData
             break
         case "Velocity":
-            self.rawCompleteJointData = poseJointViewModel.velocityCompleteData
+            self.rawCompleteJointData = featureExtractionVM.velocityCompleteData
             break
         case "Acceleration":
-            self.rawCompleteJointData = poseJointViewModel.accelerationCompleteData
+            self.rawCompleteJointData = featureExtractionVM.accelerationCompleteData
             break
         case "Angle":
-            self.rawCompleteJointData = poseJointViewModel.angleCompleteData
+            self.rawCompleteJointData = featureExtractionVM.angleCompleteData
             break
         case "Swing":
-            self.rawCompleteJointData = poseJointViewModel.swingData
+            self.rawCompleteJointData = featureExtractionVM.swingData
         default:
             break
         }
@@ -82,7 +82,7 @@ class ChartBuilderLandscapeVM {
     private func fetchGiantSwingData() {
         // Filter Position based On Selected Joints
         let joints = ["L Hip", "R Hip"]
-        let filteredData = poseJointViewModel.positionCompleteData.filter { joints.contains($0.joint) }
+        let filteredData = featureExtractionVM.positionCompleteData.filter { joints.contains($0.joint) }
         
         self.chartDataFirst = filteredData.map { jointData in
             let pointData = jointData.dataPoints.enumerated().map { index, point in
@@ -95,7 +95,7 @@ class ChartBuilderLandscapeVM {
             )
         }
         
-        let filteredSwingData = poseJointViewModel.swingData.filter { ["Swing Angle"].contains($0.joint) }
+        let filteredSwingData = featureExtractionVM.swingData.filter { ["Swing Angle"].contains($0.joint) }
         self.chartDataSecond = filteredSwingData.map { jointData in
             let pointData = jointData.dataPoints.enumerated().map { index, point in
                 Point2D(x: Double(index) + 1, y: Double(point.y))
@@ -107,12 +107,12 @@ class ChartBuilderLandscapeVM {
             )
         }
         
-        self.pointData = poseJointViewModel.barPosition
+        self.pointData = featureExtractionVM.barPosition
     }
     
     private func fetchJointAngleData(joints: [String]) {
         // Filter Angle based On Selected Joints
-        let filteredData = poseJointViewModel.angleCompleteData.filter { joints.contains($0.joint) }
+        let filteredData = featureExtractionVM.angleCompleteData.filter { joints.contains($0.joint) }
         
         self.chartDataFirst = filteredData.map { jointData in
             let xPoints = jointData.dataPoints.enumerated().map { index, point in
@@ -128,7 +128,7 @@ class ChartBuilderLandscapeVM {
     
     private func fetchJointPoseData(joints: [String]) {
         // Filter Position based On Selected Joints
-        let filteredData = poseJointViewModel.positionCompleteData.filter { joints.contains($0.joint) }
+        let filteredData = featureExtractionVM.positionCompleteData.filter { joints.contains($0.joint) }
         
         // Prepare X vs Index
         self.chartDataFirst = filteredData.map { jointData in
@@ -157,7 +157,7 @@ class ChartBuilderLandscapeVM {
     
     private func fetchJointVelData(joints: [String]) {
         // Filter Velocity based On Selected Joints
-        let filteredData = poseJointViewModel.velocityCompleteData.filter { joints.contains($0.joint) }
+        let filteredData = featureExtractionVM.velocityCompleteData.filter { joints.contains($0.joint) }
         
         // Prepare X vs Index
         self.chartDataFirst = filteredData.map { jointData in
@@ -186,7 +186,7 @@ class ChartBuilderLandscapeVM {
     
     private func fetchJointAccData(joints: [String]) {
         // Filter Acceleration based On Selected Joints
-        let filteredData = poseJointViewModel.accelerationCompleteData.filter { joints.contains($0.joint) }
+        let filteredData = featureExtractionVM.accelerationCompleteData.filter { joints.contains($0.joint) }
         
         // Prepare X vs Index
         self.chartDataFirst = filteredData.map { jointData in

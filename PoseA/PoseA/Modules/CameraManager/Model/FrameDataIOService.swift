@@ -11,9 +11,7 @@ import UIKit
 import simd
 
 final class FrameDataIOService {
-
     // MARK: - Save Methods
-    
     func save(_ data: FrameDataModel, to url: URL, filter depthfilter:  Bool) throws {
         // Create the Folder
         let folderURL = try createCaptureFolder(at: url)

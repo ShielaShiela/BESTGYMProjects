@@ -8,9 +8,8 @@
 import Spatial
 import Foundation
 
-// MARK: ----------------------------- Pose Joint Dataase Class BEGIN -----------------------------
 @Observable
-class PoseJointLandscapeVM {
+class FeatureExtractionVM {
     // MARK: - Properties
     
     var angleCompleteData: [JointData3D] = []
@@ -21,7 +20,7 @@ class PoseJointLandscapeVM {
     var barPosition: [Point2D] = []
     var swingData: [JointData3D] = []
     
-    private var BoxModel: BoxViewModel
+    private var barPointVM: BarPointVM
     private var mediaManager: MediaManagerVM
     private var appState: MainAppState
 
@@ -42,9 +41,9 @@ class PoseJointLandscapeVM {
     
     // MARK: - Init
     
-    init(appState: MainAppState, BoxModel: BoxViewModel, mediaManager: MediaManagerVM) {
+    init(appState: MainAppState, barPointVM: BarPointVM, mediaManager: MediaManagerVM) {
         self.appState = appState
-        self.BoxModel = BoxModel
+        self.barPointVM = barPointVM
         self.mediaManager = mediaManager
     }
     
@@ -250,7 +249,7 @@ class PoseJointLandscapeVM {
             }
             
             // Iterate per Keypoint Frame
-            for i in 0..<self.mediaManager.fileLoaderViewModel.FrameImageURLs.count {
+            for i in 0..<self.mediaManager.importFileVM.FrameImageURLs.count {
                 let keypoints = self.mediaManager.getKeypointsByIndex(i)
                 // Iterate per Joints
                 for joint in availableJoints {
@@ -476,6 +475,3 @@ class PoseJointLandscapeVM {
         return appState.angleUnit == .rad ? angle.normalized.radians : angle.normalized.degrees
     }
 }
-
-
-// MARK: ------------------------------ Pose Joint Database Class END ------------------------------

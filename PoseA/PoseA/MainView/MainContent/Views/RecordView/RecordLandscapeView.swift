@@ -212,6 +212,7 @@ struct RecordLandscapeView: View {
                                 // Pose Overlay
                                 if let nearest = rtPoseJointVM.nearestPose {
                                     PoseOverlayView(poses: [nearest],
+                                                    CoM: nil,
                                                     videoSize: isLandscape ? CGSize(width: self.cameraManager.cameraConfiguration.resolution.width,
                                                                                     height: self.cameraManager.cameraConfiguration.resolution.height) :
                                                                             CGSize(width: self.cameraManager.cameraConfiguration.resolution.height,
@@ -219,6 +220,7 @@ struct RecordLandscapeView: View {
                                                     scaleMode: .aspectFill)
                                 } else {
                                     PoseOverlayView(poses: self.cameraManager.poseKeypoints,
+                                                    CoM: nil,
                                                     videoSize: isLandscape ? CGSize(width: self.cameraManager.cameraConfiguration.resolution.width,
                                                                                     height: self.cameraManager.cameraConfiguration.resolution.height) :
                                                                             CGSize(width: self.cameraManager.cameraConfiguration.resolution.height,
@@ -248,9 +250,6 @@ struct RecordLandscapeView: View {
                     
                         .onChange(of: appState.realtimeDetection) {
                             cameraManager.toogleRealtimeDetection()
-                        }
-                        .onChange(of: appState.realtimeModel) { oldValue, newValue in
-                            cameraManager.setRealtimeModelVersion(newValue)
                         }
                         .onChange(of: pointPickerVM.pointImage) { _, newPoint in
                             rtPoseJointVM.updatePoint(point: newPoint)

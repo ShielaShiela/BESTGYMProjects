@@ -10,7 +10,7 @@ import SwiftUI
 struct InformationView: View {
     @ObservedObject var appState: MainAppState
     @State var ROIModel: ROIViewModel
-    @State var BoxModel: BoxViewModel
+    @State var barPointVM: BarPointVM
     @State var mediaManager: MediaManagerVM
     
     var body: some View {
@@ -101,10 +101,10 @@ struct InformationView: View {
             // ROI Status
             HStack(spacing: 4) {
                 Circle()
-                    .fill(BoxModel.isBoxAvailable ? Color.green : Color.gray)
+                    .fill(barPointVM.isFirstPointAvailable && barPointVM.isSecondPointAvailable ? Color.green : Color.gray)
                     .frame(width: 8, height: 8)
                 
-                Text(BoxModel.isBoxAvailable ? "Box Status: Box Set" : "Box Status: Box Unavailable")
+                Text(barPointVM.isFirstPointAvailable && barPointVM.isSecondPointAvailable ? "Bar Status: Available" : "Bar Status: Unavailable")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

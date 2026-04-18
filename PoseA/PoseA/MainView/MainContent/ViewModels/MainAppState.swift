@@ -10,18 +10,14 @@ import SwiftUI
 // MARK: - Main App State
 class MainAppState: ObservableObject {
     // UI state
+    @Published var informationMsg: InformationMessage? = nil
+    
     @Published var isProcessing = false
     @Published var isVideoSource = false
     @Published var isRecordMode = false
-    @Published var hasImportedKeypoints = false
-    @Published var processingStatus = ""
-    @Published var errorMessage: String? = nil
-    @Published var showKeypoints = false
-    
-    @Published var is3DAnimationView = false
-    
+    @Published var showKeypoints = true
+        
     // Toolbox Status
-    @Published var isAnnotationMode = false
     @Published var isROIMode = false
     @Published var isZoomMode = false
     
@@ -71,15 +67,7 @@ extension MainAppState {
         sourceFileName = ""
         sourceURL = nil
         originalKeypointFileURL = nil
-        hasImportedKeypoints = false
         showKeypoints = false
-    }
-    
-    // Helper to reset processing/error state
-    func resetStatusState() {
-        isProcessing = false
-        processingStatus = ""
-        errorMessage = nil
     }
     
     func loadUserPreferences() {
@@ -90,5 +78,22 @@ extension MainAppState {
     func saveUserPreferences() {
         UserDefaults.standard.set(autoDetectKeypoints, forKey: "AutoDetectKeypoints")
      
+    }
+    
+    // MARK: - Instruction Message Methods
+    func showInstruction(_ text: String, duration: TimeInterval = 3.0) {
+        informationMsg = InformationMessage(text: text, type: .info, duration: duration)
+    }
+    
+    func showWarning(_ text: String, duration: TimeInterval = 4.0) {
+        informationMsg = InformationMessage(text: text, type: .warning, duration: duration)
+    }
+    
+    func showError(_ text: String, autoDismiss: Bool = false, duration: TimeInterval = 5.0) {
+        informationMsg = InformationMessage(text: text, type: .error, autoDismiss: autoDismiss, duration: duration)
+    }
+    
+    func dismissInstruction() {
+        informationMsg = nil
     }
 }

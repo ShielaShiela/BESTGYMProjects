@@ -145,3 +145,32 @@ extension View {
             .clipShape(Capsule())
     }
 }
+
+extension CGPoint {
+    // Vector 2D operations
+    func add(_ point: CGPoint) -> CGPoint {
+        return CGPoint(x: self.x + point.x, y: self.y + point.y)
+    }
+    func sub(_ point: CGPoint) -> CGPoint {
+        return CGPoint(x: self.x - point.x, y: self.y - point.y)
+    }
+    func scale(_ scalar: CGFloat) -> CGPoint {
+        return CGPoint(x: self.x * scalar, y: self.y * scalar)
+    }
+    func cross(_ point: CGPoint) -> CGFloat {
+        return self.x * point.y - self.y * point.x
+    }
+    func dot(_ point: CGPoint) -> CGFloat {
+        return self.x * point.x + self.y * point.y
+    }
+    func magnitude() -> CGFloat {
+        return sqrt(self.x * self.x + self.y * self.y)
+    }
+    func distance(to point: CGPoint) -> CGFloat {
+        return hypot(self.x - point.x, self.y - point.y)
+    }
+    func angle() -> Double {
+        Double(truncating: NSDecimalNumber(decimal: Decimal(atan2(self.y, self.x) * 180.0 / .pi)))
+    }
+}
+

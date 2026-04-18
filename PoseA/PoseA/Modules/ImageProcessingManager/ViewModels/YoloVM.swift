@@ -11,6 +11,8 @@ import os.log
 
 final class YOLOPoseProcessor {
     // MARK: - Public knobs
+    static let shared = YOLOPoseProcessor()
+
     var confidenceThreshold: Float = 0.35
     var iouThreshold: Float = 0.50
 
@@ -34,56 +36,45 @@ final class YOLOPoseProcessor {
 
     private let modelFPS = FPSMeter(label: "Model", autoPrint: false)
 
-    // MARK: - Utilities
-    private func tick(_ label: String, block: () -> Void) {
-        let start = CFAbsoluteTimeGetCurrent()
-        block()
-        let diff = (CFAbsoluteTimeGetCurrent() - start) * 1000
-        print("⏱ \(label): \(String(format: "%.2f", diff)) ms")
-    }
-
     // MARK: - Model Loading
-    func loadModel(named name: String, completion: @escaping ((Bool) -> Void)) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            self.tick("LoadModel") {
-                do {
-                    guard let url = Bundle.main.url(forResource: name, withExtension: "mlmodelc") else {
-                        assertionFailure("Model not found in bundle")
-                        return
-                    }
-                    let config = MLModelConfiguration()
-                    config.computeUnits = .cpuAndNeuralEngine
-                    
-                    self.mlModel = try MLModel(contentsOf: url, configuration: config)
-                    self.vnModel = try VNCoreMLModel(for: self.mlModel)
-                    
-                    if let input = self.mlModel?.modelDescription.inputDescriptionsByName.values.first,
-                       input.type == .image,
-                       let ic = input.imageConstraint {
-                        self.modelInputSize = CGSize(width: ic.pixelsWide, height: ic.pixelsHigh)
-                    }
-
-                    if let output = self.mlModel?.modelDescription.outputDescriptionsByName.values.first,
-                       output.type == .multiArray,
-                       let shape = output.multiArrayConstraint?.shape,
-                       shape.count == 3 {
-                        self.featureLength = Int(truncating: shape[1])
-                        self.boxCount = Int(truncating: shape[2])
-                    }
-                    
-                    DispatchQueue.main.async {
-                        self.setUpVision()
-                        completion(true)
-                    }
-                    
-                } catch {
-                    assertionFailure("Failed to load model: \(error)")
-                    DispatchQueue.main.async {
-                        completion(false)
-                    }
-                }
+    func loadModel(named name: String) -> String? {
+        // Semaphore to wait
+        let semaphore = DispatchSemaphore(value: 0)
+        
+        do {
+            guard let url = Bundle.main.url(forResource: name, withExtension: "mlmodelc") else {
+                return "Model not found in bundle"
             }
+            let config = MLModelConfiguration()
+            config.computeUnits = .cpuAndNeuralEngine
+            
+            self.mlModel = try MLModel(contentsOf: url, configuration: config)
+            self.vnModel = try VNCoreMLModel(for: self.mlModel)
+            
+            if let input = self.mlModel?.modelDescription.inputDescriptionsByName.values.first,
+               input.type == .image,
+               let ic = input.imageConstraint {
+                self.modelInputSize = CGSize(width: ic.pixelsWide, height: ic.pixelsHigh)
+            }
+
+            if let output = self.mlModel?.modelDescription.outputDescriptionsByName.values.first,
+               output.type == .multiArray,
+               let shape = output.multiArrayConstraint?.shape,
+               shape.count == 3 {
+                self.featureLength = Int(truncating: shape[1])
+                self.boxCount = Int(truncating: shape[2])
+            }
+            
+            DispatchQueue.main.async {
+                self.setUpVision()
+                semaphore.signal()
+            }
+
+        } catch {
+            return "Failed to load model: \(error)"
         }
+        
+        return nil
     }
 
     private func setUpVision() {

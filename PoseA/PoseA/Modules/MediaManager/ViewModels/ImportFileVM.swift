@@ -1,5 +1,5 @@
 //
-//  FileLoaderVM.swift
+//  ImportFileVM.swift
 //  PoseA
 //
 //  Created by Bestlab on 7/2/25.
@@ -9,25 +9,27 @@ import SwiftUI
 import AVFoundation
 
 @Observable
-class FileLoaderVM: ObservableObject {
-    // --- Data Storage for Analysis ---
-    private var frameData = FrameDataVM()
-    var mediaMetadata: [MetadataInfo] = []
-    
-    // --- Data Storage for Playback ---
+class ImportFileVM {
+    // --- Data Storage ---
     var FrameImageURLs:[URL] = []
     var FrameFolderURLs: [URL] = []
-    var keypointData: [Int : PoseBox] = [:]
     
+    var keypointData: [Int : PoseBox] = [:]
+    var CoMData: [Int : CGPoint] = [:]
+    var featuresData: [Int : FeaturesModel] = [:]
+    var barData: [Int : CGPoint] = [:]
+    var mediaMetadata: RecordingMetadata?
+
     // Data Availability Status Flag
     var isDataLoaded: Bool = false
     var isKeyLoaded: Bool = false
+    var isCoMLoaded: Bool = false
+    var isFeaturesLoaded: Bool = false
     
     // Video Data
     var FrameCounts: Int = 0
     
-    // MARK: - 3D LiDAR Data Loader Public Methods
-    
+    // MARK: - Video Loader Public Methods
     func loadVideoFolder(from url: URL) {
         log("Started load video folder for URL: \(url.path)", level: .debug)
 
@@ -36,72 +38,58 @@ class FileLoaderVM: ObservableObject {
             guard let self = self else { return }
 
             do {
-                // Get all direct children of the folder
-                let contents = try FileManager.default.contentsOfDirectory(
-                    at: url,
-                    includingPropertiesForKeys: [.isDirectoryKey],
+                // Look for the color_frames directory
+                let colorFramesURL = url.appendingPathComponent("color_frames")
+                
+                guard FileManager.default.fileExists(atPath: colorFramesURL.path) else {
+                    log("color_frames directory not found at: \(colorFramesURL.path)", level: .error)
+                    DispatchQueue.main.async {
+                        self.isDataLoaded = false
+                    }
+                    return
+                }
+                
+                // Get all files in the color_frames directory
+                let frameContents = try FileManager.default.contentsOfDirectory(
+                    at: colorFramesURL,
+                    includingPropertiesForKeys: [.isRegularFileKey],
                     options: [.skipsHiddenFiles]
                 )
                 
-                // Filter for frame_X directories
-                var frameDirectories: [URL] = []
-                for item in contents {
-                    var isDir: ObjCBool = false
-                    if FileManager.default.fileExists(atPath: item.path, isDirectory: &isDir),
-                       isDir.boolValue,
-                       item.lastPathComponent.hasPrefix("frame_") {
-                        frameDirectories.append(item)
+                log("Found \(frameContents.count) frame files.", level: .debug)
+                
+                // Filter for color_X.jpg files and sort them by frame number
+                var imageURLs: [URL] = []
+                
+                for fileURL in frameContents {
+                    let fileName = fileURL.lastPathComponent
+                    if fileName.hasPrefix("color_") && fileName.hasSuffix(".jpg") {
+                        imageURLs.append(fileURL)
                     }
                 }
-                log("Found \(frameDirectories.count) frame directories.", level: .debug)
                 
                 // Sort by frame number
-                frameDirectories.sort { (url1, url2) -> Bool in
+                imageURLs.sort { (url1, url2) -> Bool in
                     let num1 = self.extractFrameNumber(from: url1.lastPathComponent)
                     let num2 = self.extractFrameNumber(from: url2.lastPathComponent)
                     return num1 < num2
                 }
                 
-                // Get Image URLs
-                var imageURLs: [URL] = []
-                
-                for frameDir in frameDirectories {
-                    // Check multiple possible names with and without extensions
-                    let possibleImageNames = [
-                        "colorImage",
-                        "colorImage.jpg",
-                        "color_image.jpg",
-                        "color.jpg"
-                    ]
-                    
-                    var foundImage = false
-                    for imageName in possibleImageNames {
-                        let imageURL = frameDir.appendingPathComponent(imageName)
-                        if FileManager.default.fileExists(atPath: imageURL.path) {
-                            imageURLs.append(imageURL)
-                            foundImage = true
-                            break
-                        }
-                    }
-                    
-                    if !foundImage {
-                        log("No image is found in \(frameDir.lastPathComponent).", level: .debug)
-                    }
-                }
-                log("Found \(imageURLs.count) vaild frame images.", level: .debug)
+                log("Found \(imageURLs.count) valid frame images in color_frames directory.", level: .debug)
                 
                 // Update Published Variables
                 DispatchQueue.main.async { [self] in
                     // Set Data Value
                     self.FrameImageURLs = imageURLs
-                    self.FrameFolderURLs = frameDirectories
+                    self.FrameFolderURLs = [colorFramesURL] // Store the single color_frames directory
                     self.FrameCounts = imageURLs.count
                     
                     // Set Data Status
                     self.isDataLoaded = !imageURLs.isEmpty
                 }
+                
             } catch {
-                log("Error scanning directories.", level: .error)
+                log("Error scanning color_frames directory: \(error)", level: .error)
                 DispatchQueue.main.async {
                     self.isDataLoaded = false
                 }
@@ -110,8 +98,7 @@ class FileLoaderVM: ObservableObject {
     }
     
     // MARK: - Load 2D Video Files
-
-    func loadVideoFile(from url: URL) async {
+    func loadVideoFile(from url: URL, to: URL, opID: String) async {
         log("Started load 2D video for URL: \(url.path)", level: .debug)
 
         await withCheckedContinuation { continuation in
@@ -122,7 +109,7 @@ class FileLoaderVM: ObservableObject {
                 }
 
                 do {
-                    let imageURLs = try await self.extractFramesAndSaveToDisk(url: url)
+                    let imageURLs = try await self.extractFrames(url: url, to: to, opID: opID)
 
                     await MainActor.run {
                         // Set Data Value
@@ -148,13 +135,6 @@ class FileLoaderVM: ObservableObject {
 
 
     // MARK: - Load Keypoint Files
-    func loadKeypointsInternal(from MLOutput: [Int:PoseBox]) {
-        // Set Keypoints
-        self.keypointData = MLOutput
-        // Set Data Status
-        self.isKeyLoaded = !MLOutput.isEmpty
-    }
-    
     func loadKeypoints(from url: URL) {
         // Perform all heavy operations on background thread
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -213,7 +193,6 @@ class FileLoaderVM: ObservableObject {
                 }
                 
             } catch {
-                // Removing old "double try methods" -> REDUNDANT
                 log("Error scanning directories.", level: .error)
                 DispatchQueue.main.async { [self] in
                     self.isKeyLoaded = false
@@ -223,25 +202,80 @@ class FileLoaderVM: ObservableObject {
     }
     
     
+    func loadCoM(from url: URL) throws {
+        let (importedCoM, missingFrames) = try ExportImportManager.importCoM(from: url)
+        
+        // Update Published Variables
+        DispatchQueue.main.async { [self] in
+            // Set Data Value
+            self.CoMData = importedCoM
+            // Set Data Status
+            self.isCoMLoaded = !CoMData.isEmpty
+        }
+        
+        if !missingFrames.isEmpty {
+            log("Imported CoM data with \(missingFrames.count) missing frames: \(missingFrames)", level: .info)
+        }
+        
+        log("Successfully imported \(importedCoM.count) CoM frames", level: .info)
+    }
+
+    func loadFeatures(from url: URL) throws {
+        let (importedFeatures, _) = try ExportImportManager.importFeatures(from: url)
+        
+        // Update Published Variables
+        DispatchQueue.main.async { [self] in
+            // Set Data Value
+            self.featuresData = importedFeatures
+            
+            self.barData[0] = importedFeatures[0]!.topBarPx
+            self.barData[1] = importedFeatures[0]!.bottomBarPx
+            
+            // Set Data Status
+            self.isFeaturesLoaded = !featuresData.isEmpty
+        }
+        
+        log("Successfully imported \(importedFeatures.count) ML features data", level: .info)
+    }
+    
+    func loadMetadata(from metadataURL: URL) {
+        guard FileManager.default.fileExists(atPath: metadataURL.path) else {
+            log("Recording metadata file not found at: \(metadataURL.path)", level: .error)
+            return
+        }
+        
+        do {
+            let data = try Data(contentsOf: metadataURL)
+            let metadataJSON = try JSONDecoder().decode(RecordingMetadata.self, from: data)
+            
+            // Update Published Variables
+            DispatchQueue.main.async { [self] in
+                // Set Data Value
+                self.mediaMetadata = metadataJSON
+            }
+            
+        } catch {
+            log("Failed to load recording metadata: \(error)", level: .error)
+        }
+    }
     
     // MARK: - Required Helper Functions
     private func extractFrameNumber(from string: String) -> Int {
         return Int(string.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) ?? 0
     }
     
-    private func extractFramesAndSaveToDisk(url: URL) async throws -> [URL] {
+    private func extractFrames(url: URL, to: URL, opID: String) async throws -> [URL] {
+        // Set Files URLs
         var frameURLs: [URL] = []
-
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         let asset = AVURLAsset(url: url)
 
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
-        generator.requestedTimeToleranceBefore = .zero  // More accurate
-        generator.requestedTimeToleranceAfter = .zero   // More accurate
-
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        
+        // Get Video Metadata
         let duration = try await asset.load(.duration)
         let tracks = try await asset.loadTracks(withMediaType: .video)
         guard let videoTrack = tracks.first else {
@@ -253,9 +287,7 @@ class FileLoaderVM: ObservableObject {
         let durationSeconds = CMTimeGetSeconds(duration)
 
         let totalFramesEstimate = Int(durationSeconds * Double(effectiveFrameRate))
-        log("video fps: \(effectiveFrameRate)", level: .debug)
-        log("estimated total frames: \(totalFramesEstimate)", level: .debug)
-
+        
         let frameInterval = CMTime(value: 1, timescale: Int32(effectiveFrameRate))
 
         for i in 0..<totalFramesEstimate {
@@ -277,24 +309,28 @@ class FileLoaderVM: ObservableObject {
                 let uiImage = UIImage(cgImage: cgImage)
                 let imageData = uiImage.jpegData(compressionQuality: 0.8)
 
-                let frameDir = tempDir.appendingPathComponent("frame_\(i+1)")
-                try FileManager.default.createDirectory(at: frameDir, withIntermediateDirectories: true)
-
-                let frameFileURL = frameDir.appendingPathComponent("colorImage.jpg")
+                let frameFileURL = to.appendingPathComponent("color_\(i+1).jpg")
                 try imageData?.write(to: frameFileURL)
 
                 frameURLs.append(frameFileURL)
-
-                if i % 20 == 0 || i == totalFramesEstimate - 1 {
-                    log("Extracting: \(i+1)/\(totalFramesEstimate) frames saved to disk", level: .debug)
+                
+                let progressValue = Double(i + 1) / Double(totalFramesEstimate)
+                
+                // Update status
+                Task { @MainActor in
+                    ProcessingManagerVM.shared.updateOperation(
+                        id: opID,
+                        status: "Extracting frame files...",
+                        progress: progressValue
+                    )
                 }
-
+                
             } catch {
                 log("Skipping frame \(i): \(error.localizedDescription)", level: .warn)
             }
         }
 
-        log("Extracted and saved \(frameURLs.count) frames successfully at \(tempDir.path)", level: .info)
+        log("Extracted and saved \(frameURLs.count) frames successfully at \(to.path)", level: .info)
         return frameURLs
     }
 
@@ -350,7 +386,6 @@ class FileLoaderVM: ObservableObject {
                 keypoints: []
             )
         }
-        
         
         return output
     }

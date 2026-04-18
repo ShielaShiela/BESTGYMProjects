@@ -12,8 +12,8 @@ import AVFoundation
 @Observable
 class MediaManagerVM {
     // View Model
-    var fileLoaderViewModel: FileLoaderVM = FileLoaderVM()
-    var mediaPlayerViewModel: MediaPlayerVM = MediaPlayerVM()
+    var importFileVM: ImportFileVM = ImportFileVM()
+    var mediaPlayerVM: MediaPlayerVM = MediaPlayerVM()
     
     // Frame Update
     var isMediaAvailable: Bool = false
@@ -21,83 +21,173 @@ class MediaManagerVM {
     var isDataLIDAR: Bool = false
     var isDataTemp: Bool = false
     
-    var currentFrameImage: UIImage? {
-        mediaPlayerViewModel.currentFrameImage
-    }
-
-    var currentFrameIndex: Int {
-        mediaPlayerViewModel.currentFrameIndex
-    }
-    
     // Media Player Variable
     var isPlaying: Bool = false
+    var fps: Double = 30.0 {
+        didSet {
+            mediaPlayerVM.setFPS(fps)
+        }
+    }
     
+    // MARK: - Unified Data Storage
+    // Single source of truth for keypoints data
+    private var _keypointData: [Int: PoseBox] = [:]
+    var keypointData: [Int: PoseBox] { _keypointData }
+    
+    // Single source of truth for CoM data
+    private var _CoMData: [Int: CGPoint] = [:]
+    var CoMData: [Int: CGPoint] { _CoMData }
+
+    // Single source of truth for CoM data
+    private var _FeaturesData: [Int: FeaturesModel] = [:]
+    var FeaturesData: [Int: FeaturesModel] { _FeaturesData }
+    
+    // Single source of truth for bar reference points
+    private var _BarReferenceData: [Int: CGPoint] = [:]
+    var BarReferenceData: [Int: CGPoint] { _BarReferenceData }
+    
+    var currentFrameImage: UIImage? { mediaPlayerVM.currentFrameImage }
+    var currentFrameIndex: Int { mediaPlayerVM.currentFrameIndex }
+
+    // MARK: - Data Source Management
+    enum DataSource {
+        case file
+        case processing
+    }
+    
+    // Updates keypoints data from any source
+    func updateKeypointsData(_ data: [Int: PoseBox], source: DataSource) {
+        _keypointData = data
+        isKeypointAvailable = !data.isEmpty
+        
+        log("Updated keypoints data from \(source) with \(data.count) frames", level: .info)
+    }
+    
+    // Updates CoM data from any source
+    func updateCoMData(_ data: [Int: CGPoint], source: DataSource) {
+        _CoMData = data
+        
+        log("Updated CoM data from \(source) with \(data.count) frames", level: .info)
+    }
+
+    // Updates CoM data from any source
+    func updateFeaturesData(_ data: [Int: FeaturesModel], source: DataSource) {
+        _FeaturesData = data
+        
+        log("Updated ML features data from \(source) with \(data.count) frames", level: .info)
+    }
+    
+    // Updates bar reference points from any source
+    func updateBarData(_ data: [Int: CGPoint], source: DataSource) {
+        _BarReferenceData = data
+        log("Updated bar reference points from \(source) with \(data.count) points", level: .info)
+    }
+    
+    func syncBarPointVM (barPointVM: BarPointVM) {
+        if !_BarReferenceData.isEmpty {
+            // Update BarPointVM with loaded data
+            barPointVM.pointsImage = _BarReferenceData
+            barPointVM.isFirstPointAvailable = _BarReferenceData[0] != nil
+            barPointVM.isSecondPointAvailable = _BarReferenceData[1] != nil
+        }
+    }
+    
+    // Clears all processed data (useful when switching between file/processing modes)
+    func clearProcessedData() {
+        _keypointData.removeAll()
+        _CoMData.removeAll()
+        _FeaturesData.removeAll()
+        _BarReferenceData.removeAll()
+        isKeypointAvailable = false
+        
+        log("Cleared all processed data", level: .info)
+    }
 
     // MARK: - Cleaner
     func clearAllData() {
-        fileLoaderViewModel.isDataLoaded = false
-        fileLoaderViewModel.isKeyLoaded = false
+        importFileVM.isDataLoaded = false
+        importFileVM.isKeyLoaded = false
         
-        fileLoaderViewModel.keypointData.removeAll()
-        fileLoaderViewModel.FrameImageURLs = []
-        fileLoaderViewModel.FrameFolderURLs = []
+        // Clear file-based data
+        importFileVM.keypointData.removeAll()
+        importFileVM.CoMData.removeAll()
+        importFileVM.featuresData.removeAll()
+        importFileVM.barData.removeAll()
         
-        fileLoaderViewModel.FrameCounts = 0
+        importFileVM.FrameImageURLs = []
+        importFileVM.FrameFolderURLs = []
+        importFileVM.FrameCounts = 0
+        
+        // Clear unified processed data
+        clearProcessedData()
     }
     
     // MARK: - Public Function of Media Loader
+    func loadGalleryFile(url: URL, opID: String, autoDetectKeypoints: Bool) -> String? {
+        // Initialize Processsing Manager
+        let operationId = opID
         
-    func loadGalleryFile(url: URL, autoDetectKeypoints: Bool, completion: @escaping (String?) -> Void) {
+        // Start tracking loadMedia process
+        Task { @MainActor in
+            ProcessingManagerVM.shared.startOperation(
+                id: operationId,
+                status: "Checking file availability...",
+                isPrimary: true
+            )
+        }
+        
         // Initialize File Manager
         let fileManager = FileManager.default
         var isDirectory: ObjCBool = false
 
         // Proceed to check if file exists
         guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue else {
-            completion("Invalid file URL: \(url.lastPathComponent)")
-            return
+            return "Selected file or folder doesn't exist"
         }
         
-        // Check if the same file is already saved in project
-        // Destination directory in Documents
-        guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return
-        }
-
-        // Lookup for destination folder name based on original video file name
-        let folderName = url.deletingPathExtension().lastPathComponent
-        let destinationDir = documentsDir.appendingPathComponent(folderName)
-
-        // If destination folder exists, open the project
-        if fileManager.fileExists(atPath: destinationDir.path) {
-            log("Found video in project folder \(destinationDir.lastPathComponent)", level: .debug)
-            
-            // Open Project
-            let ret = self.loadMedia(url: destinationDir, autoDetectKeypoints: autoDetectKeypoints)
-            self.isDataLIDAR = false
-            self.isDataTemp = false
-            completion(ret)
-            
-            return
-        }
+        // Semaphore to wait
+        let semaphore = DispatchSemaphore(value: 0)
+        var loadResult: String?
         
-        // Proceed to extract frames if not processed yet.
-        Task {
-            await self.fileLoaderViewModel.loadVideoFile(from: url)
-
-            await self.watchMediaAvailability(expectKeypoints: false)
+        // Mkdir frame folder
+        do {
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
             
-            if fileLoaderViewModel.isDataLoaded {
-                self.isDataTemp = true
-                completion(nil)
-            } else {
-                self.isDataTemp = false
-                completion("Failed to load video.")
+            // Proceed to extract frames
+            self.loadVideoFrames(videoURL: url, to: tempDir, opID: operationId) { result in
+                loadResult = result
+                semaphore.signal()
             }
+        } catch {
+            log("Error creating temporary directory: \(error.localizedDescription)", level: .error)
+            return "Error creating temporary directory: \(error.localizedDescription)"
         }
+        
+        semaphore.wait()
+        if let error = loadResult {
+            return error
+        }
+        
+        // Wait for media availability synchronously
+        let group = DispatchGroup()
+        group.enter()
+        
+        Task {
+            await self.watchMediaAvailability(expectKeypoints: false)
+            self.isDataTemp = false
+            group.leave()
+        }
+        
+        group.wait()
+        
+        return nil
     }
 
-    func loadMedia(url: URL, autoDetectKeypoints: Bool) -> String? {
+    func loadMedia(url: URL, opID: String, autoDetectKeypoints: Bool) async -> String? {
+        // Initialize Processsing Manager
+        let operationId = opID
+        
         // Initialize File Manager
         let fileManager = FileManager.default
         var isDirectory: ObjCBool = false
@@ -116,7 +206,6 @@ class MediaManagerVM {
         
         // Load File
         if isDirectory.boolValue {
-            // It's a folder
             // Start accessing the main folder - keep it alive for all operations
             do {
                 // Get all items in the folder (no need to access each individually)
@@ -125,86 +214,106 @@ class MediaManagerVM {
                     includingPropertiesForKeys: [.isDirectoryKey, .contentAccessDateKey],
                     options: [.skipsHiddenFiles]
                 )
-                
-                log("Found \(contents.count) items in folder \(url.lastPathComponent)", level: .debug)
-                
-                // Check for video files
-                let videoFiles = contents.filter {
-                    let filename = $0.lastPathComponent.lowercased()
-                    return $0.pathExtension.lowercased() == "mp4" || $0.pathExtension.lowercased() == "mov"
-                }
-                
-                // Check for keypoints
-                let keypointFiles = contents.filter {
-                    let filename = $0.lastPathComponent.lowercased()
-                    return $0.pathExtension.lowercased() == "json" &&
-                    (filename.contains("keypoint") || filename.contains("pose"))
-                }
+
+                // Check for app files
+                let videoURL = findFile(named: "color_video.mp4", in: contents)
+                let keypointURL = findFile(named: "keypoints.json", in: contents)
+                let comURL = findFile(named: "com.json", in: contents)
+                let featuresURL = findFile(named: "features.json", in: contents)
+                let recordingMetadataURL = findFile(named: "recording_metadata.json", in: contents)
                 
                 // Check for frame directories
                 let frameDirectories = contents.filter {
                     var isDir: ObjCBool = false
                     return fileManager.fileExists(atPath: $0.path, isDirectory: &isDir) &&
                     isDir.boolValue &&
-                    $0.lastPathComponent.hasPrefix("frame_")
+                    $0.lastPathComponent.hasPrefix("color_frame")
                 }
-                
-                // If Data Structure Detected
-                if !frameDirectories.isEmpty && videoFiles.isEmpty {
-                    // Load LiDAR recording with frame folders
-                    self.fileLoaderViewModel.loadVideoFolder(from: url)
-                    
-                    // Check for keypoints in LiDAR folder
-                    if !keypointFiles.isEmpty && autoDetectKeypoints{
-                        let keypointURL = keypointFiles.first!
-                        log("Found keypoint file in folder: \(keypointURL.lastPathComponent)", level: .debug)
-                        
-                        self.fileLoaderViewModel.loadKeypoints(from: keypointURL)
-                    }
-                    
-                    // Check for Depth Data
-                    for frameDir in frameDirectories {
-                        let depthDataURL = frameDir.appendingPathComponent("depthData.dat")
-                        if fileManager.fileExists(atPath: depthDataURL.path) {
-                            self.isDataLIDAR = true
-                            break // Exit early if found
-                        }
-                    }
-                    
-                    if self.isDataLIDAR {
-                        log("Depth data found in at least one frame directory.", level: .info)
-                    } else {
-                        log("No depth data found in any frame directory.", level: .info)
-                    }
-                }
-                
-                // If Video File Detected
-                if !videoFiles.isEmpty && frameDirectories.isEmpty {
-                    // Get Video URL
-                    let videoURL = videoFiles.first!
-                    log("Found video file in folder: \(videoURL.lastPathComponent)", level: .debug)
-                    
-                    // Expand Video By Frames
-                    self.loadVideoFrames(videoURL: url) { result in
-                        log("Result: \(result ?? "None")", level: .debug)
-                        
-                        // Check for keypoints in recording folder
-                        if !keypointFiles.isEmpty && autoDetectKeypoints{
-                            let keypointURL = keypointFiles.first!
-                            log("Found keypoint file in folder: \(keypointURL.lastPathComponent)", level: .debug)
-                            
-                            self.fileLoaderViewModel.loadKeypoints(from: keypointURL)
-                        }
-                    }
 
+                let depthDirectories = contents.filter {
+                    var isDir: ObjCBool = false
+                    return fileManager.fileExists(atPath: $0.path, isDirectory: &isDir) &&
+                    isDir.boolValue &&
+                    $0.lastPathComponent.hasPrefix("depth_frame")
                 }
-                Task {
-                    await self.watchMediaAvailability(expectKeypoints: (!keypointFiles.isEmpty && autoDetectKeypoints))
-                    self.isDataTemp = false
+                
+                // MARK: - If Data Structure Detected (Processed)
+                if !frameDirectories.isEmpty {
+                    // Load recording with frame folders
+                    self.importFileVM.loadVideoFolder(from: url)
+                } else {
+                    // MARK: If Video File Detected (Not Processed)
+                    if let videoURL = videoURL {
+                        // Update Processing Manager
+                        Task { @MainActor in
+                            ProcessingManagerVM.shared.updateOperation(
+                                id: operationId,
+                                status: "Processing video frames...",
+                                progress: 0.2
+                            )
+                        }
+                        
+                        // Mkdir frame folder
+                        let frameDir = url.appendingPathComponent("color_frames")
+                        try FileManager.default.createDirectory(at: frameDir, withIntermediateDirectories: true)
+                        
+                        // Expand Video By Frames
+                        let loadResult = await withCheckedContinuation { continuation in
+                            self.loadVideoFrames(videoURL: videoURL, to: frameDir, opID: operationId) { result in
+                                continuation.resume(returning: result)
+                            }
+                        }
+
+                        if let error = loadResult {
+                            return error
+                        }
+                    }
                 }
+                
+                // Check & Load keypoints in folder
+                if let keypointURL = keypointURL,
+                   let comURL = comURL,
+                   let featuresURL = featuresURL,
+                   autoDetectKeypoints{
+                    log("Found APP file in folder.", level: .debug)
+                    
+                    // Update Processing Manager
+                    Task { @MainActor in
+                        ProcessingManagerVM.shared.updateOperation(
+                            id: operationId,
+                            status: "Loading keypoints, CoM, features..."
+                        )
+                    }
+                    
+                    self.importFileVM.loadKeypoints(from: keypointURL)
+                    try self.importFileVM.loadCoM(from: comURL)
+                    try self.importFileVM.loadFeatures(from: featuresURL)
+                }
+                
+                // Load metadata from folders
+                if let recordingMetadataURL = recordingMetadataURL {
+                    log("Found metadata file in folder: \(recordingMetadataURL.lastPathComponent)", level: .debug)
+                    self.importFileVM.loadMetadata(from: recordingMetadataURL)
+                }
+                
+                // Check for Depth Data
+                if !depthDirectories.isEmpty {
+                    self.isDataLIDAR = true
+                }
+                
+                // Get FPS from metadata if available
+                if let mediaMetadata = self.importFileVM.mediaMetadata {
+                    self.fps = Double(mediaMetadata.frameCount) / mediaMetadata.duration
+                    log("Calculated FPS from metadata: \(fps)", level: .debug)
+                }
+                
+                // Wait for media availability
+                await self.watchMediaAvailability(expectKeypoints: ((keypointURL != nil) && autoDetectKeypoints))
+                self.isDataTemp = false
         
             } catch {
                 log("Error loading folder: \(error.localizedDescription)", level: .error)
+                return "Error loading folder: \(error.localizedDescription)"
             }
 
         } else {
@@ -212,11 +321,30 @@ class MediaManagerVM {
             let fileExtension = url.pathExtension.lowercased()
             switch fileExtension {
             case "json":
-                self.fileLoaderViewModel.loadKeypoints(from: url)
+                self.importFileVM.loadKeypoints(from: url)
             case "mp4", "mov", "m4v":
-                self.loadVideoFrames(videoURL: url) { result in
-                    log("Result: \(result ?? "None")", level: .debug)
+                let semaphore = DispatchSemaphore(value: 0)
+                var loadResult: String?
+                
+                do {
+                    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+                    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                    
+                    self.loadVideoFrames(videoURL: url, to: tempDir) { result in
+                        log("Result: \(result ?? "None")", level: .debug)
+                        loadResult = result
+                        semaphore.signal()
+                    }
+                } catch {
+                    log("Error creating temporary directory: \(error.localizedDescription)", level: .error)
+                    return "Error creating temporary directory: \(error.localizedDescription)"
                 }
+                
+                semaphore.wait()
+                if let error = loadResult {
+                    return error
+                }
+                
             default:
                 return "Unsupported file format: \(fileExtension)"
             }
@@ -224,14 +352,28 @@ class MediaManagerVM {
         
         return nil
     }
-     func loadVideoFrames(videoURL: URL, completion: @escaping (String?) -> Void) {
-         // Proceed to extract frames if not processed yet.
+    
+    // Loader for color_frame folder
+    func loadVideoFrames(videoURL: URL, to: URL, opID: String? = nil, completion: @escaping (String?) -> Void) {
          Task {
-             await self.fileLoaderViewModel.loadVideoFile(from: videoURL)
+             // Start tracking loadVideoFrames process
+             if let operationId = opID {
+                 Task { @MainActor in
+                     ProcessingManagerVM.shared.startOperation(
+                        id: operationId,
+                        status: "Checking file availability...",
+                        isPrimary: true
+                     )
+                 }
+             }
+             
+             let operationId = opID ?? "loadVideoFrames_\(UUID().uuidString)"
+             
+             await self.importFileVM.loadVideoFile(from: videoURL, to: to, opID: operationId)
 
              await self.watchMediaAvailability(expectKeypoints: false)
              
-             if fileLoaderViewModel.isDataLoaded {
+             if importFileVM.isDataLoaded {
                  self.isDataTemp = true
                  completion(nil)
              } else {
@@ -240,11 +382,12 @@ class MediaManagerVM {
              }
          }
     }
+    
     // MARK: - File Export
     func exportFramesContentsToAppDirectory(originalFileURL: URL) throws -> URL {
         // Get Temp Dir
         let fileManager = FileManager.default
-        let tempDirURL = fileLoaderViewModel.FrameImageURLs.first!.deletingLastPathComponent().deletingLastPathComponent()
+        let tempDirURL = importFileVM.FrameImageURLs.first!.deletingLastPathComponent().deletingLastPathComponent()
         
         // Destination directory in Documents
         guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
@@ -279,69 +422,93 @@ class MediaManagerVM {
     
     
     // MARK: - Public Function for Media Player
+    func getCoMCurrent() -> CGPoint? {
+        if isKeypointAvailable {
+            return self.getCoMByIndex(self.mediaPlayerVM.currentFrameIndex)
+        } else { return nil }
+    }
+    
+    func getCoMByIndex(_ index: Int) -> CGPoint? {
+        if isKeypointAvailable {
+            return self.CoMData[index] ?? nil
+        } else { return nil }
+    }
     
     func getKeypointsCurrent() -> PoseBox? {
-        if fileLoaderViewModel.isKeyLoaded {
-            return self.getKeypointsByIndex(self.mediaPlayerViewModel.currentFrameIndex)
+        if isKeypointAvailable {
+            return self.getKeypointsByIndex(self.mediaPlayerVM.currentFrameIndex)
         } else { return nil }
     }
     
     func getKeypointsByIndex(_ index: Int) -> PoseBox? {
-        if fileLoaderViewModel.isKeyLoaded {
-            return self.fileLoaderViewModel.keypointData[index] ?? nil
+        if isKeypointAvailable {
+            return self.keypointData[index] ?? nil
         } else { return nil }
     }
     
     func getCurrentIndex() -> Int {
-        if fileLoaderViewModel.isKeyLoaded {
-            return self.mediaPlayerViewModel.currentFrameIndex
+        if isKeypointAvailable {
+            return self.mediaPlayerVM.currentFrameIndex
         } else { return 0 }
     }
     
     func tooglePlayback() {
         // Check if the player is Done
-        if self.mediaPlayerViewModel.currentFrameIndex + 1 == self.mediaPlayerViewModel.totalFrames {
+        if self.mediaPlayerVM.currentFrameIndex + 1 == self.mediaPlayerVM.totalFrames {
             // Reset Button if Done
             isPlaying = false
-            self.mediaPlayerViewModel.firstFrame()
+            self.mediaPlayerVM.firstFrame()
         } else {
             // Play/Pause Button if False
             if isPlaying {
                 isPlaying = false
-                self.mediaPlayerViewModel.stopPlayback()
+                self.mediaPlayerVM.stopPlayback()
             } else {
                 isPlaying = true
-                self.mediaPlayerViewModel.startPlayback()
+                self.mediaPlayerVM.startPlayback()
             }
         }
     }
     
     // MARK: - Required Helper Functions
-
     @MainActor
-    func watchMediaAvailability(expectKeypoints: Bool) {
-        // Task is required because we use `await`/delay
-        Task {
-            while !isKeypointAvailable {
-                if !expectKeypoints { break }
-                if fileLoaderViewModel.isKeyLoaded {
-                    isKeypointAvailable = true
-                    log("Successfully loaded Keypoints frame data.", level: .debug)
-                }
-                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms polling
-            }
-            
-            while !isMediaAvailable {
-                if fileLoaderViewModel.isDataLoaded {
-                    isMediaAvailable = true
-                    log("Successfully loaded LiDAR frame data.", level: .debug)
+    func watchMediaAvailability(expectKeypoints: Bool) async {
+        while !isKeypointAvailable {
+            if !expectKeypoints { break }
 
-                    mediaPlayerViewModel.updateMedia(
-                        imageURLs: fileLoaderViewModel.FrameImageURLs
-                    )
-                }
-                try? await Task.sleep(nanoseconds: 100_000_000)
+            if importFileVM.isKeyLoaded &&
+               importFileVM.isCoMLoaded &&
+               importFileVM.isFeaturesLoaded {
+
+                updateKeypointsData(importFileVM.keypointData, source: .file)
+                updateCoMData(importFileVM.CoMData, source: .file)
+                updateFeaturesData(importFileVM.featuresData, source: .file)
+                updateBarData(importFileVM.barData, source: .file)
+
+                isKeypointAvailable = true
+                log("Successfully loaded Keypoints frame data.", level: .debug)
             }
+
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        while !isMediaAvailable {
+            if importFileVM.isDataLoaded {
+                isMediaAvailable = true
+                log("Successfully loaded LiDAR frame data.", level: .debug)
+
+                mediaPlayerVM.updateMedia(
+                    imageURLs: importFileVM.FrameImageURLs
+                )
+            }
+
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
+    
+    private func findFile(named name: String, in contents: [URL]) -> URL? {
+        return contents.first {
+            $0.lastPathComponent.lowercased() == name.lowercased()
         }
     }
 }

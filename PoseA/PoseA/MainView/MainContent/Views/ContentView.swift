@@ -1,8 +1,8 @@
-import SwiftUI
+
 import AVFoundation
 import Photos
 import PhotosUI
-import Foundation
+import SwiftUI
 
 struct BESTGYMPoseApp: View {
     // MARK: - Properties
@@ -12,14 +12,17 @@ struct BESTGYMPoseApp: View {
     // Media Related VM
     @State private var mediaManager = MediaManagerVM()
     @State private var ROIModel = ROIViewModel()
-    @State private var BoxModel = BoxViewModel()
+    @State private var barPointVM = BarPointVM()
+    
+    // Processing Manager
+    @State private var processingManager = ProcessingManagerVM.shared
     
     // UI/UX Related VM
     @StateObject private var appState = MainAppState()
     @State private var toolbarVM = ToolbarButtonVM()
     
     // ML Model Related VM
-    @State private var MLModel = YOLOPoseProcessor()
+    @State private var MLModel = YOLOPoseProcessor.shared
     
     // MARK: - Body
     var body: some View {
@@ -32,7 +35,7 @@ struct BESTGYMPoseApp: View {
                             // Left half: MainContentLeftView with padding inside its half
                             AnalysisModeLeftView(appState: self.appState,
                                                  ROIModel: $ROIModel,
-                                                 BoxModel: $BoxModel,
+                                                 barPointVM: $barPointVM,
                                                  mediaManager: self.mediaManager)
                             .frame(width: geometry.size.width / 2 - 10) // Half of screen minus spacing
                             
@@ -42,9 +45,8 @@ struct BESTGYMPoseApp: View {
                             // Right half: MainContentRightView with padding inside its half
                             AnalysisModeRightView(appState: self.appState,
                                                   ROIModel: self.ROIModel,
-                                                  BoxModel: self.BoxModel,
-                                                  mediaManager: self.mediaManager,
-                                                  MLModel: self.MLModel)
+                                                  barPointVM: self.barPointVM,
+                                                  mediaManager: self.mediaManager)
                             .frame(width: geometry.size.width / 2 - 10)
                         }
                         .frame(width: geometry.size.width, height: geometry.size.height)
@@ -62,7 +64,7 @@ struct BESTGYMPoseApp: View {
                             ToolbarActiveMode(appState: appState,
                                               toolbarVM: toolbarVM,
                                               ROIModel: ROIModel,
-                                              BoxModel: BoxModel)
+                                              barPointVM: barPointVM)
                         }
                         
                         // Principal Toolbar
@@ -71,7 +73,7 @@ struct BESTGYMPoseApp: View {
                                                toolbarVM: toolbarVM,
                                                mediaManager: mediaManager,
                                                ROIModel: ROIModel,
-                                               BoxModel: BoxModel)
+                                               barPointVM: barPointVM)
                         }
                         
                         // Right Toolbar
@@ -79,8 +81,7 @@ struct BESTGYMPoseApp: View {
                             ToolbarRight(appState: appState,
                                          selectFileOrFolder: selectFileOrFolder,
                                          selectVideoFromLibrary: selectVideoFromLibrary,
-                                         selectKeypointFile: selectKeypointFile,
-                                         saveProject: saveProject)
+                                         selectKeypointFile: selectKeypointFile)
                         }
                     }
                     
@@ -88,26 +89,8 @@ struct BESTGYMPoseApp: View {
                     .sheet(isPresented: $appState.isFilePickerPresented) {
                         DocumentPickerUI { urls in
                             if let url = urls.first {
-                                self.appState.isProcessing = true
-                                self.appState.processingStatus = "Loading data..."
-                                print("isProcessing:", self.appState.isProcessing)
-                                
-                                DispatchQueue.global(qos: .userInitiated).async {
-                                    let errMsg = mediaManager.loadMedia(url: url, autoDetectKeypoints: appState.autoDetectKeypoints)
-                                    
-                                    DispatchQueue.main.async {
-                                        if let errMsg = errMsg {
-                                            self.appState.errorMessage = errMsg
-                                        } else {
-                                            self.appState.processingStatus = "Loaded frames from \(url.lastPathComponent)"
-                                            self.appState.sourceFileName = url.lastPathComponent
-                                            self.appState.sourceURL = url
-                                            self.appState.showKeypoints = true
-                                            self.appState.isVideoSource = !mediaManager.isDataLIDAR
-                                            self.appState.isTempFiles = mediaManager.isDataTemp
-                                        }
-                                        self.appState.isProcessing = false
-                                    }
+                                Task {
+                                    await loadMediaAsync(url: url)
                                 }
                             }
                         }
@@ -117,27 +100,8 @@ struct BESTGYMPoseApp: View {
                     .sheet(isPresented: $appState.isPhotoLibraryPresented) {
                         PhotoLibraryVideoPicker(isPresented: $appState.isPhotoLibraryPresented) { url in
                             if let url = url {
-                                // Use loadData Function
-                                appState.isProcessing = true
-                                appState.processingStatus = "Loading data..."
-                                
-                                mediaManager.loadGalleryFile(url: url, autoDetectKeypoints: appState.autoDetectKeypoints) { errMsg in
-                                    if let errMsg = errMsg {
-                                        DispatchQueue.main.async {
-                                            self.appState.errorMessage = errMsg
-                                            self.appState.isProcessing = false
-                                        }
-                                    } else {
-                                        DispatchQueue.main.async {
-                                            self.appState.processingStatus = "Loaded frames from \(url.lastPathComponent)"
-                                            self.appState.sourceFileName = url.lastPathComponent
-                                            self.appState.sourceURL = url
-                                            self.appState.isProcessing = false
-                                            self.appState.showKeypoints = false
-                                            self.appState.isVideoSource = !mediaManager.isDataLIDAR
-                                            self.appState.isTempFiles = mediaManager.isDataTemp
-                                        }
-                                    }
+                                Task {
+                                    await loadGalleryAsync(url: url)
                                 }
                             }
                         }
@@ -156,28 +120,43 @@ struct BESTGYMPoseApp: View {
             }
             
             // Loading Overlay View
-            if appState.isProcessing {
-                ProcessingOverlayView(status: appState.processingStatus)
+            if processingManager.isProcessing {
+                ProcessingOverlayView(
+                    status: processingManager.currentStatus,
+                    progress: processingManager.progress
+                )
                     .zIndex(1)
             }
             
-            // Error Overlay
-            if let error = appState.errorMessage {
-                ErrorOverlayView(message: error) {
-                    appState.errorMessage = nil
+            // Instruction Message Overlay
+            if let instruction = appState.informationMsg {
+                VStack {
+                    HStack {
+                        InformationMsgView(message: instruction) {
+                            appState.informationMsg = nil
+                        }
+                        .padding(.leading, 130)
+                        .padding(.top, 30)
+                        
+                        Spacer()
+                    }
+                    Spacer()
                 }
-                .zIndex(1)
             }
         }
         .onAppear {
             // Ensure initialization
             _ = OrientationCache.shared
             appState.loadUserPreferences()
-            self.setModelVersion(appState.realtimeModel)
+            Task {
+                await self.setModelVersion(appState.realtimeModel)
+            }
         }
         .onChange(of: appState.realtimeModel) { oldModel, newModel in
             if oldModel != newModel {
-                self.setModelVersion(newModel)
+                Task {
+                    await self.setModelVersion(newModel)
+                }
             }
         }
         
@@ -248,57 +227,10 @@ struct BESTGYMPoseApp: View {
     }
     
     private func selectKeypointFile() {
-//        if mediaManager.isKeypointAvailable || mediaManager.isMediaAvailable {
-//            log("Cleaning up before folder selection...", level: .info)
-//            cleanupPreviousData()
-//        }
         // Small delay to ensure cleanup completes
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.appState.isKeypointImportPresented = true
         }
-    }
-    
-    // Save Project
-    private func saveProject() {
-//        if self.appState.isTempFiles {
-            do {
-                // Export to Apps
-                appState.isProcessing = true
-                
-                let url = try mediaManager.exportFramesContentsToAppDirectory(originalFileURL: appState.sourceURL!)
-                
-                if mediaManager.isKeypointAvailable || mediaManager.isMediaAvailable {
-                    log("Cleaning up before folder selection...", level: .info)
-                    cleanupPreviousData()
-                }
-                
-                // Load from copy source
-                appState.processingStatus = "Loading data..."
-                
-                let errMsg = mediaManager.loadMedia(url: url, autoDetectKeypoints: appState.autoDetectKeypoints)
-                
-                if let errMsg = errMsg {
-                    DispatchQueue.main.async {
-                        self.appState.errorMessage = errMsg
-                        self.appState.isProcessing = false
-                    }
-                } else {
-                    DispatchQueue.main.async {
-                        self.appState.processingStatus = "Loaded frames from \(url.lastPathComponent)"
-                        self.appState.sourceFileName = url.lastPathComponent
-                        self.appState.sourceURL = url
-                        self.appState.isProcessing = false
-                        self.appState.showKeypoints = true
-                        self.appState.isVideoSource = !mediaManager.isDataLIDAR
-                    }
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self.appState.errorMessage = "Failed to export to apps: \(error)"
-                    self.appState.isProcessing = false
-                }
-            }
-//        }
     }
     
     private func cleanupPreviousData() {
@@ -314,9 +246,7 @@ struct BESTGYMPoseApp: View {
         cameraManager.clearAllFrames()
         print("Cleared camera frames")
         
-        // 3. Clear app state (this calls poseProcessor.clearAllKeypoints())
         appState.resetFileAndKeypointState()
-        appState.resetStatusState()
         print("Reset app state")
         
         // Clear Media Manager
@@ -325,12 +255,98 @@ struct BESTGYMPoseApp: View {
         print("Cleanup complete")
     }
     
-    private func setModelVersion(_ version: String) {
-        log("pose processing reload the model", level: .info)
-        self.MLModel.loadModel(named: version) { success in
-            if success {
-                log("Model changed to \(version)", level: .info)
-            }
+    private func setModelVersion(_ version: String) async {
+        let operationId = "loadMLModel_\(UUID().uuidString)"
+
+        // Start the processing operation
+        ProcessingManagerVM.shared.startOperation(
+            id: operationId,
+            status: "Loading ML Model...",
+            isPrimary: true
+        )
+        let errMsg = await Task.detached {
+            YOLOPoseProcessor.shared.loadModel(named: version)
+        }.value
+        
+        if let errMsg = errMsg {
+            self.appState.informationMsg = InformationMessage(text: errMsg, type: .error)
+        } else {
+            self.appState.informationMsg = InformationMessage(text: "Successfully loaded ML Model.", type: .info)
+
         }
+        
+
+        // Complete the operation
+        ProcessingManagerVM.shared.completeOperation(id: operationId)
+    }
+}
+
+extension BESTGYMPoseApp {
+    
+    // Loader
+    @MainActor
+    private func loadMediaAsync(url: URL) async {
+        let operationId = "loadMediaUI_\(UUID().uuidString)"
+
+        ProcessingManagerVM.shared.startOperation(
+            id: operationId,
+            status: "Preparing to load data...",
+            isPrimary: true
+        )
+
+        let errMsg = await mediaManager.loadMedia(
+            url: url,
+            opID: operationId,
+            autoDetectKeypoints: appState.autoDetectKeypoints
+        )
+
+        if let errMsg = errMsg {
+            appState.informationMsg = InformationMessage(text: errMsg, type: .error)
+        } else {
+            appState.sourceFileName = url.lastPathComponent
+            appState.sourceURL = url
+            appState.isVideoSource = !mediaManager.isDataLIDAR
+            appState.isTempFiles = mediaManager.isDataTemp
+
+            mediaManager.syncBarPointVM(barPointVM: barPointVM)
+        }
+
+        appState.informationMsg = InformationMessage(
+            text: "Successfully loading media data.",
+            type: .info
+        )
+
+        ProcessingManagerVM.shared.completeOperation(id: operationId)
+    }
+    
+    @MainActor
+    private func loadGalleryAsync(url: URL) async {
+        let operationId = "loadGalleryUI_\(UUID().uuidString)"
+
+        // Start the processing operation
+        ProcessingManagerVM.shared.startOperation(
+            id: operationId,
+            status: "Preparing to load data...",
+            isPrimary: true
+        )
+        
+        // Perform the media loading operation
+        let errMsg = await Task.detached { [mediaManager, appState] in
+            return mediaManager.loadGalleryFile(url: url, opID: operationId, autoDetectKeypoints: appState.autoDetectKeypoints)
+        }.value
+        
+        // Update UI on main thread
+        if let errMsg = errMsg {
+            self.appState.informationMsg = InformationMessage(text: errMsg, type: .error)
+        } else {
+            self.appState.sourceFileName = url.lastPathComponent
+            self.appState.sourceURL = url
+            self.appState.showKeypoints = false
+            self.appState.isVideoSource = !mediaManager.isDataLIDAR
+            self.appState.isTempFiles = mediaManager.isDataTemp
+        }
+        
+        // Complete the operation
+        ProcessingManagerVM.shared.completeOperation(id: operationId)
     }
 }

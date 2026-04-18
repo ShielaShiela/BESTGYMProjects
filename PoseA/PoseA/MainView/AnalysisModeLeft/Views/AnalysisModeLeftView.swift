@@ -10,7 +10,7 @@ import SwiftUI
 struct AnalysisModeLeftView: View {
     @ObservedObject var appState: MainAppState
     @Binding var ROIModel: ROIViewModel
-    @Binding var BoxModel: BoxViewModel
+    @Binding var barPointVM: BarPointVM
     @State var mediaManager: MediaManagerVM
     
     var body: some View {
@@ -21,80 +21,44 @@ struct AnalysisModeLeftView: View {
                         .edgesIgnoringSafeArea(.bottom)
                     
                     if mediaManager.isMediaAvailable {
-                        if appState.is3DAnimationView {
-                            Chart3DAnimationView(
-                                keypoints: mediaManager.getKeypointsCurrent()
-                            )
-                            .frame(height: geometry.size.height * 0.75)
-                            .background(Color.gray.opacity(0.1))
-                            .overlay(
-                                // Debug info overlay
-                                VStack {
-                                    HStack {
-                                        Text("Frame: \(mediaManager.currentFrameIndex + 1)/\(mediaManager.mediaPlayerViewModel.totalFrames)")
-                                            .font(.caption)
-                                            .padding(6)
-                                            .background(Color.black.opacity(0.7))
-                                            .foregroundColor(.white)
-                                            .cornerRadius(4)
-                                        
-                                        Spacer()
-                                        
-                                        if let KeypointData = mediaManager.getKeypointsCurrent() {
-                                            Text("Keypoints: \(KeypointData.keypoints.count)")
-                                                .font(.caption)
-                                                .padding(6)
-                                                .background(KeypointData.keypoints.count == 17 ? Color.green.opacity(0.7) : Color.red.opacity(0.7))
-                                                .foregroundColor(.white)
-                                                .cornerRadius(4)
-                                        }
-                                    }
-                                    .padding(.horizontal)
-                                    .padding(.top, 8)
+                        FrameView(
+                            image: mediaManager.currentFrameImage,
+                            keypoints: mediaManager.getKeypointsCurrent(),
+                            CoM: mediaManager.getCoMCurrent(),
+                            appState: appState,
+                            ROIModel: $ROIModel,
+                            barPointVM: $barPointVM
+                        )
+                        .frame(height: geometry.size.height * 0.75)
+                        .background(Color.black.opacity(0.7))
+                        .overlay(
+                            // Debug info overlay
+                            VStack {
+                                HStack {
+                                    Text("Frame: \(mediaManager.currentFrameIndex + 1)/\(mediaManager.mediaPlayerVM.totalFrames)")
+                                        .font(.caption)
+                                        .padding(6)
+                                        .background(Color.black.opacity(0.7))
+                                        .foregroundColor(.white)
+                                        .cornerRadius(4)
                                     
                                     Spacer()
-                                }
-                            )
-                        } else {
-                            FrameView(
-                                image: mediaManager.currentFrameImage,
-                                keypoints: mediaManager.getKeypointsCurrent(),
-                                appState: appState,
-                                ROIModel: $ROIModel,
-                                BoxModel: $BoxModel
-                            )
-                            .frame(height: geometry.size.height * 0.75)
-                            .background(Color.black.opacity(0.7))
-                            .overlay(
-                                // Debug info overlay
-                                VStack {
-                                    HStack {
-                                        Text("Frame: \(mediaManager.currentFrameIndex + 1)/\(mediaManager.mediaPlayerViewModel.totalFrames)")
+                                    
+                                    if let KeypointData = mediaManager.getKeypointsCurrent() {
+                                        Text("Keypoints: \(KeypointData.keypoints.count)")
                                             .font(.caption)
                                             .padding(6)
-                                            .background(Color.black.opacity(0.7))
+                                            .background(KeypointData.keypoints.count == 17 ? Color.green.opacity(0.7) : Color.red.opacity(0.7))
                                             .foregroundColor(.white)
                                             .cornerRadius(4)
-                                        
-                                        Spacer()
-                                        
-                                        if let KeypointData = mediaManager.getKeypointsCurrent() {
-                                            Text("Keypoints: \(KeypointData.keypoints.count)")
-                                                .font(.caption)
-                                                .padding(6)
-                                                .background(KeypointData.keypoints.count == 17 ? Color.green.opacity(0.7) : Color.red.opacity(0.7))
-                                                .foregroundColor(.white)
-                                                .cornerRadius(4)
-                                        }
                                     }
-                                    .padding(.horizontal)
-                                    .padding(.top, 8)
-                                    
-                                    Spacer()
                                 }
-                            )
-                        }
-                        
+                                .padding(.horizontal)
+                                .padding(.top, 8)
+                                
+                                Spacer()
+                            }
+                        )
                     } else {
                         // Placeholder view
                         VStack(spacing: 20) {

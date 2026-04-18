@@ -52,12 +52,12 @@ class MediaPlayerVM {
     
     private var displayLink: CADisplayLink?
     private var lastTimestamp: CFTimeInterval = 0
-    private let frameInterval: Double = 1.0 / 30.0
     
     // Image Variables
     var totalFrames: Int = 0
     var currentFrameIndex: Int = 0
     var currentFrameImage: UIImage? = nil
+    var frameInterval: Double = 1.0 / 30.0
 
     // MARK: - Update Media Data
     func updateMedia(imageURLs: [URL]) {
@@ -71,6 +71,13 @@ class MediaPlayerVM {
     
     
     // MARK: - Fast Forward Frame Functions
+    func setFPS(_ fps: Double) {
+        guard fps > 0 else {
+            log("FPS must be greater than 0.", level: .error)
+            return
+        }
+        self.frameInterval = 1.0 / fps
+    }
     
     func nextFrame() {
         if self.currentFrameIndex < totalFrames - 1 {

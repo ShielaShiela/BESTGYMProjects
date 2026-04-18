@@ -19,10 +19,10 @@ struct PlaybackControlLandscapeView: View {
                     set: {
                         let newIndex = Int($0)
                         // First set the frame directly - this is the key fix
-                        mediaManager.mediaPlayerViewModel.moveToFrame(newIndex)
+                        mediaManager.mediaPlayerVM.moveToFrame(newIndex)
                     }
                 ),
-                in: 0...Double(mediaManager.mediaPlayerViewModel.totalFrames - 1),
+                in: 0...Double(mediaManager.mediaPlayerVM.totalFrames - 1),
                 step: 1
             )
             .padding(.horizontal, 8)
@@ -31,7 +31,7 @@ struct PlaybackControlLandscapeView: View {
             HStack {
                 // Back to start button
                 Button(action: {
-                    mediaManager.mediaPlayerViewModel.firstFrame()
+                    mediaManager.mediaPlayerVM.firstFrame()
                 }) {
                     Image(systemName: "backward.end.fill")
                         .font(.body)
@@ -39,14 +39,14 @@ struct PlaybackControlLandscapeView: View {
                 
                 // Previous frame button
                 Button(action: {
-                    mediaManager.mediaPlayerViewModel.previousFrame()
+                    mediaManager.mediaPlayerVM.previousFrame()
                 }) {
                     Image(systemName: "backward.fill")
                         .font(.body)
                 }
                 
                 // REWORK >> Play/Pause/Reset button
-                let isDone = mediaManager.currentFrameIndex == mediaManager.mediaPlayerViewModel.totalFrames - 1
+                let isDone = mediaManager.currentFrameIndex == mediaManager.mediaPlayerVM.totalFrames - 1
                 Button(action: {
                     mediaManager.tooglePlayback()
                 }) {
@@ -58,7 +58,7 @@ struct PlaybackControlLandscapeView: View {
                 
                 // Next frame button
                 Button(action: {
-                    mediaManager.mediaPlayerViewModel.nextFrame()
+                    mediaManager.mediaPlayerVM.nextFrame()
                 }) {
                     Image(systemName: "forward.fill")
                         .font(.body)
@@ -66,7 +66,7 @@ struct PlaybackControlLandscapeView: View {
                 
                 // Forward to end button
                 Button(action: {
-                    mediaManager.mediaPlayerViewModel.lastFrame()
+                    mediaManager.mediaPlayerVM.lastFrame()
                 }) {
                     Image(systemName: "forward.end.fill")
                         .font(.body)

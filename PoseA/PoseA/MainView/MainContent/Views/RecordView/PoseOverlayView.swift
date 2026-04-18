@@ -19,6 +19,7 @@ fileprivate let cocoConnections: [(Int, Int)] = [ (0, 1), (0, 2),
 
 struct PoseOverlayView: View {
     let poses: [PoseBox]
+    let CoM: CGPoint?
     let videoSize: CGSize
     let scaleMode: ScaleMode
     
@@ -28,11 +29,36 @@ struct PoseOverlayView: View {
                 for pose in poses {
                     drawPose(pose, in: ctx, canvasSize: canvasSize)
                 }
+                if let CoM = CoM {
+                    drawCoM(CoM, in: ctx, canvasSize: canvasSize)
+                }
             }
             .allowsHitTesting(false)
         }
     }
+    
+    private func drawCoM(_ CoM: CGPoint, in ctx: GraphicsContext, canvasSize: CGSize) {
+        let mapper = CoordinateMapper(containerSize: canvasSize,
+                                      imageSize: videoSize,
+                                      scaleMode: scaleMode)
+
+        let lineWidth = self.scaleMode == .aspectFit ? 2.0 : 4.0
+
+        // Map CoM point
+        let pts = mapper.mapPoint(CoM, normalized: false)
         
+        // Create star shape
+        let star = starPath(
+            center: pts,
+            outerRadius: lineWidth * 1.5,
+            innerRadius: lineWidth * 0.7,
+            points: 5
+        )
+        
+        // Fill the star
+        ctx.fill(star, with: .color(.white.opacity(0.75)))
+    }
+    
     private func drawPose(_ pose: PoseBox, in ctx: GraphicsContext, canvasSize: CGSize) {
         let mapper = CoordinateMapper(containerSize: canvasSize,
                                       imageSize: videoSize,
@@ -65,6 +91,31 @@ struct PoseOverlayView: View {
         let p2 = mapper.mapPoint(CGPoint(x: pose.bbox.maxX, y: pose.bbox.maxY), normalized: false)
         let rect = CGRect(x: p1.x, y: p1.y, width: p2.x - p1.x, height: p2.y - p1.y)
         ctx.stroke(Path(rect), with: .color(.green.opacity(0.25)), lineWidth: lineWidth)
+    }
+    
+    private func starPath(center: CGPoint,
+                          outerRadius: CGFloat,
+                          innerRadius: CGFloat,
+                          points: Int = 5) -> Path {
+        var path = Path()
+        let angle = .pi / CGFloat(points)
+        
+        for i in 0..<(points * 2) {
+            let currentAngle = CGFloat(i) * angle - .pi / 2
+            let radius = i.isMultiple(of: 2) ? outerRadius : innerRadius
+            
+            let x = center.x + cos(currentAngle) * radius
+            let y = center.y + sin(currentAngle) * radius
+            
+            if i == 0 {
+                path.move(to: CGPoint(x: x, y: y))
+            } else {
+                path.addLine(to: CGPoint(x: x, y: y))
+            }
+        }
+        
+        path.closeSubpath()
+        return path
     }
     
     // MARK: - Mapping

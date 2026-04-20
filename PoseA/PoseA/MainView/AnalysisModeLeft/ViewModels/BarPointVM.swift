@@ -15,8 +15,7 @@ class BarPointVM {
     var currentEditingPoint: Int = 0 // 0 for first point, 1 for second point
     var pointsDisplay: [Int : CGPoint] = [:] // Display space
     var pointsImage: [Int : CGPoint] = [:] // Image space
-
-
+    
     func setSelectMode(_ isSelectMode: Bool) {
         self.isSelectMode = isSelectMode
     }
@@ -51,6 +50,11 @@ class BarPointVM {
         currentEditingPoint = 0
     }
 
+    func syncBarPointsToMediaManager(mediaManagerVM: MediaManagerVM) {
+        if pointsImage.count < 2 { return }
+        mediaManagerVM.updateBarData(self.pointsImage, source: .processing)
+    }
+    
     // MARK: - Coordinate Conversions
 
     func updateImageSpace(from containerSize: CGSize, imageSize: CGSize) {

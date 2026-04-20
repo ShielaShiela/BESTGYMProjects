@@ -12,26 +12,23 @@ struct PoseAnalysisView: View {
     
     // Declare State ViewModel Variable
     @ObservedObject var appState: MainAppState
-    @State private var featureExtractionVM: FeatureExtractionVM
-    @State private var chartBuilderViewModel: ChartBuilderLandscapeVM
+    @State private var chartBuilderVM: ChartBuilderVM
     @State private var mediaManager: MediaManagerVM
     
     // Define Options Variable
     @State private var selectedOptions: Set<String> = []
     private let selectedView: RightViewModel
-    private let exceptionOptions: Set<String> = ["L Ankle", "R Ankle", "L Wrist", "R Wrist"]
-    
+
     // Define Variable Units
     @State private var AxisUnits: String = ""
     
     // MARK: - Initialization
     
-    init (appState: MainAppState, selectedView: RightViewModel, featureExtractionVM: FeatureExtractionVM, mediaManager: MediaManagerVM) {
+    init (appState: MainAppState, selectedView: RightViewModel, chartBuilderVM: ChartBuilderVM, mediaManager: MediaManagerVM) {
         self.appState = appState
         self.selectedView = selectedView
-        self.featureExtractionVM = featureExtractionVM
+        self.chartBuilderVM = chartBuilderVM
         self.mediaManager = mediaManager
-        self._chartBuilderViewModel = State(wrappedValue: ChartBuilderLandscapeVM(featureExtractionVM: featureExtractionVM))
     }
 
     // MARK: - Body
@@ -50,8 +47,8 @@ struct PoseAnalysisView: View {
                             .frame(width: geometry.size.width * 0.5,
                                    height: 30,
                                    alignment: .leading)
-                    case .trajectoryAxes:
-                        Text("Trajectory Analysis")
+                    case .position:
+                        Text("Position Analysis")
                             .font(.body)
                             .fontWeight(.bold)
                             .lineLimit(2)
@@ -66,19 +63,11 @@ struct PoseAnalysisView: View {
                             .frame(width: geometry.size.width * 0.5,
                                    height: 30,
                                    alignment: .leading)
-                    case .acceleration:
-                        Text("Acceleration Analysis")
-                            .font(.body)
-                            .fontWeight(.bold)
-                            .lineLimit(2)
-                            .frame(width: geometry.size.width * 0.5,
-                                   height: 30,
-                                   alignment: .leading)
                     default: Text("")
                     }
                     
                     // Notify Text if No Joint Selected
-                    if self.chartBuilderViewModel.chartDataFirst.isEmpty {
+                    if self.chartBuilderVM.chartDataFirst.isEmpty {
                         Text("Select Joint to Analyze")
                             .font(.body)
                             .fontWeight(.medium)
@@ -88,28 +77,31 @@ struct PoseAnalysisView: View {
                             .cornerRadius(16)
                     } else {
                         // Single Charts
-                        if self.chartBuilderViewModel.chartDataSecond.isEmpty {
-                            ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataFirst,
-                                               currentFrame: mediaManager.currentFrameIndex,
-                                               xAxisUnit: self.appState.timeUnit.id,
-                                               yAxisUnit: AxisUnits)
+                        if self.chartBuilderVM.chartDataSecond.isEmpty {
+                            ChartView(chartData: self.chartBuilderVM.chartDataFirst,
+                                      currentFrame: mediaManager.currentFrameIndex,
+                                      eventsData: mediaManager.EventsData,
+                                      xAxisUnit: self.appState.timeUnit.id,
+                                      yAxisUnit: AxisUnits)
                                 .frame(width: geometry.size.width, height: (geometry.size.height - 50))
                                 .background(Color(.systemGray6))
                                 .cornerRadius(10)
                         } else {
                             // Double Charts
-                            ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataFirst,
-                                               currentFrame: mediaManager.currentFrameIndex,
-                                               xAxisUnit: self.appState.timeUnit.id,
-                                               yAxisUnit: AxisUnits)
+                            ChartView(chartData: self.chartBuilderVM.chartDataFirst,
+                                      currentFrame: mediaManager.currentFrameIndex,
+                                      eventsData: mediaManager.EventsData,
+                                      xAxisUnit: self.appState.timeUnit.id,
+                                      yAxisUnit: AxisUnits)
                                 .frame(width: geometry.size.width, height: (geometry.size.height - 50) * 0.5)
                                 .background(Color(.systemGray6))
                                 .cornerRadius(10)
 
-                            ChartLandscapeView(chartData: self.chartBuilderViewModel.chartDataSecond,
-                                               currentFrame: mediaManager.currentFrameIndex,
-                                               xAxisUnit: self.appState.timeUnit.id,
-                                               yAxisUnit: AxisUnits)
+                            ChartView(chartData: self.chartBuilderVM.chartDataSecond,
+                                      currentFrame: mediaManager.currentFrameIndex,
+                                      eventsData: mediaManager.EventsData,
+                                      xAxisUnit: self.appState.timeUnit.id,
+                                      yAxisUnit: AxisUnits)
                                 .frame(width: geometry.size.width, height: (geometry.size.height - 50) * 0.5)
                                 .background(Color(.systemGray6))
                                 .cornerRadius(10)
@@ -119,34 +111,49 @@ struct PoseAnalysisView: View {
 
                 // Dropdown overlay
                 MultiDropdownView(
-                    options: selectedView == .angle ? availableJoints.filter { !exceptionOptions.contains($0) } : availableJoints,
+                    options: self.getOptionsForView(),
                     selectedOptions: $selectedOptions
                 )
-                .zIndex(1)
             }
         }
         .onChange(of: selectedOptions) {
             self.updateChart()
         }
         .onChange(of: selectedView) {
+            self.clearSelections()
             self.updateChart()
         }
     }
     
+    private func getOptionsForView() -> [String] {
+        switch selectedView {
+        case .angle:
+            return ["Shoulder", "Hip", "Knee", "vArm", "vTorso", "vThigh", "vLowerLeg", "CoM"]
+        case .position:
+            return ["Head-Bar", "Wrist-Bar"]
+        case .velocity:
+            return ["Shoulder", "Hip", "Knee", "vArm", "vTorso", "vThigh", "vLowerLeg"]
+        default:
+            return []
+        }
+    }
+    
+    private func clearSelections() {
+        selectedOptions.removeAll()
+    }
+    
     private func updateChart() {
-        self.chartBuilderViewModel.clearAllData()
-        self.chartBuilderViewModel.BuildChartData(selectedView: selectedView,
-                                                  selectedOptions: selectedOptions)
+        self.chartBuilderVM.clearAllData()
+        self.chartBuilderVM.BuildChartData(selectedView: selectedView,
+                                           selectedOptions: selectedOptions)
         
         switch(selectedView) {
         case .angle:
             self.AxisUnits = self.appState.angleUnit.id
-        case .trajectoryAxes:
+        case .position:
             self.AxisUnits = self.appState.distanceUnit.id
         case .velocity:
-            self.AxisUnits = self.appState.distanceUnit.id + "/" + self.appState.timeUnit.id
-        case .acceleration:
-            self.AxisUnits = self.appState.distanceUnit.id + "/" + self.appState.timeUnit.id + "2"
+            self.AxisUnits = self.appState.angleUnit.id + "/" + self.appState.timeUnit.id
         default: self.AxisUnits = String("")
         }
     }

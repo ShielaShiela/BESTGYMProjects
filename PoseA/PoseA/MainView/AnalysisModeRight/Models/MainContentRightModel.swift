@@ -11,9 +11,7 @@ import Foundation
 enum RightViewModel {
     case info
     case angle
-    case trajectoryAxes
+    case position
     case velocity
-    case acceleration
-    case swing
     case dataMetrics
 }

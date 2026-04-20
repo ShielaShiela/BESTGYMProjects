@@ -37,6 +37,35 @@ enum ExportImportError: Error, LocalizedError {
 
 // MARK: - Data Export Import Manager
 class ExportImportManager {
+    // MARK: - Events Export/Import
+    static func exportEvents(
+        eventsData: EventsModel,
+        to fileURL: URL
+    ) throws {
+        let exportData = eventsData
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let jsonData = try encoder.encode(exportData)
+        try jsonData.write(to: fileURL)
+    }
+    
+    static func importEvents(from fileURL: URL) throws -> EventsModel {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            throw ExportImportError.fileNotFound
+        }
+        
+        do {
+            let jsonData = try Data(contentsOf: fileURL)
+            let decoder = JSONDecoder()
+            let importData = try decoder.decode(EventsModel.self, from: jsonData)
+            return importData
+        } catch is DecodingError {
+            throw ExportImportError.decodingError
+        } catch {
+            throw ExportImportError.corruptedData
+        }
+    }
+    
     // MARK: - Features Export/Import
     static func exportFeatures(
         featuresData: [Int: FeaturesModel],

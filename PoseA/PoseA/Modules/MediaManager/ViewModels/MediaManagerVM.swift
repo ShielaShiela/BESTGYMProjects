@@ -46,6 +46,10 @@ class MediaManagerVM {
     private var _BarReferenceData: [Int: CGPoint] = [:]
     var BarReferenceData: [Int: CGPoint] { _BarReferenceData }
     
+    // Single source of truth for event frame index
+    private var _EventsData: EventsModel = EventsModel(rotationDir: "")
+    var EventsData: EventsModel { _EventsData }
+    
     var currentFrameImage: UIImage? { mediaPlayerVM.currentFrameImage }
     var currentFrameIndex: Int { mediaPlayerVM.currentFrameIndex }
 
@@ -90,6 +94,13 @@ class MediaManagerVM {
             barPointVM.isFirstPointAvailable = _BarReferenceData[0] != nil
             barPointVM.isSecondPointAvailable = _BarReferenceData[1] != nil
         }
+    }
+    
+    // Updates events frame index data from any source
+    func updateEventsData(_ data: EventsModel, source: DataSource) {
+        _EventsData = data
+        
+        log("Updated Event data from \(source)", level: .info)
     }
     
     // Clears all processed data (useful when switching between file/processing modes)
@@ -220,6 +231,7 @@ class MediaManagerVM {
                 let keypointURL = findFile(named: "keypoints.json", in: contents)
                 let comURL = findFile(named: "com.json", in: contents)
                 let featuresURL = findFile(named: "features.json", in: contents)
+                let eventsURL = findFile(named: "events.json", in: contents)
                 let recordingMetadataURL = findFile(named: "recording_metadata.json", in: contents)
                 
                 // Check for frame directories
@@ -274,6 +286,7 @@ class MediaManagerVM {
                 if let keypointURL = keypointURL,
                    let comURL = comURL,
                    let featuresURL = featuresURL,
+                   let eventsURL = eventsURL,
                    autoDetectKeypoints{
                     log("Found APP file in folder.", level: .debug)
                     
@@ -288,6 +301,7 @@ class MediaManagerVM {
                     self.importFileVM.loadKeypoints(from: keypointURL)
                     try self.importFileVM.loadCoM(from: comURL)
                     try self.importFileVM.loadFeatures(from: featuresURL)
+                    try self.importFileVM.loadEvents(from: eventsURL)
                 }
                 
                 // Load metadata from folders
@@ -301,16 +315,11 @@ class MediaManagerVM {
                     self.isDataLIDAR = true
                 }
                 
-                // Get FPS from metadata if available
-                if let mediaMetadata = self.importFileVM.mediaMetadata {
-                    self.fps = Double(mediaMetadata.frameCount) / mediaMetadata.duration
-                    log("Calculated FPS from metadata: \(fps)", level: .debug)
-                }
-                
                 // Wait for media availability
                 await self.watchMediaAvailability(expectKeypoints: ((keypointURL != nil) && autoDetectKeypoints))
                 self.isDataTemp = false
-        
+                self.fps = self.importFileVM.fps
+                
             } catch {
                 log("Error loading folder: \(error.localizedDescription)", level: .error)
                 return "Error loading folder: \(error.localizedDescription)"
@@ -323,26 +332,24 @@ class MediaManagerVM {
             case "json":
                 self.importFileVM.loadKeypoints(from: url)
             case "mp4", "mov", "m4v":
-                let semaphore = DispatchSemaphore(value: 0)
-                var loadResult: String?
-                
                 do {
                     let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
                     try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
                     
-                    self.loadVideoFrames(videoURL: url, to: tempDir) { result in
-                        log("Result: \(result ?? "None")", level: .debug)
-                        loadResult = result
-                        semaphore.signal()
+                    // Expand Video By Frames
+                    let loadResult = await withCheckedContinuation { continuation in
+                        self.loadVideoFrames(videoURL: url, to: tempDir) { result in
+                            continuation.resume(returning: result)
+                        }
                     }
+
+                    if let error = loadResult {
+                        return error
+                    }
+                    
                 } catch {
                     log("Error creating temporary directory: \(error.localizedDescription)", level: .error)
                     return "Error creating temporary directory: \(error.localizedDescription)"
-                }
-                
-                semaphore.wait()
-                if let error = loadResult {
-                    return error
                 }
                 
             default:
@@ -484,7 +491,8 @@ class MediaManagerVM {
                 updateCoMData(importFileVM.CoMData, source: .file)
                 updateFeaturesData(importFileVM.featuresData, source: .file)
                 updateBarData(importFileVM.barData, source: .file)
-
+                updateEventsData(importFileVM.eventsData, source: .file)
+                
                 isKeypointAvailable = true
                 log("Successfully loaded Keypoints frame data.", level: .debug)
             }

@@ -1,5 +1,5 @@
 //
-//  ChartLandscapeView.swift
+//  ChartView.swift
 //  PoseA
 //
 //  Created by Ardhika Maulidani on 7/17/25.
@@ -18,7 +18,7 @@ extension Color {
     }
 }
 
-struct ChartLandscapeView: View {
+struct ChartView: View {
     // Colors
     private let offWhite = Color(hex: 0xEBE8EB)
 
@@ -26,6 +26,7 @@ struct ChartLandscapeView: View {
     let chartData: [ChartData2D]
     let pointData: [Point2D]
     let currentFrame: Int?
+    let eventsData: EventsModel?
     
     let xAxisUnit: String
     let yAxisUnit: String
@@ -34,10 +35,11 @@ struct ChartLandscapeView: View {
     @State private var baseXScale: ClosedRange<Double> = 0...0
     @State private var baseYScale: ClosedRange<Double> = 0...190
     
-    init(chartData: [ChartData2D], pointData: [Point2D] = [], currentFrame: Int?, xAxisUnit: String = "", yAxisUnit: String = "") {
+    init(chartData: [ChartData2D], pointData: [Point2D] = [], currentFrame: Int?, eventsData: EventsModel? = nil, xAxisUnit: String = "", yAxisUnit: String = "") {
         self.chartData = chartData
         self.pointData = pointData
         self.currentFrame = currentFrame
+        self.eventsData = eventsData
         self.xAxisUnit = xAxisUnit
         self.yAxisUnit = yAxisUnit
     }
@@ -46,6 +48,51 @@ struct ChartLandscapeView: View {
         ZStack(alignment: .topTrailing) {
             // Chart View
             Chart {
+                // Add background color regions based on events data
+                if let events = eventsData {
+                    // Release Phase (orange background)
+                    if let releaseStart = events.releaseStartPoseIdx,
+                       let releaseEnd = events.releaseEndPosePhase {
+                        RectangleMark(
+                            xStart: .value("Start", releaseStart),
+                            xEnd: .value("End", releaseEnd),
+                            yStart: .value("Y Start", baseYScale.lowerBound),
+                            yEnd: .value("Y End", baseYScale.upperBound)
+                        )
+                        .foregroundStyle(.orange.opacity(0.2))
+                        .zIndex(-1)
+                    }
+                    
+                    // Flight Phase (blue background)
+                    if let flightStart = events.flightStartPoseIdx,
+                       let flightEnd = events.flightEndPoseIdx {
+                        RectangleMark(
+                            xStart: .value("Start", flightStart),
+                            xEnd: .value("End", flightEnd),
+                            yStart: .value("Y Start", baseYScale.lowerBound),
+                            yEnd: .value("Y End", baseYScale.upperBound)
+                        )
+                        .foregroundStyle(.blue.opacity(0.2))
+                        .zIndex(-1)
+                    }
+                    
+                    // Add handstand phase
+                    if let handstand = events.handstandPoseIdx {
+                        RuleMark(x: .value("X", handstand))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [5]))
+                            .foregroundStyle(.black.opacity(0.25))
+                        .zIndex(-1)
+                    }
+                    
+                    // Add peak flight marker
+                    if let peakFlight = events.peakFlightIdx {
+                        RuleMark(x: .value("X", peakFlight))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [5]))
+                            .foregroundStyle(.red.opacity(0.25))
+                        .zIndex(-1)
+                    }
+                }
+                
                 ForEach(pointData) { point in
                     PointMark(
                         x: .value("Bar_X", point.x),
@@ -63,7 +110,7 @@ struct ChartLandscapeView: View {
                             series: .value("Joint", jointData.joint)
                         )
                         .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                        .foregroundStyle(jointColors[jointData.joint] ?? .gray)
+                        .foregroundStyle(.gray)
                         .interpolationMethod(.cardinal(tension: 0.4))
                     }
                 }
@@ -149,9 +196,9 @@ struct ChartLandscapeView: View {
         let maxY = chartData.map { $0.dataMetrics.maxY }.max() ?? 0
         let minY = chartData.map { $0.dataMetrics.minY }.min() ?? 0
         
-        // Add some padding to X and Y (e.g., 20%)
-        let xPadding = (maxX - minX) * 0.2
-        let yPadding = (maxY - minY) * 0.2
+        // Add some padding to X and Y
+        let xPadding = (maxX - minX) * 0.05
+        let yPadding = (maxY - minY) * 0.05
 
         baseXScale = Double(minX - xPadding)...Double(maxX + xPadding)
         baseYScale = Double(minY - yPadding)...Double(maxY + yPadding)

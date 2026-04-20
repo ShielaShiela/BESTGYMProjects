@@ -51,40 +51,36 @@ class ImageProcessingVM {
     }
 
     func setROI(rect: CGRect) { self.ROI = rect }
-
-    func process(
-        progress: @escaping (Double) -> Void,
-        completion: @escaping (Bool, Error?) -> Void
-    ) async {
+    
+    func process(onProgress: @escaping @Sendable (Double) async -> Void) async throws {
         guard mediaManager.isMediaAvailable else {
-            await MainActor.run { completion(false, nil) }
-            return
+            throw PipelineError.mediaUnavailable
         }
         updateFrameInterval()
 
         var currentBatch = 0
-        var successFrames = 0
-        var failedFrames: [Int] = []
         let totalFrames  = mediaManager.mediaPlayerVM.totalFrames
         let totalBatches = Int(ceil(Double(totalFrames) / Double(batchSize)))
 
         for batchIndex in 0..<totalBatches {
             let startFrame = batchIndex * batchSize
             let endFrame   = min(startFrame + batchSize, totalFrames)
-            let (processedCount, failedIndices) = await self.batchProcess(startFrame: startFrame, endFrame: endFrame)
-            successFrames += processedCount
-            failedFrames.append(contentsOf: failedIndices)
+
+            let (processedCount, failedIndices) = await self.batchProcess(
+                startFrame: startFrame,
+                endFrame: endFrame
+            )
+            _ = processedCount
+            _ = failedIndices
+
             currentBatch += 1
-            await MainActor.run {
-                progress(Double(currentBatch) / Double(totalBatches))
-            }
+
+            await onProgress(Double(currentBatch) / Double(totalBatches))
         }
-        
-        // Update MediaManager with processed data
+
         await MainActor.run {
             mediaManager.updateKeypointsData(processedKeypoints, source: .processing)
             mediaManager.updateCoMData(processedCoM, source: .processing)
-            completion(true, nil)
         }
     }
 

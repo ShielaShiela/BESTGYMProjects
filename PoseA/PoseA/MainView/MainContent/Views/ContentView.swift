@@ -63,6 +63,7 @@ struct BESTGYMPoseApp: View {
                         ToolbarItemGroup(placement: .topBarTrailing) {
                             ToolbarActiveMode(appState: appState,
                                               toolbarVM: toolbarVM,
+                                              mediaManager: mediaManager,
                                               ROIModel: ROIModel,
                                               barPointVM: barPointVM)
                         }
@@ -265,17 +266,17 @@ struct BESTGYMPoseApp: View {
             isPrimary: true
         )
         let errMsg = await Task.detached {
-            YOLOPoseProcessor.shared.loadModel(named: version)
+            return YOLOPoseProcessor.shared.loadModel(named: version)
         }.value
         
         if let errMsg = errMsg {
-            self.appState.informationMsg = InformationMessage(text: errMsg, type: .error)
+            self.appState.informationMsg = InformationMessage(text: errMsg,
+                                                              type: .error)
         } else {
-            self.appState.informationMsg = InformationMessage(text: "Successfully loaded ML Model.", type: .info)
-
+            self.appState.informationMsg = InformationMessage(text: "Successfully loaded ML Model.",
+                                                              type: .info)
         }
         
-
         // Complete the operation
         ProcessingManagerVM.shared.completeOperation(id: operationId)
     }
@@ -307,15 +308,15 @@ extension BESTGYMPoseApp {
             appState.sourceURL = url
             appState.isVideoSource = !mediaManager.isDataLIDAR
             appState.isTempFiles = mediaManager.isDataTemp
-
+            appState.isAnalysisAvailable = !mediaManager.FeaturesData.isEmpty
             mediaManager.syncBarPointVM(barPointVM: barPointVM)
+            
+            appState.informationMsg = InformationMessage(
+                text: "Successfully loading media data.",
+                type: .info
+            )
         }
-
-        appState.informationMsg = InformationMessage(
-            text: "Successfully loading media data.",
-            type: .info
-        )
-
+        // Complete Operation
         ProcessingManagerVM.shared.completeOperation(id: operationId)
     }
     

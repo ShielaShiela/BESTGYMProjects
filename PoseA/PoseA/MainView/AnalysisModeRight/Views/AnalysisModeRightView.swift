@@ -15,10 +15,12 @@ struct AnalysisModeRightView: View {
     
     // Processing VM
     @State var imageProcessingVM: ImageProcessingVM
-    @State var featuresVM: FeaturesVM
-    
+    @State var featuresExtractionVM: FeaturesExtractionVM
+    @State var eventsExtractionVM: EventsExtractionVM
+
+    // Display VM
+    @State var chartBuilderVM: ChartBuilderVM
     @State var selectedView: RightViewModel = .info
-    @State private var featureExtractionVM: FeatureExtractionVM
     
     init(appState: MainAppState, ROIModel: ROIViewModel, barPointVM: BarPointVM, mediaManager: MediaManagerVM) {
         self.appState = appState
@@ -26,14 +28,10 @@ struct AnalysisModeRightView: View {
         self.barPointVM = barPointVM
         self.mediaManager = mediaManager
         
-        // Initialize the PoseJointLandscapeVM with the provided BoxModel and mediaManager
-        self._featureExtractionVM = State(wrappedValue: FeatureExtractionVM(appState: appState,
-                                                                            barPointVM: barPointVM,
-                                                                            mediaManager: mediaManager))
-        
         self._imageProcessingVM = State(initialValue: ImageProcessingVM(mediaManager: mediaManager))
-        self._featuresVM = State(initialValue: FeaturesVM(barPointVM: barPointVM,
-                                                          mediaManager: mediaManager))
+        self._featuresExtractionVM = State(initialValue: FeaturesExtractionVM(mediaManager: mediaManager))
+        self._eventsExtractionVM = State(initialValue: EventsExtractionVM(mediaManager: mediaManager))
+        self._chartBuilderVM = State(initialValue: ChartBuilderVM(mediaManager: mediaManager))
     }
     
     var body: some View {
@@ -48,12 +46,6 @@ struct AnalysisModeRightView: View {
                                .padding(.bottom, 20)
                        }
                    }
-           }
-           .onChange(of: appState.angleUnit) { oldValue, newValue in
-               if oldValue != newValue && appState.isAnalysisAvailable {
-                   appState.isAnalysisAvailable = false
-//                   updateAnalysis()
-               }
            }
        }
 
@@ -70,20 +62,16 @@ struct AnalysisModeRightView: View {
                .frame(maxHeight: .infinity)
 
        case .dataMetrics:
-           DataMetricsView(appState: appState,
-                           featureExtractionVM: featureExtractionVM)
-               .frame(maxHeight: .infinity)
+           Text("Implement Later")
 
-       case .swing:
-           SwingAnalysisView(appState: appState,
-                             featureExtractionVM: featureExtractionVM,
-                             mediaManager: mediaManager)
-               .frame(maxHeight: .infinity)
+//           DataMetricsView(appState: appState,
+//                           featureExtractionVM: featureExtractionVM)
+//               .frame(maxHeight: .infinity)
 
-       default:
+       default:           
            PoseAnalysisView(appState: appState,
                             selectedView: selectedView,
-                            featureExtractionVM: featureExtractionVM,
+                            chartBuilderVM: chartBuilderVM,
                             mediaManager: mediaManager)
                .frame(maxHeight: .infinity)
        }
@@ -101,41 +89,27 @@ struct AnalysisModeRightView: View {
                Divider()
 
                if appState.isAnalysisAvailable {
-                   Button(action: { selectedView = .swing }) {
-                       Text("Giant Swing Analysis")
-                           .font(.system(size: 10))
-                           .padding(2)
-                   }
-
-                   Divider()
-
                    Button(action: { selectedView = .angle }) {
                        Text("Angle Analysis")
-                           .font(.system(size: 10))
+                           .font(.system(size: 8))
                            .padding(2)
                    }
 
-                   Button(action: { selectedView = .trajectoryAxes }) {
-                       Text("Single Axes Analysis")
-                           .font(.system(size: 10))
+                   Button(action: { selectedView = .position }) {
+                       Text("Position Analysis")
+                           .font(.system(size: 8))
                            .padding(2)
                    }
 
                    Button(action: { selectedView = .velocity }) {
-                       Text("Velocity Analysis")
-                           .font(.system(size: 10))
-                           .padding(2)
-                   }
-
-                   Button(action: { selectedView = .acceleration }) {
-                       Text("Acceleration Analysis")
-                           .font(.system(size: 10))
+                       Text("Angular Velocity Analysis")
+                           .font(.system(size: 8))
                            .padding(2)
                    }
 
                    Button(action: { selectedView = .dataMetrics }) {
                        Text("Data Metrics")
-                           .font(.system(size: 10))
+                           .font(.system(size: 8))
                            .padding(2)
                    }
 
@@ -143,12 +117,12 @@ struct AnalysisModeRightView: View {
 
                    Button(action: { Task { await updateData() } }) {
                        Text("ReAnalyze!")
-                           .font(.system(size: 10))
+                           .font(.system(size: 8))
                            .padding(2)
                    }
                } else {
                    Button(action: {
-                       if barPointVM.isFirstPointAvailable && barPointVM.isSecondPointAvailable {
+                       if !appState.isAnalysisAvailable && barPointVM.isFirstPointAvailable && barPointVM.isSecondPointAvailable {
                            Task {
                                await updateData()
                            }
@@ -183,75 +157,132 @@ struct AnalysisModeRightView: View {
        }
    }
     
+    @MainActor
     private func updateData() async {
-        // Initialize Processsing Manager
         let operationId = "processMedia_\(UUID().uuidString)"
-        
-        // Start tracking loadMedia process
-        Task { @MainActor in
-            ProcessingManagerVM.shared.startOperation(
-                id: operationId,
-                status: "Processing media...",
-                isPrimary: true
-            )
-        }
-        
-        // Set App to Processing Mode
-        DispatchQueue.main.async {
-            appState.isAnalysisAvailable = false
-        }
-        
-        // Pass ROI information to the Model
-        if let roiImageCoordinates = self.ROIModel.roiImageSpace {
-            self.imageProcessingVM.setROI(rect: roiImageCoordinates)
-        }
-        
-        // Pass to ML Model Inference System
-        await self.imageProcessingVM.process() { progressValue in
-            // Update progress on main thread
-            Task { @MainActor in
-                ProcessingManagerVM.shared.updateOperation(
-                    id: operationId,
-                    status: "Processing video frames...",
-                    progress: progressValue
-                )
-            }
-        } completion: { success, error in
-            if success {
-                // Get Final Statistics
-                let processedFrames = self.mediaManager.keypointData.count
-                let totalFrames = self.mediaManager.mediaPlayerVM.totalFrames
-                
-                log("Processing complete: \(processedFrames)/\(totalFrames) frames processed", level: .debug)
-                
-            } else if let processingError = error {
-                self.appState.informationMsg = InformationMessage(text: "Processing keypoints failed, see logs.", type: .error)
-                log("Pose detection error: \(processingError)", level: .error)
-            }
-        }
-        log("Pose detection results: \(self.mediaManager.keypointData.count > 0)", level: .info)
 
-        if self.mediaManager.keypointData.count > 0 {
-            self.mediaManager.isKeypointAvailable = true
-            await self.featuresVM.buildFeatures() {
-                self.exportFeaturesToJSON()
+        ProcessingManagerVM.shared.startOperation(
+            id: operationId,
+            status: "Processing media...",
+            isPrimary: true
+        )
+
+        defer {
+            ProcessingManagerVM.shared.completeOperation(id: operationId)
+        }
+
+        do {
+            // Image / Pose Processing
+            if let roi = ROIModel.roiImageSpace {
+                imageProcessingVM.setROI(rect: roi)
             }
+            
+            try await imageProcessingVM.process { progress in
+                await MainActor.run {
+                    ProcessingManagerVM.shared.updateOperation(
+                        id: operationId,
+                        status: "Processing video frames...",
+                        progress: progress
+                    )
+                }
+            }
+
+            let processedCount = mediaManager.keypointData.count
+            let totalFrames    = mediaManager.mediaPlayerVM.totalFrames
+            log("Processing complete: \(processedCount)/\(totalFrames) frames", level: .debug)
+
+            // ── Stage 2: Feature Extraction ───────────────────────────────
+            guard processedCount > 0 else {
+                log("No keypoints detected — skipping feature extraction", level: .info)
+                return
+            }
+
+            mediaManager.isKeypointAvailable = true
+
+            try await featuresExtractionVM.buildFeatures()
+            exportFeaturesToJSON()
+            exportKeypointsToJSON()
+
+            // ── Stage 3: Event Extraction ─────────────────────────────────
+            try await eventsExtractionVM.buildEvents()
+            exportEventsToJSON()
+
+            // ── Finalize ──────────────────────────────────────────────────
+            appState.isProcessing = false
+            appState.isAnalysisAvailable = true
+
+        } catch {
+            appState.informationMsg = InformationMessage(
+                text: "Analysis failed: \(error.localizedDescription)",
+                type: .error
+            )
+            log("Pipeline error: \(error)", level: .error)
+        }
+    }
+}
+
+
+extension AnalysisModeRightView {
+    
+    private func exportEventsToJSON() {
+        guard self.mediaManager.EventsData.rotationDir != "" else {
+            self.appState.informationMsg = InformationMessage(text: "No features available to export", type: .error)
+            return
         }
         
-        DispatchQueue.main.async {
-            // Export Keypoints to JSON
-            self.exportKeypointsToJSON() {
-                // Do Pose Analyze Processing
-                featureExtractionVM.buildCompleteData { success in
-                    // Set State when finished
-                    appState.isAnalysisAvailable = success
-                    appState.isProcessing = false
+        // Create output filename
+        let filename = "events.json"
+        
+        // Determine target directory
+        let fileManager = FileManager.default
+        var targetURL: URL
+
+        if let sourceURL = appState.sourceURL {
+            // Check if source URL is a directory or file
+            var isDirectory: ObjCBool = false
+            if fileManager.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory) {
+                if isDirectory.boolValue {
+                    // It's a directory, save directly in it
+                    targetURL = sourceURL.appendingPathComponent(filename)
+                } else {
+                    // It's a file, save in the same directory
+                    targetURL = sourceURL.deletingLastPathComponent().appendingPathComponent(filename)
+                }
+            } else {
+                // Source URL doesn't exist (unusual), fallback to documents directory
+                let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+                targetURL = documentsDirectory.appendingPathComponent(filename)
+            }
+        } else {
+            // Fallback to documents directory
+            let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+            targetURL = documentsDirectory.appendingPathComponent(filename)
+        }
+                
+        // Perform export in background
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                // First, make sure the parent directory exists
+                let directoryURL = targetURL.deletingLastPathComponent()
+                if !FileManager.default.fileExists(atPath: directoryURL.path) {
+                    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+                }
+                
+                // Export all frames to JSON
+                try self.eventsExtractionVM.exportEvents(to: targetURL)
+                
+                // Update UI on main thread
+                DispatchQueue.main.async {
+                    log("Successfully exported events idx to: \(targetURL.path)", level: .info)
+                }
+            } catch {
+                // Handle export error
+                DispatchQueue.main.async {
+                    self.appState.informationMsg = InformationMessage(text: "Failed to export event json, see logs.", type: .error)
+                    log("Error exporting events idx: \(targetURL)", level: .error)
                 }
             }
         }
-            
-        // Complete the operation
-        ProcessingManagerVM.shared.completeOperation(id: operationId)
     }
     
     private func exportFeaturesToJSON() {
@@ -299,7 +330,7 @@ struct AnalysisModeRightView: View {
                 }
                 
                 // Export all frames to JSON
-                try self.featuresVM.exportFeatures(to: targetURL)
+                try self.featuresExtractionVM.exportFeatures(to: targetURL)
                 
                 // Update UI on main thread
                 DispatchQueue.main.async {
@@ -315,7 +346,7 @@ struct AnalysisModeRightView: View {
         }
     }
     
-    private func exportKeypointsToJSON(completion: @escaping () -> Void) {
+    private func exportKeypointsToJSON() {
         // Ensure we have keypoints to export
         guard self.mediaManager.keypointData.count > 0 else {
             self.appState.informationMsg = InformationMessage(text: "No keypoints available to export", type: .error)
@@ -397,14 +428,12 @@ struct AnalysisModeRightView: View {
                 // Update UI on main thread
                 DispatchQueue.main.async {
                     log("Successfully exported keypoints to: \(targetURL.path)", level: .info)
-                    completion()
                 }
             } catch {
                 // Handle export error
                 DispatchQueue.main.async {
                     self.appState.informationMsg = InformationMessage(text: "Failed to export keypoints, see logs.", type: .error)
                     log("Error exporting keypoints: \(targetURL)", level: .error)
-                    completion()
                 }
             }
         }

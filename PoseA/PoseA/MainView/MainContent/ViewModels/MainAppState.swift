@@ -24,7 +24,7 @@ class MainAppState: ObservableObject {
     // Analysis Settings
     @Published var analysisFilterMode = true
     @Published var angleUnit: AngleUnit = .deg
-    @Published var distanceUnit: DistanceUnit = .px
+    @Published var distanceUnit: DistanceUnit = .m
     @Published var timeUnit: TimeUnit = .n
     @Published var autoDetectKeypoints: Bool = true
 

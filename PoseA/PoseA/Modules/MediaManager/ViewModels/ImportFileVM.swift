@@ -18,6 +18,7 @@ class ImportFileVM {
     var CoMData: [Int : CGPoint] = [:]
     var featuresData: [Int : FeaturesModel] = [:]
     var barData: [Int : CGPoint] = [:]
+    var eventsData: EventsModel = EventsModel(rotationDir: "")
     var mediaMetadata: RecordingMetadata?
 
     // Data Availability Status Flag
@@ -28,6 +29,7 @@ class ImportFileVM {
     
     // Video Data
     var FrameCounts: Int = 0
+    var fps: Double = 30.0
     
     // MARK: - Video Loader Public Methods
     func loadVideoFolder(from url: URL) {
@@ -201,7 +203,6 @@ class ImportFileVM {
         }
     }
     
-    
     func loadCoM(from url: URL) throws {
         let (importedCoM, missingFrames) = try ExportImportManager.importCoM(from: url)
         
@@ -238,6 +239,22 @@ class ImportFileVM {
         log("Successfully imported \(importedFeatures.count) ML features data", level: .info)
     }
     
+    func loadEvents(from url: URL) throws {
+        let importedEvents = try ExportImportManager.importEvents(from: url)
+        
+        // Update Published Variables
+        DispatchQueue.main.async { [self] in
+            // Set Data Value
+            self.eventsData = importedEvents
+        }
+        
+        if importedEvents.rotationDir == "" {
+            log("No events data found", level: .info)
+        }
+        
+        log("Successfully imported events frame index data", level: .info)
+    }
+    
     func loadMetadata(from metadataURL: URL) {
         guard FileManager.default.fileExists(atPath: metadataURL.path) else {
             log("Recording metadata file not found at: \(metadataURL.path)", level: .error)
@@ -252,6 +269,11 @@ class ImportFileVM {
             DispatchQueue.main.async { [self] in
                 // Set Data Value
                 self.mediaMetadata = metadataJSON
+                
+                // Get FPS from metadata if available
+                if let mediaMetadata = self.mediaMetadata {
+                    self.fps = Double(mediaMetadata.frameCount) / mediaMetadata.duration
+                }
             }
             
         } catch {
@@ -281,10 +303,12 @@ class ImportFileVM {
         guard let videoTrack = tracks.first else {
             throw NSError(domain: "FileLoaderVM", code: -2, userInfo: [NSLocalizedDescriptionKey: "No video track found"])
         }
-
+        
+        // Get FPS Estimation Value
         let frameRate = try await videoTrack.load(.nominalFrameRate)
         let effectiveFrameRate = frameRate > 0 ? frameRate : 30.0
         let durationSeconds = CMTimeGetSeconds(duration)
+        self.fps = Double(effectiveFrameRate)
 
         let totalFramesEstimate = Int(durationSeconds * Double(effectiveFrameRate))
         

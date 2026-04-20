@@ -27,6 +27,7 @@ extension BESTGYMPoseApp {
     struct ToolbarActiveMode: View {
         @ObservedObject var appState: MainAppState
         @State var toolbarVM: ToolbarButtonVM
+        @State var mediaManager: MediaManagerVM
         @State var ROIModel: ROIViewModel
         @State var barPointVM: BarPointVM
         
@@ -47,9 +48,13 @@ extension BESTGYMPoseApp {
                 case .box:
                     ModeControlView(
                         actions: [
-                            .custom(icon: "arrowshape.right", style: .blue) { barPointVM.nextPoint() },
+                            .custom(icon: "arrowshape.right", style: barPointVM.isFirstPointAvailable ? .blue : .gray) {
+                                if barPointVM.isFirstPointAvailable { barPointVM.nextPoint() }
+                                else { appState.informationMsg = InformationMessage(text: "Pick top bar point first.", type: .warning) }
+                            },
                             .clear { barPointVM.clear() },
                             .exit {
+                                barPointVM.syncBarPointsToMediaManager(mediaManagerVM: mediaManager)
                                 barPointVM.setSelectMode(false)
                                 toolbarVM.deactivateMode()
                             }

@@ -10,19 +10,17 @@ import SwiftUI
 struct DataMetricsView: View {
     // MARK: - Properties
     @ObservedObject var appState: MainAppState
-    @State private var featureExtractionVM: FeatureExtractionVM
-    @State private var chartBuilderViewModel: ChartBuilderLandscapeVM
+    @State private var chartBuilderVM: ChartBuilderVM
 
     @State private var selectedOption: String? = nil
-    private let options: [String] = ["Trajectory", "Velocity", "Acceleration", "Angle", "Swing"]
+    private let options: [String] = ["Trajectory", "Velocity", "Angle", "Swing"]
     
     @State private var expandedJoints: Set<String> = []
         
     // MARK: - Initialization
-    init(appState: MainAppState, featureExtractionVM: FeatureExtractionVM) {
+    init(appState: MainAppState, chartBuilderVM: ChartBuilderVM) {
         self.appState = appState
-        self.featureExtractionVM = featureExtractionVM
-        self._chartBuilderViewModel = State(wrappedValue: ChartBuilderLandscapeVM(featureExtractionVM: featureExtractionVM))
+        self.chartBuilderVM = chartBuilderVM
     }
 
     // MARK: - Body
@@ -39,37 +37,37 @@ struct DataMetricsView: View {
                                height: 30,
                                alignment: .leading)
    
-                    ScrollView {
-                        if self.chartBuilderViewModel.rawCompleteJointData.isEmpty {
-                            Text("Select Aspect to Analyze")
-                                .font(.body)
-                                .fontWeight(.medium)
-                                .foregroundColor(.gray)
-                                .frame(maxWidth: .infinity, minHeight: geometry.size.height - 40)
-                                .background(Color(.systemGray6))
-                                .cornerRadius(16)
-                        } else {
-                            VStack(spacing: 8) {
-                                ForEach(self.chartBuilderViewModel.rawCompleteJointData) { jointData in
-                                    ExpandableJointView(
-                                        appState: appState,
-                                        selectedOptions: selectedOption,
-                                        jointData: jointData,
-                                        isExpanded: expandedJoints.contains(jointData.joint),
-                                        toggleExpand: {
-                                            withAnimation {
-                                                if expandedJoints.contains(jointData.joint) {
-                                                    expandedJoints.remove(jointData.joint)
-                                                } else {
-                                                    expandedJoints.insert(jointData.joint)
-                                                }
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
+//                    ScrollView {
+//                        if self.chartBuilderVM.rawCompleteJointData.isEmpty {
+//                            Text("Select Aspect to Analyze")
+//                                .font(.body)
+//                                .fontWeight(.medium)
+//                                .foregroundColor(.gray)
+//                                .frame(maxWidth: .infinity, minHeight: geometry.size.height - 40)
+//                                .background(Color(.systemGray6))
+//                                .cornerRadius(16)
+//                        } else {
+//                            VStack(spacing: 8) {
+//                                ForEach(self.chartBuilderVM.rawCompleteJointData) { jointData in
+//                                    ExpandableJointView(
+//                                        appState: appState,
+//                                        selectedOptions: selectedOption,
+//                                        jointData: jointData,
+//                                        isExpanded: expandedJoints.contains(jointData.joint),
+//                                        toggleExpand: {
+//                                            withAnimation {
+//                                                if expandedJoints.contains(jointData.joint) {
+//                                                    expandedJoints.remove(jointData.joint)
+//                                                } else {
+//                                                    expandedJoints.insert(jointData.joint)
+//                                                }
+//                                            }
+//                                        }
+//                                    )
+//                                }
+//                            }
+//                        }
+//                    }
                 }
                 
                 // Dropdown overlay
@@ -86,8 +84,8 @@ struct DataMetricsView: View {
     }
     
     private func updateChart() {
-        self.chartBuilderViewModel.clearAllData()
-        self.chartBuilderViewModel.BuildDataMetricsData(selectedView: selectedOption)
+        self.chartBuilderVM.clearAllData()
+        self.chartBuilderVM.BuildDataMetricsData(selectedView: selectedOption)
     }
 }
 

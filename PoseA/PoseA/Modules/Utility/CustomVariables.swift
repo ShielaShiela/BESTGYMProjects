@@ -7,10 +7,18 @@
 
 import SwiftUI
 
-// MARK: Error Variables
-struct ErrorWrapper: Identifiable {
-    let id = UUID()
-    let error: String
+enum PipelineError: Error, LocalizedError {
+    case mediaUnavailable
+    case insufficientData(reason: String)
+    case processingFailed(underlying: Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .mediaUnavailable:                return "Media is not available."
+        case .insufficientData(let reason):    return "Insufficient data: \(reason)."
+        case .processingFailed(let error):     return "Processing failed: \(error.localizedDescription)"
+        }
+    }
 }
 
 // MARK: Error Enumeration

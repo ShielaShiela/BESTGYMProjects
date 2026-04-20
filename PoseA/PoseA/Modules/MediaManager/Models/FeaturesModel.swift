@@ -37,10 +37,10 @@ struct FeaturesModel: Codable {
     var barSpringLenM:        Double
 
     // Absolute segment orientations (degrees, from +X axis CCW)
-    var armAngle:      Double
-    var torsoAngle:    Double
-    var thighAngle:    Double
-    var lowerLegAngle: Double
+    var vArmAngle:      Double
+    var vTorsoAngle:    Double
+    var vThighAngle:    Double
+    var vLowerLegAngle: Double
 
     // Joint angles (degrees, signed CCW positive)
     var shoulderAngle: Double
@@ -54,10 +54,10 @@ struct FeaturesModel: Codable {
     var headHeightM: Double
 
     // Angular velocities (deg/s)
-    var armAngleVel:      Double?
-    var torsoAngleVel:    Double?
-    var thighAngleVel:    Double?
-    var lowerLegAngleVel: Double?
+    var vArmAngleVel:      Double?
+    var vTorsoAngleVel:    Double?
+    var vThighAngleVel:    Double?
+    var vLowerLegAngleVel: Double?
     var shoulderAngleVel: Double?
     var hipAngleVel:      Double?
     var kneeAngleVel:     Double?
@@ -75,19 +75,19 @@ struct FeaturesModel: Codable {
         case lowerLegLenM
         case armSpringDeflectionM
         case barSpringLenM
-        case armAngle
-        case torsoAngle
-        case thighAngle
-        case lowerLegAngle
+        case vArmAngle
+        case vTorsoAngle
+        case vThighAngle
+        case vLowerLegAngle
         case shoulderAngle
         case hipAngle
         case kneeAngle
         case comAngle
         case headHeightM
-        case armAngleVel
-        case torsoAngleVel
-        case thighAngleVel
-        case lowerLegAngleVel
+        case vArmAngleVel
+        case vTorsoAngleVel
+        case vThighAngleVel
+        case vLowerLegAngleVel
         case shoulderAngleVel
         case hipAngleVel
         case kneeAngleVel
@@ -107,19 +107,19 @@ struct FeaturesModel: Codable {
         try container.encode(lowerLegLenM,         forKey: .lowerLegLenM)
         try container.encode(armSpringDeflectionM, forKey: .armSpringDeflectionM)
         try container.encode(barSpringLenM,        forKey: .barSpringLenM)
-        try container.encode(armAngle,             forKey: .armAngle)
-        try container.encode(torsoAngle,           forKey: .torsoAngle)
-        try container.encode(thighAngle,           forKey: .thighAngle)
-        try container.encode(lowerLegAngle,        forKey: .lowerLegAngle)
+        try container.encode(vArmAngle,             forKey: .vArmAngle)
+        try container.encode(vTorsoAngle,           forKey: .vTorsoAngle)
+        try container.encode(vThighAngle,           forKey: .vThighAngle)
+        try container.encode(vLowerLegAngle,        forKey: .vLowerLegAngle)
         try container.encode(shoulderAngle,        forKey: .shoulderAngle)
         try container.encode(hipAngle,             forKey: .hipAngle)
         try container.encode(kneeAngle,            forKey: .kneeAngle)
         try container.encode(comAngle,             forKey: .comAngle)
         try container.encode(headHeightM,          forKey: .headHeightM)
-        try container.encodeIfPresent(armAngleVel,      forKey: .armAngleVel)
-        try container.encodeIfPresent(torsoAngleVel,    forKey: .torsoAngleVel)
-        try container.encodeIfPresent(thighAngleVel,    forKey: .thighAngleVel)
-        try container.encodeIfPresent(lowerLegAngleVel, forKey: .lowerLegAngleVel)
+        try container.encodeIfPresent(vArmAngleVel,      forKey: .vArmAngleVel)
+        try container.encodeIfPresent(vTorsoAngleVel,    forKey: .vTorsoAngleVel)
+        try container.encodeIfPresent(vThighAngleVel,    forKey: .vThighAngleVel)
+        try container.encodeIfPresent(vLowerLegAngleVel, forKey: .vLowerLegAngleVel)
         try container.encodeIfPresent(shoulderAngleVel, forKey: .shoulderAngleVel)
         try container.encodeIfPresent(hipAngleVel,      forKey: .hipAngleVel)
         try container.encodeIfPresent(kneeAngleVel,     forKey: .kneeAngleVel)
@@ -142,19 +142,19 @@ struct FeaturesModel: Codable {
         lowerLegLenM         = try container.decode(Double.self, forKey: .lowerLegLenM)
         armSpringDeflectionM = try container.decode(Double.self, forKey: .armSpringDeflectionM)
         barSpringLenM        = try container.decode(Double.self, forKey: .barSpringLenM)
-        armAngle             = try container.decode(Double.self, forKey: .armAngle)
-        torsoAngle           = try container.decode(Double.self, forKey: .torsoAngle)
-        thighAngle           = try container.decode(Double.self, forKey: .thighAngle)
-        lowerLegAngle        = try container.decode(Double.self, forKey: .lowerLegAngle)
+        vArmAngle             = try container.decode(Double.self, forKey: .vArmAngle)
+        vTorsoAngle           = try container.decode(Double.self, forKey: .vTorsoAngle)
+        vThighAngle           = try container.decode(Double.self, forKey: .vThighAngle)
+        vLowerLegAngle        = try container.decode(Double.self, forKey: .vLowerLegAngle)
         shoulderAngle        = try container.decode(Double.self, forKey: .shoulderAngle)
         hipAngle             = try container.decode(Double.self, forKey: .hipAngle)
         kneeAngle            = try container.decode(Double.self, forKey: .kneeAngle)
         comAngle             = try container.decode(Double.self, forKey: .comAngle)
         headHeightM          = try container.decode(Double.self, forKey: .headHeightM)
-        armAngleVel          = try container.decodeIfPresent(Double.self, forKey: .armAngleVel)
-        torsoAngleVel        = try container.decodeIfPresent(Double.self, forKey: .torsoAngleVel)
-        thighAngleVel        = try container.decodeIfPresent(Double.self, forKey: .thighAngleVel)
-        lowerLegAngleVel     = try container.decodeIfPresent(Double.self, forKey: .lowerLegAngleVel)
+        vArmAngleVel          = try container.decodeIfPresent(Double.self, forKey: .vArmAngleVel)
+        vTorsoAngleVel        = try container.decodeIfPresent(Double.self, forKey: .vTorsoAngleVel)
+        vThighAngleVel        = try container.decodeIfPresent(Double.self, forKey: .vThighAngleVel)
+        vLowerLegAngleVel     = try container.decodeIfPresent(Double.self, forKey: .vLowerLegAngleVel)
         shoulderAngleVel     = try container.decodeIfPresent(Double.self, forKey: .shoulderAngleVel)
         hipAngleVel          = try container.decodeIfPresent(Double.self, forKey: .hipAngleVel)
         kneeAngleVel         = try container.decodeIfPresent(Double.self, forKey: .kneeAngleVel)
@@ -173,19 +173,19 @@ struct FeaturesModel: Codable {
         lowerLegLenM:         Double,
         armSpringDeflectionM: Double,
         barSpringLenM:        Double,
-        armAngle:             Double,
-        torsoAngle:           Double,
-        thighAngle:           Double,
-        lowerLegAngle:        Double,
+        vArmAngle:             Double,
+        vTorsoAngle:           Double,
+        vThighAngle:           Double,
+        vLowerLegAngle:        Double,
         shoulderAngle:        Double,
         hipAngle:             Double,
         kneeAngle:            Double,
         comAngle:             Double,
         headHeightM:          Double,
-        armAngleVel:          Double? = nil,
-        torsoAngleVel:        Double? = nil,
-        thighAngleVel:          Double? = nil,
-        lowerLegAngleVel:        Double? = nil,
+        vArmAngleVel:          Double? = nil,
+        vTorsoAngleVel:        Double? = nil,
+        vThighAngleVel:          Double? = nil,
+        vLowerLegAngleVel:        Double? = nil,
         shoulderAngleVel:        Double? = nil,
         hipAngleVel:           Double? = nil,
         kneeAngleVel:          Double? = nil
@@ -202,19 +202,19 @@ struct FeaturesModel: Codable {
         self.lowerLegLenM         = lowerLegLenM
         self.armSpringDeflectionM = armSpringDeflectionM
         self.barSpringLenM        = barSpringLenM
-        self.armAngle             = armAngle
-        self.torsoAngle           = torsoAngle
-        self.thighAngle           = thighAngle
-        self.lowerLegAngle        = lowerLegAngle
+        self.vArmAngle             = vArmAngle
+        self.vTorsoAngle           = vTorsoAngle
+        self.vThighAngle           = vThighAngle
+        self.vLowerLegAngle        = vLowerLegAngle
         self.shoulderAngle        = shoulderAngle
         self.hipAngle             = hipAngle
         self.kneeAngle            = kneeAngle
         self.comAngle             = comAngle
         self.headHeightM          = headHeightM
-        self.armAngleVel          = armAngleVel
-        self.torsoAngleVel        = torsoAngleVel
-        self.thighAngleVel        = thighAngleVel
-        self.lowerLegAngleVel     = lowerLegAngleVel
+        self.vArmAngleVel          = vArmAngleVel
+        self.vTorsoAngleVel        = vTorsoAngleVel
+        self.vThighAngleVel        = vThighAngleVel
+        self.vLowerLegAngleVel     = vLowerLegAngleVel
         self.shoulderAngleVel     = shoulderAngleVel
         self.hipAngleVel          = hipAngleVel
         self.kneeAngleVel         = kneeAngleVel

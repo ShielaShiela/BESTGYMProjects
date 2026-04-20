@@ -13,14 +13,6 @@ private enum FeaturesConstants {
     static let barRealLengthM:   Double = 2.80  // real-world bar length (m)
     static let depthBarsM:       Double = 8.30  // camera -> bar plane (m)
     static let depthKeypointsM:  Double = 9.50  // camera -> athlete plane (m)
-
-    // MARK: - Handstand detection thresholds
-    static let comZoneDeg:       Double = 35.0  // CoM must be within this of 0°/360°
-    static let jointStraightTol: Double = 35.0  // joint angles must be within this of 180°
-    static let headAboveBarM:    Double = -0.10 // head_height_m must exceed this (margin)
-    static let minConsecutive:   Int    = 3     // consecutive frames all conditions must hold
-    static let lockoutFrames:    Int    = 30    // frames to skip after a trigger
-    static let rotSampleFrames:  Int    = 40    // frames sampled to determine rotation direction
 }
 
 
@@ -34,89 +26,91 @@ private struct SideRaw {
     var torsoLenPx:            Double
     var thighLenPx:            Double
     var lowerLegLenPx:         Double
-    var armAngle:              Double
-    var torsoAngle:            Double
-    var thighAngle:            Double
-    var lowerLegAngle:         Double
+    var vArmAngle:             Double
+    var vTorsoAngle:           Double
+    var vThighAngle:           Double
+    var vLowerLegAngle:        Double
     var shoulderAngle:         Double
     var hipAngle:              Double
     var kneeAngle:             Double
     var wriPx:                 CGPoint
 }
 
-class FeaturesVM {
+@Observable
+class FeaturesExtractionVM {
     // MARK: - Properties
-    private var barPointVM: BarPointVM
     private var mediaManager: MediaManagerVM
     
     // MARK: - Output Variable
     private var processedFeatures: [Int: FeaturesModel] = [:]
     private var processedScale: Double = 0.0
     
-    init(barPointVM: BarPointVM, mediaManager: MediaManagerVM) {
-        self.barPointVM = barPointVM
+    private var dt: Double {
+        return 1.0 / self.mediaManager.fps
+    }
+    init(mediaManager: MediaManagerVM) {
         self.mediaManager = mediaManager
     }
     
-    func buildFeatures(completion: @escaping () -> Void) async {
-        // Check for media availability
+    func buildFeatures() async throws {
         let frameCount = mediaManager.importFileVM.FrameImageURLs.count
-        guard frameCount > 0 && barPointVM.isFirstPointAvailable && barPointVM.isSecondPointAvailable else { return }
-        
-        // Get Bar Scaling
-        let (scale, barTop) = scalePxMeter(barTopPx: barPointVM.pointsImage[0]!, barBottomPx: barPointVM.pointsImage[1]!)
-        
-        // Store the scale for export
+        guard frameCount > 0 else {
+            throw PipelineError.insufficientData(reason: "No frames found in import file")
+        }
+
+        guard
+            let barTop    = mediaManager.BarReferenceData[0],
+            let barBottom = mediaManager.BarReferenceData[1]
+        else {
+            throw PipelineError.insufficientData(reason: "Bar reference points are missing")
+        }
+
+        let scale = scalePxMeter(barTopPx: barTop, barBottomPx: barBottom)
         self.processedScale = scale
-        
+
         var features: [FeaturesModel] = []
-        // Iterate through frames and compute features
+
         for i in 0..<frameCount {
-            // Get keypoints and CoM for current frame
-            guard let kp_detection = mediaManager.getKeypointsByIndex(i), let com_detection = mediaManager.getCoMByIndex(i) else {
-                continue
-            }
+            guard
+                let kp_detection  = mediaManager.getKeypointsByIndex(i),
+                let com_detection = mediaManager.getCoMByIndex(i)
+            else { continue }
+
             let kp = kp_detection.keypoints
-            
-            // Generate 4-Segment Model
             let headPx = self.computeHeadAvg(kp: kp)
-            
             let left   = self.computeSide(kp: kp, isLeft: true)
             let right  = self.computeSide(kp: kp, isLeft: false)
 
-            let frame = self.computeSegment(left: left,
-                                            right: right,
-                                            comPx: com_detection,
-                                            headPx: headPx,
-                                            scale: scale,
-                                            barTopPx: barPointVM.pointsImage[0]!,
-                                            barBottomPx: barPointVM.pointsImage[1]!,
-                                            frameIndex: i)
+            let frame = self.computeSegment(
+                left: left,
+                right: right,
+                comPx: com_detection,
+                headPx: headPx,
+                scale: scale,
+                barTopPx: barTop,
+                barBottomPx: barBottom,
+                frameIndex: i
+            )
             features.append(frame)
         }
-        
-        // Compute Angular Veloicities
+
         self.computeOmega(frames: &features)
-        
-        // Append & Pass to MediaManagerVM
-        for i in 0..<frameCount {
-            let feature = features[i]
+
+        for feature in features {
             processedFeatures[feature.frameIdx] = feature
         }
-        
-        // Update MediaManager with processed data
+
         await MainActor.run {
             mediaManager.updateFeaturesData(processedFeatures, source: .processing)
-            completion()
         }
     }
 
     // MARK: - Pixel-to-metre scale
-    private func scalePxMeter(barTopPx: CGPoint, barBottomPx: CGPoint) -> (scale: Double, barTop: CGPoint) {
+    private func scalePxMeter(barTopPx: CGPoint, barBottomPx: CGPoint) -> Double {
         let pxLength    = barTopPx.distance(to: barBottomPx)
         let scaleAtBars = pxLength / FeaturesConstants.barRealLengthM
         let scaleAtKp   = scaleAtBars * (FeaturesConstants.depthBarsM / FeaturesConstants.depthKeypointsM)
-        return (scaleAtKp, barTopPx)
+        return scaleAtKp
     }
 
     // MARK: - Head position
@@ -165,10 +159,10 @@ class FeaturesVM {
         let armSpringPx = armRestPx - armActualPx
 
         // Absolute segment orientations (degrees from +X axis)
-        let armAng      = vArm.angle()
-        let torsoAng    = vTorso.angle()
-        let thighAng    = vThigh.angle()
-        let lowerLegAng = vLowerLeg.angle()
+        let vArmAng      = vArm.angle()
+        let vTorsoAng    = vTorso.angle()
+        let vThighAng    = vThigh.angle()
+        let vLowerLegAng = vLowerLeg.angle()
 
         // shoulder: angle between arm bar and torso bar, measured at shoulder
         let shoulderAng = jointAngleDeg(v1: vArm, v2: vTorso)
@@ -186,10 +180,10 @@ class FeaturesVM {
             torsoLenPx:            vTorso.magnitude(),
             thighLenPx:            vThigh.magnitude(),
             lowerLegLenPx:         vLowerLeg.magnitude(),
-            armAngle:              armAng,
-            torsoAngle:            torsoAng,
-            thighAngle:            thighAng,
-            lowerLegAngle:         lowerLegAng,
+            vArmAngle:              vArmAng,
+            vTorsoAngle:            vTorsoAng,
+            vThighAngle:            vThighAng,
+            vLowerLegAngle:         vLowerLegAng,
             shoulderAngle:         shoulderAng,
             hipAngle:              hipAng,
             kneeAngle:             kneeAng,
@@ -223,7 +217,7 @@ class FeaturesVM {
         // 0° = directly above bar, 90° = right, 180° = below, 270° = left
         let barToComX = (Double(comPx.x) - Double(barTopPx.x)) / scale
         let barToComY = (Double(comPx.y) - Double(barTopPx.y)) / scale
-        let comAngle = (atan2(barToComX, -barToComY) * 180.0 / .pi).truncatingRemainder(dividingBy: 360.0)
+        let comAngle = mod360(atan2(barToComX, -barToComY) * 180.0 / .pi)
         let comAngleWrapped = comAngle < 0 ? comAngle + 360.0 : comAngle
 
         // Head height relative to bar top (positive = head above bar)
@@ -244,10 +238,10 @@ class FeaturesVM {
                                   armSpringDeflectionM: asc(left.armSpringDeflectionPx, right.armSpringDeflectionPx),
                                   barSpringLenM: barSpringLenM,
                                   // Angles
-                                  armAngle: avgAngle(left.armAngle, right.armAngle),
-                                  torsoAngle: avgAngle(left.torsoAngle, right.torsoAngle),
-                                  thighAngle: avgAngle(left.thighAngle, right.thighAngle),
-                                  lowerLegAngle: avgAngle(left.lowerLegAngle, right.lowerLegAngle),
+                                  vArmAngle: avgAngle(left.vArmAngle, right.vArmAngle),
+                                  vTorsoAngle: avgAngle(left.vTorsoAngle, right.vTorsoAngle),
+                                  vThighAngle: avgAngle(left.vThighAngle, right.vThighAngle),
+                                  vLowerLegAngle: avgAngle(left.vLowerLegAngle, right.vLowerLegAngle),
                                   shoulderAngle: avgAngle(left.shoulderAngle, right.shoulderAngle),
                                   hipAngle: avgAngle(left.hipAngle, right.hipAngle),
                                   kneeAngle: avgAngle(left.kneeAngle, right.kneeAngle),
@@ -263,16 +257,15 @@ class FeaturesVM {
 
     private func computeOmega(frames: inout [FeaturesModel]) {
         let n  = frames.count
-        let dt = 1.0 / 30.0  // fps is defined in FeatureExtractionVM
 
         typealias AngleGetter = (FeaturesModel) -> Double
         typealias VelSetter   = (inout FeaturesModel, Double?) -> Void
 
         let pairs: [(AngleGetter, VelSetter)] = [
-            ({ $0.armAngle },      { $0.armAngleVel      = $1 }),
-            ({ $0.torsoAngle },    { $0.torsoAngleVel    = $1 }),
-            ({ $0.thighAngle },    { $0.thighAngleVel    = $1 }),
-            ({ $0.lowerLegAngle }, { $0.lowerLegAngleVel = $1 }),
+            ({ $0.vArmAngle },      { $0.vArmAngleVel      = $1 }),
+            ({ $0.vTorsoAngle },    { $0.vTorsoAngleVel    = $1 }),
+            ({ $0.vThighAngle },    { $0.vThighAngleVel    = $1 }),
+            ({ $0.vLowerLegAngle }, { $0.vLowerLegAngleVel = $1 }),
             ({ $0.shoulderAngle }, { $0.shoulderAngleVel = $1 }),
             ({ $0.hipAngle },      { $0.hipAngleVel      = $1 }),
             ({ $0.kneeAngle },     { $0.kneeAngleVel     = $1 }),
@@ -289,9 +282,8 @@ class FeaturesVM {
                 let next = frames[i + 1]
 
                 // Wrap-aware delta: (next - prev + 180) % 360 - 180
-                let d = ((get(next) - get(prev)) + 180.0)
-                    .truncatingRemainder(dividingBy: 360.0) - 180.0
-                set(&frames[i], d / (2.0 * dt))
+                let d = mod360((get(next) - get(prev)) + 180.0) - 180.0
+                set(&frames[i], d / (2.0 * self.dt))
             }
         }
     }
@@ -314,15 +306,21 @@ class FeaturesVM {
         return atan2(cross, dot) * 180.0 / .pi
     }
     
+    // Non-negative modulo, matching Python's % behaviour for positive divisor
+    private func mod360(_ x: Double) -> Double {
+        let r = x.truncatingRemainder(dividingBy: 360.0)
+        return r < 0 ? r + 360.0 : r
+    }
+    
     // Average two angles accounting for wrap-around
     private func avgAngle(_ a: Double, _ b: Double) -> Double {
-        let diff = ((b - a) + 180.0).truncatingRemainder(dividingBy: 360.0) - 180.0
-        return (a + diff / 2.0).truncatingRemainder(dividingBy: 360.0)
+        let diff = mod360(b - a + 180.0) - 180.0
+        return mod360(a + diff / 2.0)
     }
 }
 
 // MARK: - Features Export Extension
-extension FeaturesVM {
+extension FeaturesExtractionVM {
     func exportFeatures(to fileURL: URL) throws {
         let featuresData = mediaManager.FeaturesData
         guard !featuresData.isEmpty else {
@@ -349,63 +347,3 @@ extension FeaturesVM {
         }
     }
 }
-
-// MARK: - Handstand start detection
-// Matches Python detect_handstand_start()
-//
-// Scans frames for MIN_CONSECUTIVE consecutive frames where ALL hold:
-//   C1. CoM above bar zone    — comAngle within COM_ZONE_DEG of 0°/360°
-//   C2. Body straight         — shoulder, hip, knee all near 180°
-//   C3. Head above bar        — headHeightM > HEAD_ABOVE_BAR_M
-//
-// Returns the frame index of the START of the first valid run, or nil.
-// Rotation direction is intentionally NOT used as a gate (see Python comments).
-
-//    private func fourBar_detectHandstandStart(frames: [FeaturesModel]) -> Int? {
-//        var consecutive   = 0
-//        var lockout       = 0
-//        var triggerFrame: Int? = nil
-//
-//        for f in frames {
-//            if lockout > 0 {
-//                lockout -= 1
-//                consecutive = 0
-//                continue
-//            }
-//
-//            // C1: CoM above bar (symmetric zone, no rotation-direction dependency)
-//            let c1 = comInHandstandZone(f.comAngle)
-//
-//            // C2: all three joints nearly straight (≈ 180°)
-//            let c2 = angleNear180(f.shoulderAngle, tol: FeaturesConstants.jointStraightTol)
-//                  && angleNear180(f.hipAngle,      tol: FeaturesConstants.jointStraightTol)
-//                  && angleNear180(f.kneeAngle,     tol: FeaturesConstants.jointStraightTol)
-//
-//            // C3: head above bar (with margin)
-//            let c3 = f.headHeightM > FeaturesConstants.headAboveBarM
-//
-//            if c1 && c2 && c3 {
-//                consecutive += 1
-//                if consecutive >= FeaturesConstants.minConsecutive && triggerFrame == nil {
-//                    triggerFrame = f.frameIdx - (consecutive - 1)
-//                    lockout = FeaturesConstants.lockoutFrames
-//                }
-//            } else {
-//                consecutive = 0
-//            }
-//        }
-//
-//        return triggerFrame
-//    }
-
-//// True if angle is within tol degrees of 180°. Matches Python angle_near_180()
-//private func angleNear180(_ angleDeg: Double, tol: Double) -> Bool {
-//    let diff = abs(angleDeg.truncatingRemainder(dividingBy: 360.0) - 180.0)
-//    return diff <= tol
-//}
-//
-//// True if CoM is within COM_ZONE_DEG of straight-above-bar (0°/360°). Matches Python com_in_handstand_zone()
-//private func comInHandstandZone(_ comAngle: Double) -> Bool {
-//    let a = comAngle.truncatingRemainder(dividingBy: 360.0)
-//    return a <= FeaturesConstants.comZoneDeg || a >= (360.0 - FeaturesConstants.comZoneDeg)
-//}

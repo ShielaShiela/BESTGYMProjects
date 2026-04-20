@@ -1,5 +1,5 @@
 //
-//  ChartBuilderLandscapeVM.swift
+//  ChartBuilderVM.swift
 //  PoseA
 //
 //  Created by Ardhika Maulidani on 7/15/25.
@@ -8,42 +8,36 @@
 import SwiftUI
 
 @Observable
-class ChartBuilderLandscapeVM {
+class ChartBuilderVM {
     // MARK: - Properties
-    
+    private let mediaManager: MediaManagerVM
+
+    var featuresData: [Int: FeaturesModel] {
+        return mediaManager.FeaturesData
+    }
+
     // Observable Variable
     var chartDataFirst: [ChartData2D] = []
     var chartDataSecond: [ChartData2D] = []
     var pointData: [Point2D] = []
-    var rawCompleteJointData: [JointData3D] = []
-    
-    // Define ViewModel
-    private let featureExtractionVM: FeatureExtractionVM
     
     // MARK: - Init
-    
-    init(featureExtractionVM: FeatureExtractionVM) {
-        self.featureExtractionVM = featureExtractionVM
+    init(mediaManager: MediaManagerVM) {
+        self.mediaManager = mediaManager
     }
     
     // MARK: - Data Fetching
-    
     func BuildChartData(selectedView: RightViewModel, selectedOptions: Set<String>) {
         switch(selectedView) {
         case .angle:
-            self.fetchJointAngleData(joints: Array(selectedOptions))
+            self.buildAngleChartData(selectedOptions: selectedOptions)
             break
-        case .trajectoryAxes:
-            self.fetchJointPoseData(joints: Array(selectedOptions))
+        case .position:
+            self.buildPosChartData(selectedOptions: selectedOptions)
             break
         case .velocity:
-            self.fetchJointVelData(joints: Array(selectedOptions))
+            self.buildVelChartData(selectedOptions: selectedOptions)
             break
-        case .acceleration:
-            self.fetchJointAccData(joints: Array(selectedOptions))
-            break
-        case .swing:
-            self.fetchGiantSwingData()
         default:
             break
         }
@@ -51,20 +45,12 @@ class ChartBuilderLandscapeVM {
     
     func BuildDataMetricsData(selectedView: String?) {
         switch(selectedView) {
-        case "Trajectory":
-            self.rawCompleteJointData = featureExtractionVM.positionCompleteData
+        case "Position":
             break
         case "Velocity":
-            self.rawCompleteJointData = featureExtractionVM.velocityCompleteData
-            break
-        case "Acceleration":
-            self.rawCompleteJointData = featureExtractionVM.accelerationCompleteData
             break
         case "Angle":
-            self.rawCompleteJointData = featureExtractionVM.angleCompleteData
             break
-        case "Swing":
-            self.rawCompleteJointData = featureExtractionVM.swingData
         default:
             break
         }
@@ -75,154 +61,140 @@ class ChartBuilderLandscapeVM {
     func clearAllData() {
         self.chartDataFirst = []
         self.chartDataSecond = []
+        self.pointData = []
     }
     
     // MARK: - Private Functions
-    
-    private func fetchGiantSwingData() {
-        // Filter Position based On Selected Joints
-        let joints = ["L Hip", "R Hip"]
-        let filteredData = featureExtractionVM.positionCompleteData.filter { joints.contains($0.joint) }
+    private func buildPosChartData(selectedOptions: Set<String>) {
+        let sortedFrames = featuresData.keys.sorted()
+        var chartDataByJoint: [String: [Point2D]] = [:]
         
-        self.chartDataFirst = filteredData.map { jointData in
-            let pointData = jointData.dataPoints.enumerated().map { index, point in
-                Point2D(x: Double(point.x), y: Double(point.y))
+        for frameIndex in sortedFrames {
+            guard let feature = featuresData[frameIndex] else { continue }
+            
+            // Map joint angle data based on selected options
+            let posData: [(String, Double)] = [
+                ("Head-Bar", feature.headHeightM),
+                ("Wrist-Bar", feature.barSpringLenM)
+            ]
+            
+            for (jointName, value) in posData {
+                if selectedOptions.contains(jointName) {
+                    if chartDataByJoint[jointName] == nil {
+                        chartDataByJoint[jointName] = []
+                    }
+                    chartDataByJoint[jointName]?.append(
+                        Point2D(x: Double(frameIndex), y: value)
+                    )
+                }
             }
-            return ChartData2D(
-                joint: jointData.joint,
-                dataPoints: pointData,
-                dataMetrics: calculateDataMetrics(from: pointData)
-            )
         }
         
-        let filteredSwingData = featureExtractionVM.swingData.filter { ["Swing Angle"].contains($0.joint) }
-        self.chartDataSecond = filteredSwingData.map { jointData in
-            let pointData = jointData.dataPoints.enumerated().map { index, point in
-                Point2D(x: Double(index) + 1, y: Double(point.y))
-            }
-            return ChartData2D(
-                joint: jointData.joint,
-                dataPoints: pointData,
-                dataMetrics: calculateDataMetrics(from: pointData)
-            )
-        }
-        
-        self.pointData = featureExtractionVM.barPosition
-    }
-    
-    private func fetchJointAngleData(joints: [String]) {
-        // Filter Angle based On Selected Joints
-        let filteredData = featureExtractionVM.angleCompleteData.filter { joints.contains($0.joint) }
-        
-        self.chartDataFirst = filteredData.map { jointData in
-            let xPoints = jointData.dataPoints.enumerated().map { index, point in
-                Point2D(x: Double(index) + 1, y: Double(point.x))
-            }
-            return ChartData2D(
-                joint: jointData.joint,
-                dataPoints: xPoints,
-                dataMetrics: calculateDataMetrics(from: xPoints)
+        // Convert to ChartData2D array
+        self.chartDataFirst = chartDataByJoint.map { (jointName, points) in
+            ChartData2D(
+                joint: jointName,
+                dataPoints: points,
+                dataMetrics: calculateDataMetrics(from: points)
             )
         }
     }
-    
-    private func fetchJointPoseData(joints: [String]) {
-        // Filter Position based On Selected Joints
-        let filteredData = featureExtractionVM.positionCompleteData.filter { joints.contains($0.joint) }
+    private func buildAngleChartData(selectedOptions: Set<String>) {
+        // Sort Features
+        let sortedFrames = featuresData.keys.sorted()
+        var chartDataByJoint: [String: [Point2D]] = [:]
         
-        // Prepare X vs Index
-        self.chartDataFirst = filteredData.map { jointData in
-            let xPoints = jointData.dataPoints.enumerated().map { index, point in
-                Point2D(x: Double(index) + 1, y: Double(point.x))
+        for frameIndex in sortedFrames {
+            guard let feature = featuresData[frameIndex] else { continue }
+            
+            // Map joint angle data based on selected options
+            let angleData: [(String, Double)] = [
+                ("Shoulder", feature.shoulderAngle),
+                ("Hip", feature.hipAngle),
+                ("Knee", feature.kneeAngle),
+                ("vArm", feature.vArmAngle),
+                ("vTorso", feature.vTorsoAngle),
+                ("vThigh", feature.vThighAngle),
+                ("vLowerLeg", feature.vLowerLegAngle),
+                ("CoM", feature.comAngle)
+            ]
+            
+            for (jointName, angleValue) in angleData {
+                if selectedOptions.contains(jointName) {
+                    if chartDataByJoint[jointName] == nil {
+                        chartDataByJoint[jointName] = []
+                    }
+                    chartDataByJoint[jointName]?.append(
+                        Point2D(x: Double(frameIndex), y: angleValue)
+                    )
+                }
             }
-            return ChartData2D(
-                joint: jointData.joint,
-                dataPoints: xPoints,
-                dataMetrics: calculateDataMetrics(from: xPoints)
+        }
+        
+        // Convert to ChartData2D array
+        self.chartDataFirst = chartDataByJoint.map { (jointName, points) in
+            ChartData2D(
+                joint: jointName,
+                dataPoints: points,
+                dataMetrics: calculateDataMetrics(from: points)
             )
         }
+    }
 
-        // Prepare Y vs Index
-        self.chartDataSecond = filteredData.map { jointData in
-            let yPoints = jointData.dataPoints.enumerated().map { index, point in
-                Point2D(x: Double(index + 1), y: Double(point.y))
-            }
-            return ChartData2D(
-                joint: jointData.joint,
-                dataPoints: yPoints,
-                dataMetrics: calculateDataMetrics(from: yPoints)
-            )
-        }
-    }
-    
-    private func fetchJointVelData(joints: [String]) {
-        // Filter Velocity based On Selected Joints
-        let filteredData = featureExtractionVM.velocityCompleteData.filter { joints.contains($0.joint) }
+    private func buildVelChartData(selectedOptions: Set<String>) {
+        // Sort Features
+        let sortedFrames = featuresData.keys.sorted()
+        var chartDataByJoint: [String: [Point2D]] = [:]
         
-        // Prepare X vs Index
-        self.chartDataFirst = filteredData.map { jointData in
-            let xPoints = jointData.dataPoints.enumerated().map { index, point in
-                Point2D(x: Double(index) + 1, y: Double(point.x))
+        for frameIndex in sortedFrames {
+            guard let feature = featuresData[frameIndex] else { continue }
+            
+            // Map joint velocity data based on selected options
+            let velData: [(String, Double?)] = [
+                ("Shoulder", feature.shoulderAngleVel),
+                ("Hip", feature.hipAngleVel),
+                ("Knee", feature.kneeAngleVel),
+                ("vArm", feature.vArmAngleVel),
+                ("vTorso", feature.vTorsoAngleVel),
+                ("vThigh", feature.vThighAngleVel),
+                ("vLowerLeg", feature.vLowerLegAngleVel)
+            ]
+            
+            for (jointName, velocityValue) in velData {
+                if selectedOptions.contains(jointName), let unwrappedVelocity = velocityValue {
+                    if chartDataByJoint[jointName] == nil {
+                        chartDataByJoint[jointName] = []
+                    }
+                    chartDataByJoint[jointName]?.append(
+                        Point2D(x: Double(frameIndex), y: unwrappedVelocity)
+                    )
+                }
             }
-            return ChartData2D(
-                joint: jointData.joint,
-                dataPoints: xPoints,
-                dataMetrics: calculateDataMetrics(from: xPoints)
-            )
         }
-
-        // Prepare Y vs Index
-        self.chartDataSecond = filteredData.map { jointData in
-            let yPoints = jointData.dataPoints.enumerated().map { index, point in
-                Point2D(x: Double(index + 1), y: Double(point.y))
-            }
-            return ChartData2D(
-                joint: jointData.joint,
-                dataPoints: yPoints,
-                dataMetrics: calculateDataMetrics(from: yPoints)
-            )
-        }
-    }
-    
-    private func fetchJointAccData(joints: [String]) {
-        // Filter Acceleration based On Selected Joints
-        let filteredData = featureExtractionVM.accelerationCompleteData.filter { joints.contains($0.joint) }
         
-        // Prepare X vs Index
-        self.chartDataFirst = filteredData.map { jointData in
-            let xPoints = jointData.dataPoints.enumerated().map { index, point in
-                Point2D(x: Double(index) + 1, y: Double(point.x))
-            }
-            return ChartData2D(
-                joint: jointData.joint,
-                dataPoints: xPoints,
-                dataMetrics: calculateDataMetrics(from: xPoints)
-            )
-        }
-
-        // Prepare Y vs Index
-        self.chartDataSecond = filteredData.map { jointData in
-            let yPoints = jointData.dataPoints.enumerated().map { index, point in
-                Point2D(x: Double(index + 1), y: Double(point.y))
-            }
-            return ChartData2D(
-                joint: jointData.joint,
-                dataPoints: yPoints,
-                dataMetrics: calculateDataMetrics(from: yPoints)
+        // Convert to ChartData2D array
+        self.chartDataFirst = chartDataByJoint.map { (jointName, points) in
+            ChartData2D(
+                joint: jointName,
+                dataPoints: points,
+                dataMetrics: calculateDataMetrics(from: points)
             )
         }
     }
     
     private func calculateDataMetrics(from dataPoints: [Point2D]) -> dataMetrics {
+        guard !dataPoints.isEmpty else {
+            return dataMetrics(minX: 0, maxX: 0, minY: 0, maxY: 0)
+        }
+        
         let xValues = dataPoints.map { $0.x }
         let yValues = dataPoints.map { $0.y }
-
+        
         return dataMetrics(
-            minX: (xValues.min() ?? 0),
-            maxX: (xValues.max() ?? 0),
-            minY: (yValues.min() ?? 0),
-            maxY: (yValues.max() ?? 0)
+            minX: xValues.min() ?? 0,
+            maxX: xValues.max() ?? 0,
+            minY: yValues.min() ?? 0,
+            maxY: yValues.max() ?? 0
         )
     }
 }
-

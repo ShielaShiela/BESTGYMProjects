@@ -63,6 +63,7 @@ struct PoseAnalysisView: View {
                             .frame(width: geometry.size.width * 0.5,
                                    height: 30,
                                    alignment: .leading)
+                    
                     default: Text("")
                     }
                     
@@ -79,7 +80,7 @@ struct PoseAnalysisView: View {
                         // Single Charts
                         if self.chartBuilderVM.chartDataSecond.isEmpty {
                             ChartView(chartData: self.chartBuilderVM.chartDataFirst,
-                                      currentFrame: mediaManager.currentFrameIndex,
+                                      currentX: Double(mediaManager.currentFrameIndex),
                                       eventsData: mediaManager.EventsData,
                                       xAxisUnit: self.appState.timeUnit.id,
                                       yAxisUnit: AxisUnits)
@@ -89,7 +90,7 @@ struct PoseAnalysisView: View {
                         } else {
                             // Double Charts
                             ChartView(chartData: self.chartBuilderVM.chartDataFirst,
-                                      currentFrame: mediaManager.currentFrameIndex,
+                                      currentX: Double(mediaManager.currentFrameIndex),
                                       eventsData: mediaManager.EventsData,
                                       xAxisUnit: self.appState.timeUnit.id,
                                       yAxisUnit: AxisUnits)
@@ -98,7 +99,7 @@ struct PoseAnalysisView: View {
                                 .cornerRadius(10)
 
                             ChartView(chartData: self.chartBuilderVM.chartDataSecond,
-                                      currentFrame: mediaManager.currentFrameIndex,
+                                      currentX: Double(mediaManager.currentFrameIndex),
                                       eventsData: mediaManager.EventsData,
                                       xAxisUnit: self.appState.timeUnit.id,
                                       yAxisUnit: AxisUnits)

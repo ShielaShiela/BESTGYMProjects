@@ -10,17 +10,13 @@ import SwiftUI
 import Charts
 
 // MARK: ------------------------------- Chart Data Structure BEGIN -------------------------------
-struct ChartData3D: Identifiable, Equatable {
-    var id: String { joint }
-    var joint: String
-    var dataPoints: ChartPoint3D
-}
 
 struct ChartData2D: Identifiable, Equatable {
     var id: String { joint }
     var joint: String
     var dataPoints: [Point2D]
     var dataMetrics: dataMetrics
+    var color: Color = .gray
 }
 
 struct JointData3D: Identifiable, Equatable {
@@ -46,24 +42,6 @@ struct Point2D: Identifiable, Equatable {
     }
 }
 
-struct ChartPoint3D: Identifiable, Equatable {
-    var id = UUID()
-    var x: Double
-    var y: Double
-    var z: Double
-        
-    init(_ point: Point3D) {
-        self.x = Double(point.x)
-        self.y = Double(point.y)
-        self.z = Double(point.z)
-    }
-    
-    init(x: Double, y: Double, z: Double) {
-        self.x = x
-        self.y = y
-        self.z = z
-    }
-}
 
 struct dataMetrics: Equatable {
     var minX: Double = 0.0

@@ -16,7 +16,7 @@ struct EventsModel: Codable {
     
     // Release Phase
     var releaseStartPoseIdx: Int?
-    var releaseEndPosePhase: Int?
+    var releaseEndPoseIdx: Int?
     var release180PoseIdx: Int?
     
     // Flight Phase
@@ -29,7 +29,7 @@ struct EventsModel: Codable {
         rotationDir: String,
         handstandPoseIdx:  Int? = nil,
         releaseStartPoseIdx: Int? = nil,
-        releaseEndPosePhase: Int? = nil,
+        releaseEndPoseIdx: Int? = nil,
         release180PoseIdx: Int? = nil,
         flightStartPoseIdx: Int? = nil,
         flightEndPoseIdx: Int? = nil,
@@ -39,7 +39,7 @@ struct EventsModel: Codable {
         self.rotationDir = rotationDir
         self.handstandPoseIdx = handstandPoseIdx
         self.releaseStartPoseIdx = releaseStartPoseIdx
-        self.releaseEndPosePhase = releaseEndPosePhase
+        self.releaseEndPoseIdx = releaseEndPoseIdx
         self.release180PoseIdx = release180PoseIdx
         
         self.flightStartPoseIdx = flightStartPoseIdx

@@ -13,5 +13,5 @@ enum RightViewModel {
     case angle
     case position
     case velocity
-    case dataMetrics
+    case posture
 }

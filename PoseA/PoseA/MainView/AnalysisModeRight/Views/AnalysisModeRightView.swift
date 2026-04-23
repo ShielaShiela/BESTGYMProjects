@@ -17,7 +17,9 @@ struct AnalysisModeRightView: View {
     @State var imageProcessingVM: ImageProcessingVM
     @State var featuresExtractionVM: FeaturesExtractionVM
     @State var eventsExtractionVM: EventsExtractionVM
-
+    @State var gcnClassifierVM: GCNClassifierVM
+    @State var postureProcessingVM: PostureProcessingVM
+    
     // Display VM
     @State var chartBuilderVM: ChartBuilderVM
     @State var selectedView: RightViewModel = .info
@@ -31,7 +33,10 @@ struct AnalysisModeRightView: View {
         self._imageProcessingVM = State(initialValue: ImageProcessingVM(mediaManager: mediaManager))
         self._featuresExtractionVM = State(initialValue: FeaturesExtractionVM(mediaManager: mediaManager))
         self._eventsExtractionVM = State(initialValue: EventsExtractionVM(mediaManager: mediaManager))
+        self._postureProcessingVM = State(initialValue: PostureProcessingVM(mediaManager: mediaManager))
+        self._gcnClassifierVM = State(initialValue: GCNClassifierVM(mediaManager: mediaManager))
         self._chartBuilderVM = State(initialValue: ChartBuilderVM(mediaManager: mediaManager))
+        
     }
     
     var body: some View {
@@ -47,8 +52,29 @@ struct AnalysisModeRightView: View {
                        }
                    }
            }
+           .onAppear {
+               Task {
+                   await self.loadModel()
+               }
+           }
        }
 
+    private func loadModel() async {
+        let operationId = "loadMLModel_\(UUID().uuidString)"
+        ProcessingManagerVM.shared.startOperation(id: operationId,
+                                                   status: "Loading ML Model...",
+                                                   isPrimary: true)
+
+        if let errMsg = await gcnClassifierVM.load() {
+            self.appState.informationMsg = InformationMessage(text: errMsg, type: .error)
+        } else {
+            self.appState.informationMsg = InformationMessage(text: "Successfully loaded ML Model.", type: .info)
+        }
+
+        ProcessingManagerVM.shared.completeOperation(id: operationId)
+    }
+
+    
    // MARK: - View pieces
 
    @ViewBuilder
@@ -61,12 +87,10 @@ struct AnalysisModeRightView: View {
                            mediaManager: mediaManager)
                .frame(maxHeight: .infinity)
 
-       case .dataMetrics:
-           Text("Implement Later")
-
-//           DataMetricsView(appState: appState,
-//                           featureExtractionVM: featureExtractionVM)
-//               .frame(maxHeight: .infinity)
+       case .posture:
+           PostureAnalysisView(chartBuilderVM: chartBuilderVM,
+                               mediaManager: mediaManager)
+                .frame(maxHeight: .infinity)
 
        default:           
            PoseAnalysisView(appState: appState,
@@ -107,8 +131,8 @@ struct AnalysisModeRightView: View {
                            .padding(2)
                    }
 
-                   Button(action: { selectedView = .dataMetrics }) {
-                       Text("Data Metrics")
+                   Button(action: { selectedView = .posture }) {
+                       Text("Posture Analysis")
                            .font(.system(size: 8))
                            .padding(2)
                    }
@@ -172,7 +196,7 @@ struct AnalysisModeRightView: View {
         }
 
         do {
-            // Image / Pose Processing
+            // Stage 1: Image / Pose Processing
             if let roi = ROIModel.roiImageSpace {
                 imageProcessingVM.setROI(rect: roi)
             }
@@ -191,7 +215,7 @@ struct AnalysisModeRightView: View {
             let totalFrames    = mediaManager.mediaPlayerVM.totalFrames
             log("Processing complete: \(processedCount)/\(totalFrames) frames", level: .debug)
 
-            // ── Stage 2: Feature Extraction ───────────────────────────────
+            // Stage 2: Feature Extraction
             guard processedCount > 0 else {
                 log("No keypoints detected — skipping feature extraction", level: .info)
                 return
@@ -203,11 +227,28 @@ struct AnalysisModeRightView: View {
             exportFeaturesToJSON()
             exportKeypointsToJSON()
 
-            // ── Stage 3: Event Extraction ─────────────────────────────────
+            // Stage 3: Event Extraction
             try await eventsExtractionVM.buildEvents()
             exportEventsToJSON()
 
-            // ── Finalize ──────────────────────────────────────────────────
+            // Stage 4: Skill Classification
+            let (skillClassfication, err) = await gcnClassifierVM.classify()
+            
+            // Stage 5: Reference Comparison
+            if let err = err {
+                appState.informationMsg = InformationMessage(
+                    text: "Analysis failed: \(err)",
+                    type: .error
+                )
+            }
+            if let skillClassfication = skillClassfication {
+                log("skillClassification: \(skillClassfication.topLabel)", level: .debug)
+                log("skillClassification confidence: \(skillClassfication.confidence)", level: .debug)
+                log("skillClassification prob: \(skillClassfication.probabilities)", level: .debug)
+                let ref = try await ReferencesModel.loadFromBundle(named: skillClassfication.topLabel+"Ref")
+                try await postureProcessingVM.compare(reference: ref)
+            }
+
             appState.isProcessing = false
             appState.isAnalysisAvailable = true
 

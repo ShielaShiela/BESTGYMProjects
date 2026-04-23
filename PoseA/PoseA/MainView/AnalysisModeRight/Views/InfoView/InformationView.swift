@@ -14,6 +14,19 @@ struct InformationView: View {
     @State var mediaManager: MediaManagerVM
     
     var body: some View {
+        TabView {
+            VideoInfoView
+            if appState.isAnalysisAvailable {
+                GymnasticsInfoView
+            }
+        }
+        .tabViewStyle(PageTabViewStyle())
+        .indexViewStyle(.page(backgroundDisplayMode: .always))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    @ViewBuilder
+    private var VideoInfoView: some View {
         // Status indicator
         VStack(alignment: .leading, spacing: 8) {
             Text("Video Information")
@@ -109,6 +122,91 @@ struct InformationView: View {
                     .foregroundColor(.secondary)
             }
             
+            Spacer()
+        }
+    }
+    
+    @ViewBuilder
+    private var GymnasticsInfoView: some View {
+        // Status indicator
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Gymnastics Information")
+                .font(.title)
+                .fontWeight(.bold)
+                .padding(.bottom, 4)
+            
+     
+            // Display Movement Type
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(.gray)
+                    .frame(width: 8, height: 8)
+                
+                Text("Routine Type: Tkatchev Piked")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Divider()
+            
+            // Movement Class
+            HStack(spacing: 4) {
+                // Check if keypoints actually exist
+                Circle()
+                    .fill(.gray)
+                    .frame(width: 8, height: 8)
+                
+                Text("Routine Class: D")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Divider()
+            
+            // Flight Time
+            if let startIdx = mediaManager.EventsData.flightStartPoseIdx, let endIdx = mediaManager.EventsData.flightEndPoseIdx {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 8, height: 8)
+                    
+                    let flightTimeMs = Double(endIdx - startIdx) / mediaManager.fps * 1000
+                    Text("Flight Time: \(String(format: "%.1f", flightTimeMs)) ms")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Divider()
+            
+            // Flight Height
+            if let peakIdx = mediaManager.EventsData.peakFlightIdx {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 8, height: 8)
+                    
+                    let flightHeight = mediaManager.FeaturesData[peakIdx]?.headHeightM ?? 0.0
+                    Text("Flight Height: \(String(format: "%.2f", flightHeight)) m")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Divider()
+            
+            // Flight Height
+            if mediaManager.EventsData.rotationDir != "" {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 8, height: 8)
+                    
+                    Text("Swing Rotation: \(mediaManager.EventsData.rotationDir)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
             Spacer()
         }
     }

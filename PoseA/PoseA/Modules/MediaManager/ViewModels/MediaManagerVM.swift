@@ -50,6 +50,10 @@ class MediaManagerVM {
     private var _EventsData: EventsModel = EventsModel(rotationDir: "")
     var EventsData: EventsModel { _EventsData }
     
+    // Single source of truth for posture data comparison
+    private var _PostureData: [PostureData] = []
+    var PostureData: [PostureData] { _PostureData }
+    
     var currentFrameImage: UIImage? { mediaPlayerVM.currentFrameImage }
     var currentFrameIndex: Int { mediaPlayerVM.currentFrameIndex }
 
@@ -101,6 +105,13 @@ class MediaManagerVM {
         _EventsData = data
         
         log("Updated Event data from \(source)", level: .info)
+    }
+
+    // Updates events frame index data from any source
+    func updatePostureData(_ data: [PostureData], source: DataSource) {
+        _PostureData = data
+        
+        log("Updated posture data from \(source)", level: .info)
     }
     
     // Clears all processed data (useful when switching between file/processing modes)

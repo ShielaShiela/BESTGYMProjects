@@ -27,7 +27,6 @@ class RealtimePoseJointViewModel {
     var barPoints: Point3D? = nil
     
     var chartData: [ChartData2D] = []
-    var chartData3D: [ChartData3D] = []
     
     var isAthleteBar: Bool = false
     var distToBar: Double? = nil
@@ -258,7 +257,6 @@ class RealtimePoseJointViewModel {
                                    repeating: 0.05) // 20 fps
         chartUpdateTimer?.setEventHandler { [weak self] in
             self?.publishChartData()
-            if #available(iOS 26, *) { self?.publishChartData3D() }
         }
         chartUpdateTimer?.resume()
     }
@@ -281,29 +279,6 @@ class RealtimePoseJointViewModel {
             }
         }
     }
-    
-    // MARK: - Publish 3D Chart Data
-    private func publishChartData3D() {
-        bufferQueue.sync { [weak self] in
-            guard let self = self else { return }
-
-            let jointsToShow = availableJoints // or subset ["L Wrist","R Wrist","L Hip","R Hip"]
-            var newData3D: [ChartData3D] = []
-
-            for joint in jointsToShow {
-                guard let buffer = self.jointBuffers[joint], !buffer.isEmpty else { continue }
-
-                // Map xyzChartData → PointData3D
-                let points = ChartPoint3D(buffer.first!)
-                newData3D.append(ChartData3D(joint: joint, dataPoints: points))
-            }
-
-            DispatchQueue.main.async { [weak self] in
-                self?.chartData3D = newData3D
-            }
-        }
-    }
-
 
     private func calculateDataMetrics(from dataPoints: [Point2D]) -> dataMetrics {
         let xs = dataPoints.map { $0.x }

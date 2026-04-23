@@ -25,7 +25,7 @@ struct ChartView: View {
     // Initialize mock data for the chart
     let chartData: [ChartData2D]
     let pointData: [Point2D]
-    let currentFrame: Int?
+    let currentX: Double?
     let eventsData: EventsModel?
     
     let xAxisUnit: String
@@ -35,10 +35,10 @@ struct ChartView: View {
     @State private var baseXScale: ClosedRange<Double> = 0...0
     @State private var baseYScale: ClosedRange<Double> = 0...190
     
-    init(chartData: [ChartData2D], pointData: [Point2D] = [], currentFrame: Int?, eventsData: EventsModel? = nil, xAxisUnit: String = "", yAxisUnit: String = "") {
+    init(chartData: [ChartData2D], pointData: [Point2D] = [], currentX: Double?, eventsData: EventsModel? = nil, xAxisUnit: String = "", yAxisUnit: String = "") {
         self.chartData = chartData
         self.pointData = pointData
-        self.currentFrame = currentFrame
+        self.currentX = currentX
         self.eventsData = eventsData
         self.xAxisUnit = xAxisUnit
         self.yAxisUnit = yAxisUnit
@@ -52,7 +52,7 @@ struct ChartView: View {
                 if let events = eventsData {
                     // Release Phase (orange background)
                     if let releaseStart = events.releaseStartPoseIdx,
-                       let releaseEnd = events.releaseEndPosePhase {
+                       let releaseEnd = events.releaseEndPoseIdx {
                         RectangleMark(
                             xStart: .value("Start", releaseStart),
                             xEnd: .value("End", releaseEnd),
@@ -91,6 +91,14 @@ struct ChartView: View {
                             .foregroundStyle(.red.opacity(0.25))
                         .zIndex(-1)
                     }
+                    
+                    // Add 180 deg reference marker
+                    if let release180 = events.release180PoseIdx {
+                        RuleMark(x: .value("X", release180))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [5]))
+                            .foregroundStyle(.black.opacity(0.25))
+                        .zIndex(-1)
+                    }
                 }
                 
                 ForEach(pointData) { point in
@@ -110,13 +118,13 @@ struct ChartView: View {
                             series: .value("Joint", jointData.joint)
                         )
                         .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(jointData.color)
                         .interpolationMethod(.cardinal(tension: 0.4))
                     }
                 }
 
-                if let currentFrame = self.currentFrame {
-                    RuleMark(x: .value("X", currentFrame))
+                if let currentX = self.currentX {
+                    RuleMark(x: .value("X", currentX))
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [5]))
                         .foregroundStyle(.orange)
                 }
@@ -134,7 +142,7 @@ struct ChartView: View {
                         .foregroundStyle(.gray)
                     AxisValueLabel {
                         if let doubleValue = value.as(Double.self) {
-                            Text(String(format: "%.1f", doubleValue) + " \(xAxisUnit)")
+                            Text("\(doubleValue, specifier: "%.1f") \(xAxisUnit)")
                                 .foregroundStyle(.gray)
                         }
                     }
@@ -150,7 +158,7 @@ struct ChartView: View {
                         .foregroundStyle(.gray)
                     AxisValueLabel {
                         if let doubleValue = value.as(Double.self) {
-                            Text(String(format: "%.1f%", doubleValue) + " \(yAxisUnit)")
+                            Text("\(doubleValue, specifier: "%.1f") \(yAxisUnit)")
                                 .foregroundStyle(.gray)
                         }
                     }
@@ -178,14 +186,15 @@ struct ChartView: View {
     }
 
     private func getYValuesAtCurrentFrame() -> [(joint: String, yValue: Double)] {
-        guard let currentFrame = currentFrame else { return [] }
+        guard let currentX = currentX else { return [] }
+
         return chartData.compactMap { jointData in
-            let index = currentFrame - 1
-            if jointData.dataPoints.indices.contains(index) {
-                return (joint: jointData.joint, yValue: jointData.dataPoints[index].y)
-            } else {
+            guard let closestPoint = jointData.dataPoints.min(by: {
+                abs($0.x - currentX) < abs($1.x - currentX)
+            }) else {
                 return nil
             }
+            return (joint: jointData.joint, yValue: closestPoint.y)
         }
     }
     

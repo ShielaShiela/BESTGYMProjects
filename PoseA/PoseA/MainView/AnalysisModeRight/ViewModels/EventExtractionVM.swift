@@ -78,11 +78,20 @@ class EventsExtractionVM {
         
         // Do the rest detection if and only-if there are release phase
         var releaseFrameStart: Int? = nil
-        if let releaseFrameEnd = releaseFrameEnd, let hsFrame = hsFrame {            
+        var releaseFrame180: Int? = nil
+        if let releaseFrameEnd = releaseFrameEnd, let hsFrame = hsFrame {
             // Backtrack detection for releasing posture frame index
             releaseFrameStart = self.detectReleaseStart(frames: frames,
                                                         releaseFrame: releaseFrameEnd,
                                                         hsFrame: hsFrame) ?? (hsFrame + 1)
+            
+            // Forward detection for 180 deg release anchor
+            if let releaseFrameStart = releaseFrameStart {
+                releaseFrame180 = self.detectRelease180(frames: frames,
+                                                        releaseStart: releaseFrameStart,
+                                                        releaseEnd: releaseFrameEnd
+                )
+            }
         }
         
         // Detect rotation direction
@@ -126,8 +135,8 @@ class EventsExtractionVM {
             rotationDir: rotationDir,
             handstandPoseIdx: hsFrame,
             releaseStartPoseIdx: releaseFrameStart,
-            releaseEndPosePhase: releaseFrameEnd,
-            release180PoseIdx: nil,
+            releaseEndPoseIdx: releaseFrameEnd,
+            release180PoseIdx: releaseFrame180,
             flightStartPoseIdx: releaseFrameEnd == nil ? nil : releaseFrameEnd! + 1,
             flightEndPoseIdx: flightFrameEnd,
             ankleCrossIdx: ankleCrossFrame,
@@ -210,7 +219,24 @@ class EventsExtractionVM {
         let relIdx = self.backtrack(frames: frames, candidateIdx: candidateIdx)
         return frames[relIdx].frameIdx
     }
+    
+    private func detectRelease180(frames: [FeaturesModel], releaseStart: Int, releaseEnd: Int) -> Int? {
+        var bestFrame: Int?   = nil
+        var bestVal:   Double = .greatestFiniteMagnitude
 
+        for f in frames where f.frameIdx >= releaseStart && f.frameIdx <= releaseEnd {
+            let angle = mod360(f.comAngle)
+            if angle < 90 || angle > 270 { continue }
+
+            let angleDist = abs(angle - 180.0)
+            if angleDist < bestVal {
+                bestVal   = angleDist
+                bestFrame = f.frameIdx
+            }
+        }
+        return bestFrame
+    }
+    
     // Forward scan: MIN_CONSECUTIVE frames all meeting forward thresholds.
     private func findCandidate(frames: [FeaturesModel], from start: Int) -> Int? {
         var consecutive = 0

@@ -85,7 +85,6 @@ struct DataMetricsView: View {
     
     private func updateChart() {
         self.chartBuilderVM.clearAllData()
-        self.chartBuilderVM.BuildDataMetricsData(selectedView: selectedOption)
     }
 }
 

@@ -38,19 +38,8 @@ class ChartBuilderVM {
         case .velocity:
             self.buildVelChartData(selectedOptions: selectedOptions)
             break
-        default:
-            break
-        }
-    }
-    
-    func BuildDataMetricsData(selectedView: String?) {
-        switch(selectedView) {
-        case "Position":
-            break
-        case "Velocity":
-            break
-        case "Angle":
-            break
+        case .posture:
+            self.buildPostureChartData(selectedOptions: selectedOptions)
         default:
             break
         }
@@ -95,7 +84,8 @@ class ChartBuilderVM {
             ChartData2D(
                 joint: jointName,
                 dataPoints: points,
-                dataMetrics: calculateDataMetrics(from: points)
+                dataMetrics: calculateDataMetrics(from: points),
+                color: ChartColors[jointName] ?? .gray
             )
         }
     }
@@ -136,7 +126,8 @@ class ChartBuilderVM {
             ChartData2D(
                 joint: jointName,
                 dataPoints: points,
-                dataMetrics: calculateDataMetrics(from: points)
+                dataMetrics: calculateDataMetrics(from: points),
+                color: ChartColors[jointName] ?? .gray
             )
         }
     }
@@ -177,7 +168,59 @@ class ChartBuilderVM {
             ChartData2D(
                 joint: jointName,
                 dataPoints: points,
-                dataMetrics: calculateDataMetrics(from: points)
+                dataMetrics: calculateDataMetrics(from: points),
+                color: ChartColors[jointName] ?? .gray
+            )
+        }
+    }
+    
+    private func buildPostureChartData(selectedOptions: Set<String>) {
+        let PostureData = mediaManager.PostureData
+        var chartDataFirst: [String: [Point2D]] = [:]
+        var chartDataSecond: [String: [Point2D]] = [:]
+
+        for posture in PostureData {
+            let phase = posture.phase
+            
+            if selectedOptions.first == phase.label {
+                if chartDataFirst[phase.label] == nil {
+                    chartDataFirst[phase.label] = []
+                }
+                if chartDataSecond[phase.label] == nil {
+                    chartDataSecond[phase.label] = []
+                }
+                for joint in posture.joints {
+                    if joint.key == .shoulder {
+                        chartDataFirst[joint.key.label+"_pts"] = joint.value.athlete.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataFirst[joint.key.label+"_refMean"] = joint.value.refMean.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataFirst[joint.key.label+"_refLower"] = joint.value.refLower.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataFirst[joint.key.label+"_refUpper"] = joint.value.refUpper.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                    } else if joint.key == .hip {
+                        chartDataSecond[joint.key.label+"_pts"] = joint.value.athlete.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataSecond[joint.key.label+"_refMean"] = joint.value.refMean.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataSecond[joint.key.label+"_refLower"] = joint.value.refLower.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataSecond[joint.key.label+"_refUpper"] = joint.value.refUpper.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                    }
+                }
+            }
+        }
+        
+        // Convert to ChartData2D array
+        self.chartDataFirst = chartDataFirst.map { (jointName, points) in
+            ChartData2D(
+                joint: jointName,
+                dataPoints: points,
+                dataMetrics: calculateDataMetrics(from: points),
+                color: ChartColors[jointName] ?? .gray
+            )
+        }
+        
+        self.chartDataSecond = chartDataSecond.map { (jointName, points) in
+            ChartData2D(
+                joint: jointName,
+                dataPoints: points,
+                dataMetrics: calculateDataMetrics(from: points),
+                color: ChartColors[jointName] ?? .gray
             )
         }
     }
@@ -197,4 +240,30 @@ class ChartBuilderVM {
             maxY: yValues.max() ?? 0
         )
     }
+    
+    // Joint colors for the graph
+    let ChartColors: [String: Color] = [
+        "Shoulder_pts": .gray,
+        "Shoulder_refMean": Color(red: 0.0, green: 1.0, blue: 0.0),
+        "Shoulder_refLower": Color(red: 118/255, green: 205/255, blue: 38/255),
+        "Shoulder_refUpper": Color(red: 118/255, green: 205/255, blue: 38/255),
+        
+        "Hip_pts": .gray,
+        "Hip_refMean": Color(red: 0.0, green: 1.0, blue: 0.0),
+        "Hip_refLower": Color(red: 118/255, green: 205/255, blue: 38/255),
+        "Hip_refUpper": Color(red: 118/255, green: 205/255, blue: 38/255),
+        
+        "Shoulder": Color(red: 1.0, green: 0.0, blue: 1.0),
+        "Hip": Color(red: 0.294, green: 0.0, blue: 0.510),
+        "Knee": Color(red: 243/255, green: 122/255, blue: 72/255),
+
+        "vArm": .yellow,
+        "vTorso": .blue,
+        "vThigh": .purple,
+        "vLowerLeg": .teal,
+        "CoM": .gray,
+        
+        "Head-Bar": .blue,
+        "Wrist-Bar": .red
+    ]
 }

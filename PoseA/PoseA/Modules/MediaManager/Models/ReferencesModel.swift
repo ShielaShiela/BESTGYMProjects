@@ -16,13 +16,13 @@ struct RefCurve: Codable {
 
 // MARK: - One phase's full reference data
 struct ReferencePhase: Codable {
-    var tGrid:         [Double]
+    var comGrid:         [Double]
     var shoulderAngle: RefCurve
     var hipAngle:      RefCurve
     var kneeAngle:     RefCurve
 
     enum CodingKeys: String, CodingKey {
-        case tGrid         = "t_grid"
+        case comGrid         = "com_grid"
         case shoulderAngle = "shoulder_angle"
         case hipAngle      = "hip_angle"
         case kneeAngle     = "knee_angle"
@@ -82,15 +82,18 @@ enum ReferenceLoadError: LocalizedError {
     }
 }
 
-// MARK: - Joint enum shared between Reference and Comparison layers
-enum CompareList: CaseIterable {
-    case shoulder, hip, knee
-
-    var label: String {
+// MARK: - CompareList Enum
+enum CompareList: String, CaseIterable, Codable {
+    case shoulder = "shoulder"
+    case hip = "hip"
+    case knee = "knee"
+    
+    var displayName: String {
         switch self {
         case .shoulder: return "Shoulder"
-        case .hip:      return "Hip"
-        case .knee:     return "Knee"
+        case .hip: return "Hip"
+        case .knee: return "Knee"
         }
     }
 }
+

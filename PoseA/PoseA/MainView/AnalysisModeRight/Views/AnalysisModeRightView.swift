@@ -33,8 +33,8 @@ struct AnalysisModeRightView: View {
         self._imageProcessingVM = State(initialValue: ImageProcessingVM(mediaManager: mediaManager))
         self._featuresExtractionVM = State(initialValue: FeaturesExtractionVM(mediaManager: mediaManager))
         self._eventsExtractionVM = State(initialValue: EventsExtractionVM(mediaManager: mediaManager))
-        self._postureProcessingVM = State(initialValue: PostureProcessingVM(mediaManager: mediaManager))
         self._gcnClassifierVM = State(initialValue: GCNClassifierVM(mediaManager: mediaManager))
+        self._postureProcessingVM = State(initialValue: PostureProcessingVM(mediaManager: mediaManager))
         self._chartBuilderVM = State(initialValue: ChartBuilderVM(mediaManager: mediaManager))
         
     }
@@ -174,10 +174,10 @@ struct AnalysisModeRightView: View {
                                gradient: Gradient(colors: [Color.blue, Color.cyan]),
                                startPoint: .topLeading,
                                endPoint: .bottomTrailing
-                           ).opacity(0.5)
+                           ).opacity(0.15)
                        )
                )
-               .shadow(color: Color.black.opacity(0.2), radius: 4, x: 2, y: 2)
+               .shadow(color: Color.black.opacity(0.1), radius: 4, x: 2, y: 2)
        }
    }
     
@@ -213,6 +213,7 @@ struct AnalysisModeRightView: View {
 
             let processedCount = mediaManager.keypointData.count
             let totalFrames    = mediaManager.mediaPlayerVM.totalFrames
+            exportKeypointsToJSON()
             log("Processing complete: \(processedCount)/\(totalFrames) frames", level: .debug)
 
             // Stage 2: Feature Extraction
@@ -224,12 +225,9 @@ struct AnalysisModeRightView: View {
             mediaManager.isKeypointAvailable = true
 
             try await featuresExtractionVM.buildFeatures()
-            exportFeaturesToJSON()
-            exportKeypointsToJSON()
 
             // Stage 3: Event Extraction
             try await eventsExtractionVM.buildEvents()
-            exportEventsToJSON()
 
             // Stage 4: Skill Classification
             let (skillClassfication, err) = await gcnClassifierVM.classify()
@@ -248,7 +246,8 @@ struct AnalysisModeRightView: View {
                 let ref = try await ReferencesModel.loadFromBundle(named: skillClassfication.topLabel+"Ref")
                 try await postureProcessingVM.compare(reference: ref)
             }
-
+            
+            exportDataToJSON()
             appState.isProcessing = false
             appState.isAnalysisAvailable = true
 
@@ -262,82 +261,29 @@ struct AnalysisModeRightView: View {
     }
 }
 
-
 extension AnalysisModeRightView {
     
-    private func exportEventsToJSON() {
-        guard self.mediaManager.EventsData.rotationDir != "" else {
-            self.appState.informationMsg = InformationMessage(text: "No features available to export", type: .error)
-            return
-        }
-        
-        // Create output filename
-        let filename = "events.json"
-        
-        // Determine target directory
-        let fileManager = FileManager.default
-        var targetURL: URL
-
-        if let sourceURL = appState.sourceURL {
-            // Check if source URL is a directory or file
-            var isDirectory: ObjCBool = false
-            if fileManager.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory) {
-                if isDirectory.boolValue {
-                    // It's a directory, save directly in it
-                    targetURL = sourceURL.appendingPathComponent(filename)
-                } else {
-                    // It's a file, save in the same directory
-                    targetURL = sourceURL.deletingLastPathComponent().appendingPathComponent(filename)
-                }
-            } else {
-                // Source URL doesn't exist (unusual), fallback to documents directory
-                let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-                targetURL = documentsDirectory.appendingPathComponent(filename)
-            }
-        } else {
-            // Fallback to documents directory
-            let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-            targetURL = documentsDirectory.appendingPathComponent(filename)
-        }
-                
-        // Perform export in background
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                // First, make sure the parent directory exists
-                let directoryURL = targetURL.deletingLastPathComponent()
-                if !FileManager.default.fileExists(atPath: directoryURL.path) {
-                    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-                }
-                
-                // Export all frames to JSON
-                try self.eventsExtractionVM.exportEvents(to: targetURL)
-                
-                // Update UI on main thread
-                DispatchQueue.main.async {
-                    log("Successfully exported events idx to: \(targetURL.path)", level: .info)
-                }
-            } catch {
-                // Handle export error
-                DispatchQueue.main.async {
-                    self.appState.informationMsg = InformationMessage(text: "Failed to export event json, see logs.", type: .error)
-                    log("Error exporting events idx: \(targetURL)", level: .error)
-                }
-            }
-        }
-    }
-    
-    private func exportFeaturesToJSON() {
+    private func exportDataToJSON() {
         guard self.mediaManager.FeaturesData.count > 0 else {
             self.appState.informationMsg = InformationMessage(text: "No features available to export", type: .error)
             return
         }
         
+        guard self.mediaManager.EventsData.rotationDir != "" else {
+            self.appState.informationMsg = InformationMessage(text: "No event available to export", type: .error)
+            return
+        }
+        
         // Create output filename
-        let filename = "features.json"
+        let featureFile = "features.json"
+        let eventFile = "events.json"
+        let postureFile = "posture.json"
         
         // Determine target directory
         let fileManager = FileManager.default
-        var targetURL: URL
+        var featureURL: URL
+        var eventURL: URL
+        var postureURL: URL
 
         if let sourceURL = appState.sourceURL {
             // Check if source URL is a directory or file
@@ -345,43 +291,53 @@ extension AnalysisModeRightView {
             if fileManager.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory) {
                 if isDirectory.boolValue {
                     // It's a directory, save directly in it
-                    targetURL = sourceURL.appendingPathComponent(filename)
+                    featureURL = sourceURL.appendingPathComponent(featureFile)
+                    eventURL = sourceURL.appendingPathComponent(eventFile)
+                    postureURL = sourceURL.appendingPathComponent(postureFile)
                 } else {
                     // It's a file, save in the same directory
-                    targetURL = sourceURL.deletingLastPathComponent().appendingPathComponent(filename)
+                    featureURL = sourceURL.deletingLastPathComponent().appendingPathComponent(featureFile)
+                    eventURL = sourceURL.deletingLastPathComponent().appendingPathComponent(eventFile)
+                    postureURL = sourceURL.deletingLastPathComponent().appendingPathComponent(postureFile)
                 }
             } else {
                 // Source URL doesn't exist (unusual), fallback to documents directory
                 let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-                targetURL = documentsDirectory.appendingPathComponent(filename)
+                featureURL = documentsDirectory.appendingPathComponent(featureFile)
+                eventURL = documentsDirectory.appendingPathComponent(eventFile)
+                postureURL = documentsDirectory.appendingPathComponent(postureFile)
             }
         } else {
             // Fallback to documents directory
             let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-            targetURL = documentsDirectory.appendingPathComponent(filename)
+            featureURL = documentsDirectory.appendingPathComponent(featureFile)
+            eventURL = documentsDirectory.appendingPathComponent(eventFile)
+            postureURL = documentsDirectory.appendingPathComponent(postureFile)
         }
                 
         // Perform export in background
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 // First, make sure the parent directory exists
-                let directoryURL = targetURL.deletingLastPathComponent()
+                let directoryURL = featureURL.deletingLastPathComponent()
                 if !FileManager.default.fileExists(atPath: directoryURL.path) {
                     try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
                 }
                 
                 // Export all frames to JSON
-                try self.featuresExtractionVM.exportFeatures(to: targetURL)
+                try self.featuresExtractionVM.exportFeatures(to: featureURL)
+                try self.eventsExtractionVM.exportEvents(to: eventURL)
+                try self.postureProcessingVM.exportPosture(to: postureURL)
                 
                 // Update UI on main thread
                 DispatchQueue.main.async {
-                    log("Successfully exported features to: \(targetURL.path)", level: .info)
+                    log("Successfully exported files to: \(directoryURL.path)", level: .info)
                 }
             } catch {
                 // Handle export error
                 DispatchQueue.main.async {
-                    self.appState.informationMsg = InformationMessage(text: "Failed to export features, see logs.", type: .error)
-                    log("Error exporting features: \(targetURL)", level: .error)
+                    self.appState.informationMsg = InformationMessage(text: "Failed to export APP files, see logs.", type: .error)
+                    log("Error exporting files to: \(featureURL.deletingLastPathComponent().path)", level: .error)
                 }
             }
         }

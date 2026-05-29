@@ -5,34 +5,8 @@
 //  Created by Ardhika Maulidani on 4/21/26.
 //
 
-
 import Foundation
 import CoreGraphics
-
-// MARK: - Output types
-
-struct JointPostureData {
-    var feature:  CompareList
-    var athlete:  [CGPoint]   // raw athlete series          x=t(s), y=angle(°)
-    var refMean:  [CGPoint]   // reference mean              x=t(s), y=mean(°)
-    var refUpper: [CGPoint]   // reference mean + 1 std      x=t(s), y=(°)
-    var refLower: [CGPoint]   // reference mean − 1 std      x=t(s), y=(°)
-    var zScore:   [CGPoint]   // deviation from reference    x=t(s), y=z-score
-    var rmsZScore: Double?    // RMS z-score over window (quality scalar)
-}
-
-struct PostureData {
-    var phase:       ComparisonPhase
-    var anchorFrame: Int?
-    var joints:      [CompareList: JointPostureData]
-
-    subscript(joint: CompareList) -> JointPostureData? { joints[joint] }
-}
-
-enum ComparisonPhase {
-    case release, flight
-    var label:       String { self == .release ? "Release Phase" : "Flight Phase" }
-}
 
 @Observable
 class PostureProcessingVM {
@@ -42,7 +16,8 @@ class PostureProcessingVM {
         self.mediaManager = mediaManager
     }
 
-    // MARK: - Public function
+    // MARK: - Public
+
     func compare(reference: ReferencesModel) async throws {
         guard mediaManager.isMediaAvailable else {
             throw PipelineError.insufficientData(reason: "No media data is found")
@@ -56,14 +31,13 @@ class PostureProcessingVM {
 
         var result: [PostureData] = []
 
-        if let rel = buildPhaseComparison(reference: reference, phase: ComparisonPhase.release) {
+        if let rel = buildPhaseComparison(reference: reference, phase: .release) {
             result.append(rel)
         }
-        if let flt = buildPhaseComparison(reference: reference, phase: ComparisonPhase.flight) {
+        if let flt = buildPhaseComparison(reference: reference, phase: .flight) {
             result.append(flt)
         }
-        
-        // Update MediaManager with processed data
+
         let postureData = result
         await MainActor.run {
             mediaManager.updatePostureData(postureData, source: .processing)
@@ -71,118 +45,241 @@ class PostureProcessingVM {
     }
 
     // MARK: - Phase builder
-    private func buildPhaseComparison(reference: ReferencesModel, phase: ComparisonPhase) -> PostureData? {
-        let (windowStart, windowEnd, anchorFrame) = phaseRange(phase: phase)
+
+    private func buildPhaseComparison(reference: ReferencesModel,
+                                      phase: ComparisonPhase) -> PostureData? {
+        let (windowStart, windowEnd) = phaseRange(phase: phase)
         guard let start = windowStart, let end = windowEnd else { return nil }
 
-        let refPhase = phase == .release ? reference.release : reference.flight
-        var joints:  [CompareList: JointPostureData] = [:]
+        let refPhase  = phase == .release ? reference.release : reference.flight
+        let isRelease = phase == .release
+        var joints: [CompareList: JointPostureData] = [:]
 
         for feature in CompareList.allCases {
-            // 1. Athlete anchor-aligned series (raw, as plotted in plot_all)
-            let athlete = extractTimeSeries(feature:     feature,
-                                            windowStart: start,
-                                            windowEnd:   end,
-                                            anchorFrame: anchorFrame)
+            let athlete = extractComSeries(feature:     feature,
+                                           windowStart: start,
+                                           windowEnd:   end,
+                                           isRelease:   isRelease)
             guard !athlete.isEmpty else { continue }
 
-            // 2. Build comparison (reference band + z-score)
             if let joint = buildJointData(feature:  feature,
                                           athlete:  athlete,
-                                          refPhase: refPhase) {
+                                          refPhase: refPhase,
+                                          phase:    phase) {
                 joints[feature] = joint
             }
         }
 
-        return PostureData(phase: phase, anchorFrame: anchorFrame, joints: joints)
+        return PostureData(skill: reference.skill, phase: phase, joints: joints)
     }
 
-    // MARK: - Time series extraction
-    // Matches Python extract_series(): iterate window frames, shift by anchor.
+    // MARK: - CoM angle series extraction
 
-    private func extractTimeSeries(feature:     CompareList,
-                                   windowStart: Int,
-                                   windowEnd:   Int,
-                                   anchorFrame: Int?) -> [CGPoint] {
-        let anchor = anchorFrame ?? windowStart
-        var pts: [CGPoint] = []
-        
+    /// Extracts a [CGPoint] series where x = CoM angle (°, unwrapped) and y = joint angle (°).
+    /// Release phase applies range normalisation so all trials share the same starting band.
+    /// Flight phase skips normalisation because it legitimately starts near 300°.
+    private func extractComSeries(feature:     CompareList,
+                                  windowStart: Int,
+                                  windowEnd:   Int,
+                                  isRelease:   Bool) -> [CGPoint] {
+        var rawComs:   [Double] = []
+        var jointVals: [Double] = []
+
         for i in windowStart...windowEnd {
             guard let f = mediaManager.FeaturesData[i] else { continue }
-            let t = Double(i - anchor) / mediaManager.fps
-            pts.append(CGPoint(x: t, y: jointValue(f, feature: feature)))
+            rawComs.append(f.comAngle)
+            jointVals.append(jointValue(f, feature: feature))
         }
-        return pts
+
+        guard rawComs.count >= 2 else { return [] }
+
+        var coms = unwrapDeg(rawComs)
+        if isRelease { coms = normaliseComRange(coms) }
+
+        return zip(coms, jointVals).map { CGPoint(x: $0, y: $1) }
     }
 
     // MARK: - Joint comparison
+
     private func buildJointData(feature:  CompareList,
-                                 athlete:  [CGPoint],
-                                 refPhase: ReferencePhase) -> JointPostureData? {
+                                athlete:  [CGPoint],
+                                refPhase: ReferencePhase,
+                                phase:    ComparisonPhase) -> JointPostureData? {
         let refCurve = refPhase[feature]
-        guard !refPhase.tGrid.isEmpty,
-              refPhase.tGrid.count == refCurve.mean.count,
+        guard !refPhase.comGrid.isEmpty,
+              refPhase.comGrid.count == refCurve.mean.count,
               refCurve.mean.count == refCurve.std.count
         else { return nil }
 
-        let sorted = athlete.sorted { $0.x < $1.x }
-        let tMin   = sorted.first!.x
-        let tMax   = sorted.last!.x
+        // ── Step 1: sort by CoM angle ──────────────────────────────────────
+        var processed = athlete.sorted { $0.x < $1.x }
 
-        // Clip reference grid to athlete window
-        let clipped = refPhase.tGrid.indices.filter {
-            refPhase.tGrid[$0] >= tMin && refPhase.tGrid[$0] <= tMax
+        // ── Step 2: CCW → CW frame transformation ─────────────────────────
+
+        let isCCW = mediaManager.EventsData.rotationDir == "CCW"
+        if isCCW {
+            processed = processed
+                .map { CGPoint(x: 360.0 - $0.x, y: 360.0 - $0.y) }
+                .sorted { $0.x < $1.x }
+        }
+
+        // ── Step 3: align to reference revolution ──────────────────────────
+        let aligned = alignComShift(processed, refGrid: refPhase.comGrid)
+        let comMin  = aligned.first!.x
+        let comMax  = aligned.last!.x
+
+        // ── Step 4: clip reference to athlete CoM range ────────────────────
+        let clipped = refPhase.comGrid.indices.filter {
+            refPhase.comGrid[$0] >= comMin && refPhase.comGrid[$0] <= comMax
         }
         guard !clipped.isEmpty else { return nil }
 
-        // Build chart-ready CGPoint arrays for the reference band
+        // ── Step 5: build comparison series ───────────────────────────────
         var refMean:  [CGPoint] = []
         var refUpper: [CGPoint] = []
         var refLower: [CGPoint] = []
         var zScore:   [CGPoint] = []
 
         for i in clipped {
-            let t  = refPhase.tGrid[i]
-            let sd = refCurve.std[i]
+            let com = refPhase.comGrid[i]
+            let mu  = refCurve.mean[i]   // already in CW frame; athlete was transformed above
+            let sd  = refCurve.std[i]
 
-            let isCCW  = mediaManager.EventsData.rotationDir == "CCW"
-            let mu = isCCW ? 360.0 - refCurve.mean[i] : refCurve.mean[i]
-            
-            refMean.append(CGPoint(x: t, y: mu))
-            refUpper.append(CGPoint(x: t, y: mu + sd))
-            refLower.append(CGPoint(x: t, y: mu - sd))
+            refMean.append(CGPoint(x: com, y: mu))
+            refUpper.append(CGPoint(x: com, y: mu + sd))
+            refLower.append(CGPoint(x: com, y: mu - sd))
 
-            // Interpolate athlete onto this reference grid point
-            let athleteVal = linearInterp(x: t, pts: sorted)
+            let athleteVal = linearInterp(x: com, pts: aligned)
             let z = sd > 1e-9 ? (athleteVal - mu) / sd : 0.0
-            zScore.append(CGPoint(x: t, y: z))
+            zScore.append(CGPoint(x: com, y: z))
         }
 
-        // RMS z-score scalar
+        // ── Step 6: deviation detection ────────────────────────────────────
+        let rawDev = detectMagnitudeDevWindows(zScore: zScore)
+        let magDev = rawDev.map { dev in
+            DeviationModel(
+                tStart:     dev.tStart,
+                tEnd:       dev.tEnd,
+                duration:   dev.duration,
+                meanVal:    dev.meanVal,
+                direction:  dev.direction,
+                severity:   dev.severity,
+                suggestion: generateSuggestion(feature:   feature,
+                                               phase:     phase,
+                                               direction: dev.direction,
+                                               tStart:    dev.tStart,
+                                               tEnd:      dev.tEnd)
+            )
+        }
+
         let rms: Double? = zScore.isEmpty ? nil
             : sqrt(zScore.map { $0.y * $0.y }.reduce(0, +) / Double(zScore.count))
 
         return JointPostureData(feature:   feature,
-                                athlete:   sorted,
+                                athlete:   aligned,
                                 refMean:   refMean,
                                 refUpper:  refUpper,
                                 refLower:  refLower,
                                 zScore:    zScore,
+                                magDev:    magDev,
                                 rmsZScore: rms)
     }
 
-    // MARK: - Helpers
-
-    private func phaseRange(_ phase: ComparisonPhase? = nil,
-                             phase p: ComparisonPhase) -> (Int?, Int?, Int?) {
-        phaseRange(phase: p)
+    /// Shifts a sorted [CGPoint] series by the nearest whole revolution (0, ±360, ±720…)
+    /// so the series midpoint aligns with the reference grid midpoint.
+    private func alignComShift(_ pts: [CGPoint], refGrid: [Double]) -> [CGPoint] {
+        guard !pts.isEmpty, !refGrid.isEmpty else { return pts }
+        let refMid = (refGrid.first! + refGrid.last!) / 2.0
+        let ptsMid = (pts.first!.x   + pts.last!.x)  / 2.0
+        let shift  = 360.0 * ((refMid - ptsMid) / 360.0).rounded()
+        guard shift != 0.0 else { return pts }
+        return pts.map { CGPoint(x: $0.x + shift, y: $0.y) }
     }
 
-    private func phaseRange(phase: ComparisonPhase) -> (Int?, Int?, Int?) {
+    // MARK: - Deviation detection
+
+    private func detectMagnitudeDevWindows(zScore:         [CGPoint],
+                                           zThreshold:     Double = 1.0,
+                                           zSignificant:   Double = 2.0,
+                                           minSustainedDeg: Double = 10.0) -> [DeviationModel] {
+        guard zScore.count >= 2 else { return [] }
+
+        var results: [DeviationModel] = []
+
+        for direction in [DeviationDirection.above, DeviationDirection.below] {
+            var runStart: Int? = nil
+
+            func flush(from start: Int, to end: Int) {
+                let comStart = zScore[start].x
+                let comEnd   = zScore[end].x
+                let span     = comEnd - comStart
+                guard span >= minSustainedDeg else { return }
+
+                let zValues = zScore[start...end].map { $0.y }
+                let meanZ   = zValues.reduce(0, +) / Double(zValues.count)
+                let maxAbsZ = zValues.map { abs($0) }.max() ?? 0
+
+                results.append(DeviationModel(
+                    tStart:     comStart,
+                    tEnd:       comEnd,
+                    duration:   (span    * 10).rounded() / 10,
+                    meanVal:    (meanZ   * 100).rounded() / 100,
+                    direction:  direction,
+                    severity:   maxAbsZ >= zSignificant ? .significant : .notable,
+                    suggestion: ""
+                ))
+            }
+
+            for i in zScore.indices {
+                let z            = zScore[i].y
+                let isDeviation  = direction == .above ? z >= zThreshold : z <= -zThreshold
+
+                if isDeviation && runStart == nil {
+                    runStart = i
+                } else if !isDeviation, let start = runStart {
+                    flush(from: start, to: i - 1)
+                    runStart = nil
+                }
+            }
+            if let start = runStart {
+                flush(from: start, to: zScore.count - 1)
+            }
+        }
+
+        return results.sorted { $0.tStart < $1.tStart }
+    }
+
+    // MARK: - CoM angle helpers
+
+    /// Unwraps a sequence of angles in degrees, removing 360° jumps.
+    /// Example: [350, 5, 20] → [350, 365, 380]
+    private func unwrapDeg(_ angles: [Double]) -> [Double] {
+        guard angles.count >= 2 else { return angles }
+        var result = [angles[0]]
+        for a in angles.dropFirst() {
+            let raw  = a - result.last!
+            let diff = raw - 360.0 * floor((raw + 180.0) / 360.0)
+            result.append(result.last! + diff)
+        }
+        return result
+    }
+
+    /// Shifts release-phase trials that start above `threshold` down by 360°,
+    /// aligning trials that begin just before the top (~350°) with those that
+    /// begin just after (~0°–10°) so they share one continuous X range.
+    private func normaliseComRange(_ angles: [Double],
+                                   threshold: Double = 270.0) -> [Double] {
+        guard let first = angles.first, first > threshold else { return angles }
+        return angles.map { $0 - 360.0 }
+    }
+
+    // MARK: - Misc helpers
+
+    private func phaseRange(phase: ComparisonPhase) -> (Int?, Int?) {
         let e = mediaManager.EventsData
         switch phase {
-        case .release: return (e.releaseStartPoseIdx, e.releaseEndPoseIdx, e.release180PoseIdx)
-        case .flight:  return (e.flightStartPoseIdx,  e.flightEndPoseIdx,  e.ankleCrossIdx)
+        case .release: return (e.releaseStartPoseIdx, e.releaseEndPoseIdx)
+        case .flight:  return (e.flightStartPoseIdx,  e.flightEndPoseIdx)
         }
     }
 
@@ -194,11 +291,12 @@ class PostureProcessingVM {
         }
     }
 
-    /// Linear interpolation — clamps at endpoints, matching np.interp behaviour.
+    /// Linear interpolation over a sorted [CGPoint] array, clamping at endpoints.
     private func linearInterp(x: Double, pts: [CGPoint]) -> Double {
-        guard pts.count >= 2 else { return pts.first!.y }
-        if x <= pts.first!.x { return pts.first!.y }
-        if x >= pts.last!.x  { return pts.last!.y  }
+        guard pts.count >= 2   else { return pts.first!.y }
+        if x <= pts.first!.x   { return pts.first!.y }
+        if x >= pts.last!.x    { return pts.last!.y  }
+
         var lo = 0, hi = pts.count - 1
         while lo + 1 < hi {
             let mid = (lo + hi) / 2
@@ -209,13 +307,94 @@ class PostureProcessingVM {
     }
 }
 
-// MARK: - Convenience
+// MARK: - Export
 
-extension PostureData {
-    // Average RMS z-score across all joints (overall phase quality indicator).
-    var overallRmsZScore: Double? {
-        let scores = CompareList.allCases.compactMap { joints[$0]?.rmsZScore }
-        guard !scores.isEmpty else { return nil }
-        return scores.reduce(0, +) / Double(scores.count)
+extension PostureProcessingVM {
+    func exportPosture(to fileURL: URL) throws {
+        let postureData = mediaManager.PostureData
+        guard !postureData.isEmpty else { throw ExportImportError.invalidFormat }
+        try ExportImportManager.exportPosture(postureData: postureData, to: fileURL)
+    }
+}
+
+// MARK: - Suggestion generation
+extension PostureProcessingVM {
+
+    func generateSuggestion(feature:   CompareList,
+                            phase:     ComparisonPhase,
+                            direction: DeviationDirection,
+                            tStart:    Double,
+                            tEnd:      Double) -> String {
+        let action   = jointAction(feature: feature, phase: phase, direction: direction)
+        let landmark = comLandmark(phase: phase, comStart: tStart, comEnd: tEnd)
+        return "\(action) \(landmark)."
+    }
+
+    // MARK: Action verb
+    // .above → athlete angle > reference → more EXTENDED than expected
+    // .below → athlete angle < reference → more FLEXED than expected
+
+    private func jointAction(feature:   CompareList,
+                             phase:     ComparisonPhase,
+                             direction: DeviationDirection) -> String {
+        switch (phase, feature, direction) {
+
+        // ── Release phase ─────────────────────────────────────────────────
+        // H&Y (2007): hip flexion under the bar slightly earlier
+        case (.release, .hip, .below):   return "Flex the hips more"
+        case (.release, .hip, .above):   return "Delay the hip extension"
+        // H&Y (2007): shoulder extension earlier / larger flexion range
+        case (.release, .shoulder, .below): return "Extend the shoulders earlier"
+        case (.release, .shoulder, .above): return "Flex the shoulder through a greater range"
+        // Straight legs expected throughout the swing
+        case (.release, .knee, .below):  return "Keep the legs straighter"
+        case (.release, .knee, .above):  return "Avoid excessive knee tension"
+
+        // ── Flight phase ──────────────────────────────────────────────────
+        case (.flight, .hip, .below):    return "Tuck the hips more"
+        case (.flight, .hip, .above):    return "Open the hips earlier"
+        case (.flight, .shoulder, .below): return "Reach for the bar sooner"
+        case (.flight, .shoulder, .above): return "Delay the shoulder reach"
+        case (.flight, .knee, .below):   return "Keep the legs straight"
+        case (.flight, .knee, .above):   return "Extend the legs fully"
+        }
+    }
+
+    // MARK: Temporal landmark — now based on CoM angle (°)
+
+    private func comLandmark(phase:    ComparisonPhase,
+                             comStart: Double,
+                             comEnd:   Double) -> String {
+        let comMid = (comStart + comEnd) / 2.0
+
+        switch phase {
+        case .release:
+            // Release phase normalised: spans roughly 0° → 310°
+            switch comMid {
+            case ..<60:
+                return "near the top of the bar"
+            case 60..<150:
+                return "approaching the bar"
+            case 150..<210:
+                return "beneath the bar"
+            case 210..<270:
+                return "rising from the bar"
+            default:
+                return "prior to release"
+            }
+
+        case .flight:
+            // Flight phase not normalised: spans roughly 300° → 400°
+            switch comMid {
+            case ..<315:
+                return "before the ankles cross the bar"
+            case 315..<335:
+                return "as the ankles cross the bar"
+            case 335..<365:
+                return "during mid-flight"
+            default:
+                return "approaching the regrasp"
+            }
+        }
     }
 }

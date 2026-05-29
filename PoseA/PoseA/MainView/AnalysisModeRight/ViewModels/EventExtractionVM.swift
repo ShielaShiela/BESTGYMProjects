@@ -447,16 +447,4 @@ extension EventsExtractionVM {
             to: fileURL
         )
     }
-    
-    func importEvents(from fileURL: URL) throws {
-        let eventsData = try ExportImportManager.importEvents(from: fileURL)
-        
-        // Update the internal data
-        self.processedEvents = eventsData
-        
-        // Update MediaManager with imported data
-        Task { @MainActor in
-            mediaManager.updateEventsData(self.processedEvents, source: .file)
-        }
-    }
 }

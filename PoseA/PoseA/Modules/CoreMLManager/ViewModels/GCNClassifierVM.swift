@@ -40,26 +40,21 @@ class GCNClassifierVM {
     // Optional velocities use ?? 0.0 to match Python frame_to_graph()'s
     // nan/None → 0.0 behaviour.
     private typealias Extractor = (FeaturesModel) -> Double
-
+    
     private var nodeFeatureMap: [[Extractor?]] = [
         // Node 0: bar_top
         [nil, nil, { $0.barSpringLenM }, nil, nil, nil, nil, nil],
         // Node 1: wrist
-        [{ $0.vArmAngle }, { $0.armActualLenM }, { $0.armSpringDeflectionM },
-         { $0.barSpringLenM }, { $0.vArmAngleVel ?? 0.0 }, nil, nil, nil],
+        [{ $0.vArmAngle }, { $0.armActualLenM }, { $0.vArmAngleVel ?? 0.0 }, nil, nil, nil, nil, nil],
         // Node 2: shoulder
-        [{ $0.shoulderAngle }, { $0.armRestLenM }, { $0.upperArmLenM },
-         { $0.forearmLenM }, { $0.shoulderAngleVel ?? 0.0 }, nil, nil, nil],
+        [{ $0.shoulderAngle }, { $0.shoulderAngleVel ?? 0.0 }, nil, nil, nil, nil, nil, nil],
         // Node 3: hip
-        [{ $0.hipAngle }, { $0.torsoLenM }, { $0.vTorsoAngle },
-         { $0.comAngle }, { $0.hipAngleVel ?? 0.0 }, { $0.vTorsoAngleVel ?? 0.0 },
-         { $0.headHeightM }, nil],
+        [{ $0.hipAngle }, { $0.vTorsoAngle }, { $0.comAngle }, { $0.headHeightM },
+         { $0.hipAngleVel ?? 0.0 }, { $0.vTorsoAngleVel ?? 0.0 }, nil, nil],
         // Node 4: knee
-        [{ $0.kneeAngle }, { $0.thighLenM }, { $0.vThighAngle },
-         nil, { $0.kneeAngleVel ?? 0.0 }, { $0.vThighAngleVel ?? 0.0 }, nil, nil],
+        [{ $0.kneeAngle }, { $0.vThighAngle }, { $0.kneeAngleVel ?? 0.0 }, { $0.vThighAngleVel ?? 0.0 }, nil, nil, nil, nil],
         // Node 5: ankle
-        [{ $0.lowerLegLenM }, { $0.vLowerLegAngle },
-         nil, nil, { $0.vLowerLegAngleVel ?? 0.0 }, nil, nil, nil],
+        [{ $0.vLowerLegAngle }, { $0.vLowerLegAngleVel ?? 0.0 }, nil, nil, nil, nil, nil, nil],
     ]
 
     // MARK: - Init

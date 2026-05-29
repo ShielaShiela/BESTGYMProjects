@@ -333,17 +333,4 @@ extension FeaturesExtractionVM {
             to: fileURL
         )
     }
-    
-    func importFeatures(from fileURL: URL) throws {
-        let (featuresData, scale) = try ExportImportManager.importFeatures(from: fileURL)
-        
-        // Update the internal data
-        processedFeatures = featuresData
-        processedScale = scale
-        
-        // Update MediaManager with imported data
-        Task { @MainActor in
-            mediaManager.updateFeaturesData(featuresData, source: .file)
-        }
-    }
 }

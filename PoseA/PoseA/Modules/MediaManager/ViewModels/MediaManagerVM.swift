@@ -243,6 +243,7 @@ class MediaManagerVM {
                 let comURL = findFile(named: "com.json", in: contents)
                 let featuresURL = findFile(named: "features.json", in: contents)
                 let eventsURL = findFile(named: "events.json", in: contents)
+                let postureURL = findFile(named: "posture.json", in: contents)
                 let recordingMetadataURL = findFile(named: "recording_metadata.json", in: contents)
                 
                 // Check for frame directories
@@ -298,6 +299,7 @@ class MediaManagerVM {
                    let comURL = comURL,
                    let featuresURL = featuresURL,
                    let eventsURL = eventsURL,
+                   let postureURL = postureURL,
                    autoDetectKeypoints{
                     log("Found APP file in folder.", level: .debug)
                     
@@ -313,6 +315,7 @@ class MediaManagerVM {
                     try self.importFileVM.loadCoM(from: comURL)
                     try self.importFileVM.loadFeatures(from: featuresURL)
                     try self.importFileVM.loadEvents(from: eventsURL)
+                    try self.importFileVM.loadPosture(from: postureURL)
                 }
                 
                 // Load metadata from folders
@@ -327,7 +330,8 @@ class MediaManagerVM {
                 }
                 
                 // Wait for media availability
-                await self.watchMediaAvailability(expectKeypoints: ((keypointURL != nil) && autoDetectKeypoints))
+                let mediaAvaiability = comURL != nil && keypointURL != nil && featuresURL != nil && eventsURL != nil && postureURL != nil
+                await self.watchMediaAvailability(expectKeypoints: (mediaAvaiability && autoDetectKeypoints))
                 self.isDataTemp = false
                 self.fps = self.importFileVM.fps
                 
@@ -503,6 +507,7 @@ class MediaManagerVM {
                 updateFeaturesData(importFileVM.featuresData, source: .file)
                 updateBarData(importFileVM.barData, source: .file)
                 updateEventsData(importFileVM.eventsData, source: .file)
+                updatePostureData(importFileVM.postureData, source: .file)
                 
                 isKeypointAvailable = true
                 log("Successfully loaded Keypoints frame data.", level: .debug)

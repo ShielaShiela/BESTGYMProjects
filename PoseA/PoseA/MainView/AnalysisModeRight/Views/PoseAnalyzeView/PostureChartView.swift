@@ -2,7 +2,7 @@
 //  ChartView.swift
 //  PoseA
 //
-//  Created by Ardhika Maulidani on 7/17/25.
+//  Created by Ardhika Maulidani on 7/15/25.
 //
 
 import SwiftUI
@@ -17,7 +17,7 @@ private extension Comparable {
 
 // MARK: - ChartView
 
-struct ChartView: View {
+struct PostureChartView: View {
     // MARK: Constants
     private let offWhite         = Color(hex: 0xEBE8EB)
     private let minZoom: Double  = 0.5   // can see at most 2× full range
@@ -26,9 +26,8 @@ struct ChartView: View {
 
     // MARK: Inputs
     let chartData:   [ChartData2D]
-    let pointData:   [Point2D]
     let currentX:    Double?
-    let eventsData:  EventsModel?
+    let deviationData:  [DeviationModel]
     let xAxisUnit:   String
     let yAxisUnit:   String
 
@@ -77,27 +76,23 @@ struct ChartView: View {
         return niceStep * magnitude
     }
 
-    // Number of decimal places to show for a given stride value so labelsbare neither truncated nor unnecessarily verbose.
     private func xAxisDecimalPlaces(for stride: Double) -> Int {
         guard stride > 0 else { return 2 }
         let places = Int(ceil(-log10(stride)))
         return max(0, places)
     }
 
-    // MARK: Init
-
+    // MARK: - Init
     init(
         chartData:   [ChartData2D],
-        pointData:   [Point2D]    = [],
         currentX:    Double?,
-        eventsData:  EventsModel? = nil,
+        deviationData: [DeviationModel] = [],
         xAxisUnit:   String       = "",
         yAxisUnit:   String       = ""
     ) {
         self.chartData   = chartData
-        self.pointData   = pointData
         self.currentX    = currentX
-        self.eventsData  = eventsData
+        self.deviationData = deviationData
         self.xAxisUnit   = xAxisUnit
         self.yAxisUnit   = yAxisUnit
     }
@@ -123,9 +118,9 @@ struct ChartView: View {
     private var chartContent: some View {
         Chart {
             eventMarks
-            pointMarks
             lineMarks
             currentXMark
+            bandMarks
         }
         .chartXScale(domain: visibleXScale)
         .chartYScale(domain: baseYScale)
@@ -200,82 +195,29 @@ struct ChartView: View {
 
     @ChartContentBuilder
     private var eventMarks: some ChartContent {
-        if let events = eventsData {
-            releasePhase(events)
-            flightPhase(events)
-            handstandLine(events)
-            peakFlightLine(events)
-            release180Line(events)
+        if !self.deviationData.isEmpty {
+            ForEach(deviationData.indices, id: \.self) { index in
+                let event = deviationData[index]
+                deviationPhase(event)
+            }
         }
     }
 
     @ChartContentBuilder
-    private func releasePhase(_ e: EventsModel) -> some ChartContent {
-        if let start = e.releaseStartPoseIdx, let end = e.releaseEndPoseIdx {
-            RectangleMark(
-                xStart: .value("Start", start), xEnd: .value("End",   end),
-                yStart: .value("Y Min", baseYScale.lowerBound),
-                yEnd:   .value("Y Max", baseYScale.upperBound)
-            )
-            .foregroundStyle(.orange.opacity(0.2))
-            .zIndex(-1)
-        }
-    }
-
-    @ChartContentBuilder
-    private func flightPhase(_ e: EventsModel) -> some ChartContent {
-        if let start = e.flightStartPoseIdx, let end = e.flightEndPoseIdx {
-            RectangleMark(
-                xStart: .value("Start", start), xEnd: .value("End",   end),
-                yStart: .value("Y Min", baseYScale.lowerBound),
-                yEnd:   .value("Y Max", baseYScale.upperBound)
-            )
-            .foregroundStyle(.blue.opacity(0.2))
-            .zIndex(-1)
-        }
-    }
-
-    @ChartContentBuilder
-    private func handstandLine(_ e: EventsModel) -> some ChartContent {
-        if let x = e.handstandPoseIdx {
-            RuleMark(x: .value("Handstand", x))
-                .lineStyle(StrokeStyle(lineWidth: 1, dash: [5]))
-                .foregroundStyle(.black.opacity(0.25))
-                .zIndex(-1)
-        }
-    }
-
-    @ChartContentBuilder
-    private func peakFlightLine(_ e: EventsModel) -> some ChartContent {
-        if let x = e.peakFlightIdx {
-            RuleMark(x: .value("Peak Flight", x))
-                .lineStyle(StrokeStyle(lineWidth: 1, dash: [5]))
-                .foregroundStyle(.red.opacity(0.25))
-                .zIndex(-1)
-        }
-    }
-
-    @ChartContentBuilder
-    private func release180Line(_ e: EventsModel) -> some ChartContent {
-        if let x = e.release180PoseIdx {
-            RuleMark(x: .value("Release 180°", x))
-                .lineStyle(StrokeStyle(lineWidth: 1, dash: [5]))
-                .foregroundStyle(.black.opacity(0.25))
-                .zIndex(-1)
-        }
+    private func deviationPhase(_ e: DeviationModel) -> some ChartContent {
+        let start = e.tStart
+        let end = e.tEnd
+        
+        RectangleMark(
+            xStart: .value("Start", start), xEnd: .value("End",   end),
+            yStart: .value("Y Min", baseYScale.lowerBound),
+            yEnd:   .value("Y Max", baseYScale.upperBound)
+        )
+        .foregroundStyle(e.severity == .notable ? Color.orange.opacity(0.1) : Color.red.opacity(0.1))
+        .zIndex(-1)
     }
 
     // MARK: – Data Marks
-
-    @ChartContentBuilder
-    private var pointMarks: some ChartContent {
-        ForEach(pointData) { point in
-            PointMark(x: .value("X", point.x), y: .value("Y", point.y))
-                .foregroundStyle(.green)
-                .symbolSize(100)
-        }
-    }
-
     @ChartContentBuilder
     private var lineMarks: some ChartContent {
         ForEach(chartData, id: \.joint) { joint in
@@ -302,7 +244,6 @@ struct ChartView: View {
     }
 
     // MARK: – Axis Marks
-
     private var xAxisMarks: some AxisContent {
         let stride  = xAxisStride
         let decimals = xAxisDecimalPlaces(for: stride)
@@ -347,7 +288,7 @@ struct ChartView: View {
             ForEach(yValuesAtCurrentFrame, id: \.joint) { item in
                 Text(String(format: "%@ = %.2f", item.joint, item.yValue))
                     .font(.caption)
-                    .foregroundStyle(item.color)
+                    .foregroundStyle(.gray.opacity(0.75))
             }
         }
         .padding([.top, .trailing], 8)
@@ -372,11 +313,17 @@ struct ChartView: View {
     }
 
     private func calculateScales() {
-        let metrics = chartData.map(\.dataMetrics)
-        let minX = metrics.map(\.minX).min() ?? 0
-        let maxX = metrics.map(\.maxX).max() ?? 1
-        let minY = metrics.map(\.minY).min() ?? 0
-        let maxY = metrics.map(\.maxY).max() ?? 1
+        let validSeries = chartData.filter { series in
+            guard series.dataPoints.count >= 2 else { return false }
+            let xs = series.dataPoints.map(\.x)
+            return (xs.max() ?? 0) > (xs.min() ?? 0)   // reject flat/zero-width series
+        }
+        guard !validSeries.isEmpty else { return }
+        let metrics = validSeries.map(\.dataMetrics)
+        let minX    = metrics.map(\.minX).min()!
+        let maxX    = metrics.map(\.maxX).max()!
+        let minY    = metrics.map(\.minY).min()!
+        let maxY    = metrics.map(\.maxY).max()!
 
         let xPad = (maxX - minX) * 0.05
         let yPad = (maxY - minY) * 0.05
@@ -388,5 +335,31 @@ struct ChartView: View {
         xZoomScale         = 1.0
         zoomAtGestureStart = 1.0
         xScrollPosition    = minX - xPad
+    }
+    
+    // MARK: – Band Marks (±1σ reference fill)
+    // Fills the region between refLower and refUpper for every joint.
+    @ChartContentBuilder
+    private var bandMarks: some ChartContent {
+        jointBand("Shoulder")
+        jointBand("Hip")
+        jointBand("Knee")
+    }
+ 
+    @ChartContentBuilder
+    private func jointBand(_ joint: String) -> some ChartContent {
+        if let lower = chartData.first(where: { $0.joint == "\(joint)_refLower" }),
+           let upper = chartData.first(where: { $0.joint == "\(joint)_refUpper" }) {
+            let count = min(lower.dataPoints.count, upper.dataPoints.count)
+            ForEach(0..<count, id: \.self) { i in
+                AreaMark(
+                    x:      .value("X",     lower.dataPoints[i].x),
+                    yStart: .value("Lower", lower.dataPoints[i].y),
+                    yEnd:   .value("Upper", upper.dataPoints[i].y)
+                )
+                .foregroundStyle(Color(red: 118/255, green: 205/255, blue: 38/255).opacity(0.45))
+                .interpolationMethod(.cardinal(tension: 0.4))   // matches lineMarks
+            }
+        }
     }
 }

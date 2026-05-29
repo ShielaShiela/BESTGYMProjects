@@ -19,8 +19,9 @@ class ImportFileVM {
     var featuresData: [Int : FeaturesModel] = [:]
     var barData: [Int : CGPoint] = [:]
     var eventsData: EventsModel = EventsModel(rotationDir: "")
+    var postureData: [PostureData] = []
     var mediaMetadata: RecordingMetadata?
-
+    
     // Data Availability Status Flag
     var isDataLoaded: Bool = false
     var isKeyLoaded: Bool = false
@@ -255,6 +256,18 @@ class ImportFileVM {
         log("Successfully imported events frame index data", level: .info)
     }
     
+    func loadPosture(from url: URL) throws {
+        let importedPosture = try ExportImportManager.importPosture(from: url)
+        
+        // Update Published Variables
+        DispatchQueue.main.async { [self] in
+            // Set Data Value
+            self.postureData = importedPosture
+        }
+        
+        log("Successfully imported events frame index data", level: .info)
+        
+    }
     func loadMetadata(from metadataURL: URL) {
         guard FileManager.default.fileExists(atPath: metadataURL.path) else {
             log("Recording metadata file not found at: \(metadataURL.path)", level: .error)

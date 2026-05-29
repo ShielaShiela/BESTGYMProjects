@@ -19,7 +19,9 @@ class ChartBuilderVM {
     // Observable Variable
     var chartDataFirst: [ChartData2D] = []
     var chartDataSecond: [ChartData2D] = []
+    var chartDataThird: [ChartData2D] = []
     var pointData: [Point2D] = []
+    var deviationData: [String: [DeviationModel]] = [:]
     
     // MARK: - Init
     init(mediaManager: MediaManagerVM) {
@@ -178,7 +180,9 @@ class ChartBuilderVM {
         let PostureData = mediaManager.PostureData
         var chartDataFirst: [String: [Point2D]] = [:]
         var chartDataSecond: [String: [Point2D]] = [:]
-
+        var chartDataThird: [String: [Point2D]] = [:]
+        var deviationData: [String: [DeviationModel]] = [:]
+        
         for posture in PostureData {
             let phase = posture.phase
             
@@ -191,15 +195,32 @@ class ChartBuilderVM {
                 }
                 for joint in posture.joints {
                     if joint.key == .shoulder {
-                        chartDataFirst[joint.key.label+"_pts"] = joint.value.athlete.map { Point2D(x: Double($0.x), y: Double($0.y)) }
-                        chartDataFirst[joint.key.label+"_refMean"] = joint.value.refMean.map { Point2D(x: Double($0.x), y: Double($0.y)) }
-                        chartDataFirst[joint.key.label+"_refLower"] = joint.value.refLower.map { Point2D(x: Double($0.x), y: Double($0.y)) }
-                        chartDataFirst[joint.key.label+"_refUpper"] = joint.value.refUpper.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        // Line
+                        chartDataFirst[joint.key.displayName+"_pts"] = joint.value.athlete.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataFirst[joint.key.displayName+"_refMean"] = joint.value.refMean.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataFirst[joint.key.displayName+"_refLower"] = joint.value.refLower.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataFirst[joint.key.displayName+"_refUpper"] = joint.value.refUpper.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        
+                        // Deviation Window
+                        deviationData[joint.key.displayName] = joint.value.magDev
+                        
                     } else if joint.key == .hip {
-                        chartDataSecond[joint.key.label+"_pts"] = joint.value.athlete.map { Point2D(x: Double($0.x), y: Double($0.y)) }
-                        chartDataSecond[joint.key.label+"_refMean"] = joint.value.refMean.map { Point2D(x: Double($0.x), y: Double($0.y)) }
-                        chartDataSecond[joint.key.label+"_refLower"] = joint.value.refLower.map { Point2D(x: Double($0.x), y: Double($0.y)) }
-                        chartDataSecond[joint.key.label+"_refUpper"] = joint.value.refUpper.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataSecond[joint.key.displayName+"_pts"] = joint.value.athlete.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataSecond[joint.key.displayName+"_refMean"] = joint.value.refMean.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataSecond[joint.key.displayName+"_refLower"] = joint.value.refLower.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataSecond[joint.key.displayName+"_refUpper"] = joint.value.refUpper.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        
+                        // Deviation Window
+                        deviationData[joint.key.displayName] = joint.value.magDev
+                        
+                    } else if joint.key == .knee {
+                        chartDataThird[joint.key.displayName+"_pts"] = joint.value.athlete.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataThird[joint.key.displayName+"_refMean"] = joint.value.refMean.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataThird[joint.key.displayName+"_refLower"] = joint.value.refLower.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        chartDataThird[joint.key.displayName+"_refUpper"] = joint.value.refUpper.map { Point2D(x: Double($0.x), y: Double($0.y)) }
+                        
+                        // Deviation Window
+                        deviationData[joint.key.displayName] = joint.value.magDev
                     }
                 }
             }
@@ -223,6 +244,17 @@ class ChartBuilderVM {
                 color: ChartColors[jointName] ?? .gray
             )
         }
+        
+        self.chartDataThird = chartDataThird.map { (jointName, points) in
+            ChartData2D(
+                joint: jointName,
+                dataPoints: points,
+                dataMetrics: calculateDataMetrics(from: points),
+                color: ChartColors[jointName] ?? .gray
+            )
+        }
+        
+        self.deviationData = deviationData
     }
     
     private func calculateDataMetrics(from dataPoints: [Point2D]) -> dataMetrics {
@@ -244,14 +276,19 @@ class ChartBuilderVM {
     // Joint colors for the graph
     let ChartColors: [String: Color] = [
         "Shoulder_pts": .gray,
-        "Shoulder_refMean": Color(red: 0.0, green: 1.0, blue: 0.0),
-        "Shoulder_refLower": Color(red: 118/255, green: 205/255, blue: 38/255),
-        "Shoulder_refUpper": Color(red: 118/255, green: 205/255, blue: 38/255),
+        "Shoulder_refMean": Color(red: 0.0, green: 1.0, blue: 0.0).opacity(0.35),
+        "Shoulder_refLower": Color(red: 118/255, green: 205/255, blue: 38/255).opacity(0.35),
+        "Shoulder_refUpper": Color(red: 118/255, green: 205/255, blue: 38/255).opacity(0.35),
         
         "Hip_pts": .gray,
-        "Hip_refMean": Color(red: 0.0, green: 1.0, blue: 0.0),
-        "Hip_refLower": Color(red: 118/255, green: 205/255, blue: 38/255),
-        "Hip_refUpper": Color(red: 118/255, green: 205/255, blue: 38/255),
+        "Hip_refMean": Color(red: 0.0, green: 1.0, blue: 0.0).opacity(0.35),
+        "Hip_refLower": Color(red: 118/255, green: 205/255, blue: 38/255).opacity(0.35),
+        "Hip_refUpper": Color(red: 118/255, green: 205/255, blue: 38/255).opacity(0.35),
+        
+        "Knee_pts": .gray,
+        "Knee_refMean": Color(red: 0.0, green: 1.0, blue: 0.0).opacity(0.35),
+        "Knee_refLower": Color(red: 118/255, green: 205/255, blue: 38/255).opacity(0.35),
+        "Knee_refUpper": Color(red: 118/255, green: 205/255, blue: 38/255).opacity(0.35),
         
         "Shoulder": Color(red: 1.0, green: 0.0, blue: 1.0),
         "Hip": Color(red: 0.294, green: 0.0, blue: 0.510),

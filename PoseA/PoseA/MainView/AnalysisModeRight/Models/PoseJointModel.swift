@@ -72,16 +72,19 @@ var availableJoints: [String] {
 
 // Joint colors for the graph
 let jointColors: [String: Color] = [
-    "L Shoulder": .cyan,
-    "R Shoulder": .blue,
-    "L Elbow": .pink,
-    "R Elbow": .red,
-    "L Wrist": .brown,
-    "R Wrist": .indigo,
-    "L Hip": .orange,
-    "R Hip": .yellow,
-    "L Knee": .green,
-    "R Knee": .purple,
-    "L Ankle": .black,
-    "R Ankle": .gray
+    "Shoulder": Color(red: 1.0, green: 0.0, blue: 1.0),
+    "Hip": Color(red: 0.294, green: 0.0, blue: 0.510),
+    "Knee": Color(red: 243/255, green: 122/255, blue: 72/255),
+
+    "vArm": .yellow,
+    "vTorso": .blue,
+    "vThigh": .purple,
+    "vLowerLeg": .teal,
+    "CoM": .gray,
+    
+    "Head-Bar": .blue,
+    "Wrist-Bar": .red,
+    
+    "Flight Phase": .gray,
+    "Release Phase": .gray,
 ]

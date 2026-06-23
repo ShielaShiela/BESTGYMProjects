@@ -317,7 +317,16 @@ extension PostureProcessingVM {
     }
 }
 
-// MARK: - Suggestion generation
+// MARK: - Suggestion Sentence Generation
+//
+// Evidence basis:
+//   Release hip / shoulder: Hiley & Yeadon (2007) Tkatchev biomechanical analysis.
+//   Flight phase:           Inferred from gymnastics biomechanics principles.
+//
+// Language principle:
+//   Short, athlete-perspective sentences — what they feel, not what a coach sees.
+//   Format: "<action> <when>."
+
 extension PostureProcessingVM {
 
     func generateSuggestion(feature:   CompareList,
@@ -326,11 +335,11 @@ extension PostureProcessingVM {
                             tStart:    Double,
                             tEnd:      Double) -> String {
         let action   = jointAction(feature: feature, phase: phase, direction: direction)
-        let landmark = comLandmark(phase: phase, comStart: tStart, comEnd: tEnd)
-        return "\(action) \(landmark)."
+        let when     = timing(phase: phase, comMid: (tStart + tEnd) / 2.0)
+        return "\(action) \(when)."
     }
 
-    // MARK: Action verb
+    // MARK: - Action
     // .above → athlete angle > reference → more EXTENDED than expected
     // .below → athlete angle < reference → more FLEXED than expected
 
@@ -338,62 +347,40 @@ extension PostureProcessingVM {
                              phase:     ComparisonPhase,
                              direction: DeviationDirection) -> String {
         switch (phase, feature, direction) {
-
-        // ── Release phase ─────────────────────────────────────────────────
-        // H&Y (2007): hip flexion under the bar slightly earlier
-        case (.release, .hip, .below):   return "Flex the hips more"
-        case (.release, .hip, .above):   return "Delay the hip extension"
-        // H&Y (2007): shoulder extension earlier / larger flexion range
-        case (.release, .shoulder, .below): return "Extend the shoulders earlier"
-        case (.release, .shoulder, .above): return "Flex the shoulder through a greater range"
-        // Straight legs expected throughout the swing
-        case (.release, .knee, .below):  return "Keep the legs straighter"
-        case (.release, .knee, .above):  return "Avoid excessive knee tension"
-
-        // ── Flight phase ──────────────────────────────────────────────────
-        case (.flight, .hip, .below):    return "Tuck the hips more"
-        case (.flight, .hip, .above):    return "Open the hips earlier"
+        // ── Release ───────────────────────────────────────────────────────
+        case (.release, .hip,      .below): return "Pull your hips in more"
+        case (.release, .hip,      .above): return "Hold your hip bend longer"
+        case (.release, .shoulder, .below): return "Engage your shoulders earlier"
+        case (.release, .shoulder, .above): return "Let your shoulders open wider"
+        case (.release, .knee,     .below): return "Keep your legs straight"
+        case (.release, .knee,     .above): return "Relax the knee tension"
+        // ── Flight ────────────────────────────────────────────────────────
+        case (.flight, .hip,      .below): return "Pull into your tuck sooner"
+        case (.flight, .hip,      .above): return "Open your hips earlier"
         case (.flight, .shoulder, .below): return "Reach for the bar sooner"
-        case (.flight, .shoulder, .above): return "Delay the shoulder reach"
-        case (.flight, .knee, .below):   return "Keep the legs straight"
-        case (.flight, .knee, .above):   return "Extend the legs fully"
+        case (.flight, .shoulder, .above): return "Wait before reaching for the bar"
+        case (.flight, .knee,     .below): return "Straighten your legs"
+        case (.flight, .knee,     .above): return "Ease the leg tension"
         }
     }
 
-    // MARK: Temporal landmark — now based on CoM angle (°)
-
-    private func comLandmark(phase:    ComparisonPhase,
-                             comStart: Double,
-                             comEnd:   Double) -> String {
-        let comMid = (comStart + comEnd) / 2.0
-
+    // MARK: - Timing
+    private func timing(phase: ComparisonPhase, comMid: Double) -> String {
         switch phase {
         case .release:
-            // Release phase normalised: spans roughly 0° → 310°
             switch comMid {
-            case ..<60:
-                return "near the top of the bar"
-            case 60..<150:
-                return "approaching the bar"
-            case 150..<210:
-                return "beneath the bar"
-            case 210..<270:
-                return "rising from the bar"
-            default:
-                return "prior to release"
+            case ..<60:    return "when you're upside down at the top"
+            case 60..<150: return "as you swing down"
+            case 150..<210: return "as you swing pass the bar"
+            case 210..<270: return "as you swing back up"
+            default:        return "just before you release"
             }
-
         case .flight:
-            // Flight phase not normalised: spans roughly 300° → 400°
             switch comMid {
-            case ..<315:
-                return "before the ankles cross the bar"
-            case 315..<335:
-                return "as the ankles cross the bar"
-            case 335..<365:
-                return "during mid-flight"
-            default:
-                return "approaching the regrasp"
+            case ..<315:    return "the moment you release"
+            case 315..<335: return "as your feet pass over the bar"
+            case 335..<365: return "at the top of your flight"
+            default:        return "as you reach back for the bar"
             }
         }
     }
